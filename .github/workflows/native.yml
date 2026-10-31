@@ -18,8 +18,13 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
       - name: Test device selection and private HTTP protocol
         run: python3 -m unittest discover -s coordination/tests -v
+      - name: Test native client services against the real coordination server
+        run: python3 coordination/tests/native_http.py
       - uses: actions/upload-artifact@v4
         with:
           name: DeveloperPresence-private-linking-service

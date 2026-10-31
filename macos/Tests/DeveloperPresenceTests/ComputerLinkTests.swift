@@ -65,6 +65,9 @@ final class ComputerLinkTests: XCTestCase {
                 let text = String(data: request.httpBody!, encoding: .utf8)!
                 XCTAssertFalse(text.contains("123456789012345678"))
                 XCTAssertFalse(text.contains("T3"))
+                let report = try JSONSerialization.jsonObject(with: request.httpBody!) as! [String: Any]
+                XCTAssertEqual(report["accountKey"] as? String,
+                               "a4adae67e21986f12976565465c96c755c68618c6e6d552ac0d720aa7ec65821")
                 body = #"{"allowed":true,"validFor":15,"generation":1,"selectedName":"My Mac","switching":false}"#
             } else { body = #"{"removed":true}"# }
             return (Data(body.utf8), HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)

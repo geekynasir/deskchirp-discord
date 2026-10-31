@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using DeveloperPresence.Core.Computers;
@@ -86,6 +87,9 @@ public sealed class ComputerLinkTests
         var body = handler.Calls.First(x => x.Path == "/v1/heartbeat").Body;
         Assert.DoesNotContain("123456789012345678", body);
         Assert.DoesNotContain("T3", body);
+        using var report = JsonDocument.Parse(body);
+        Assert.Equal("a4adae67e21986f12976565465c96c755c68618c6e6d552ac0d720aa7ec65821",
+            report.RootElement.GetProperty("accountKey").GetString());
     }
 
     [Fact]
@@ -161,5 +165,39 @@ public sealed class ComputerLinkTests
         Assert.True(settings.Settings.FollowComputers);
         Assert.False(service.CanPublish);
         await service.StopAsync();
+    }
+
+    [Fact]
+    public async Task RealHttpEnrollmentUsesBoundedContentLengthRatherThanChunkedJson()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var server = Task.Run(async () => {
+            using var connection = await listener.AcceptTcpClientAsync(deadline.Token);
+            await using var stream = connection.GetStream();
+            var bytes = new List<byte>(); var one = new byte[1];
+            while (bytes.Count < 8192) {
+                await stream.ReadExactlyAsync(one, deadline.Token); bytes.Add(one[0]);
+                if (bytes.Count >= 4 && Encoding.ASCII.GetString(bytes.TakeLast(4).ToArray()) == "\r\n\r\n") break;
+            }
+            var headers = Encoding.ASCII.GetString(bytes.ToArray());
+            var lengthLine = headers.Split("\r\n").FirstOrDefault(x => x.StartsWith("Content-Length:", StringComparison.OrdinalIgnoreCase));
+            bool bounded = lengthLine != null && !headers.Contains("Transfer-Encoding:", StringComparison.OrdinalIgnoreCase);
+            if (bounded) {
+                int length = int.Parse(lengthLine!.Split(':')[1].Trim());
+                Assert.InRange(length, 1, 4096);
+                var body = new byte[length]; await stream.ReadExactlyAsync(body, deadline.Token);
+                Assert.Equal("test-code", JsonDocument.Parse(body).RootElement.GetProperty("code").GetString());
+            }
+            string reply = JsonSerializer.Serialize(new { deviceId = "test_device_123456", groupId = "test_group_123456", token = "test_token_123456789012" });
+            string response = $"HTTP/1.1 {(bounded ? "200 OK" : "413 Payload Too Large")}\r\nContent-Type: application/json\r\nContent-Length: {Encoding.UTF8.GetByteCount(reply)}\r\nConnection: close\r\n\r\n{reply}";
+            await stream.WriteAsync(Encoding.UTF8.GetBytes(response), deadline.Token);
+            return bounded;
+        }, deadline.Token);
+        var service = new ComputerLinkService(new TestSettings(), new InMemoryCredentialStore(), new Input());
+        await service.LinkAsync($"http://127.0.0.1:{((IPEndPoint)listener.LocalEndpoint).Port}", "test-code", "My PC", deadline.Token);
+        Assert.True(await server);
+        Assert.True(service.HasSavedLink);
     }
 }

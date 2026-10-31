@@ -56,6 +56,7 @@ Do not copy or back up the live SQLite files directly. Stop this service before 
 
 ```sh
 python3 -m unittest discover -s coordination/tests -v
+python3 coordination/tests/native_http.py
 ```
 
-The suite exercises mixed-computer selection, ties, simultaneous claims, old runtimes, unchanged input, idle/unavailable devices, expired codes, revocation, separate groups/accounts, restart quarantine, hashed tokens, invalid content, and a real loopback HTTP exchange. Native permission and coordinator tests cover the client gates. Real Mac/Windows/Discord acceptance is still required: a local acknowledgment does not prove the order of profile updates inside Discord. See [the acceptance contract](../spec/multiple-computers.md#release-acceptance).
+The suite exercises mixed-computer selection, ties, simultaneous claims, old runtimes, unchanged input, idle/unavailable devices, expired codes, revocation, separate groups/accounts, restart quarantine, hashed tokens, invalid content, and a real loopback HTTP exchange. The second command needs .NET 8 and tests two actual C# client services against the Python server, with simulated input and real grant expiry. It verifies enrollment, an idle peer staying quiet, the old client stopping, and exclusive takeover after expiry. Native permission and coordinator tests cover the publishing gates. Real Mac/Windows/Discord acceptance is still required: these tests do not prove the order of profile updates inside Discord. See [the acceptance contract](../spec/multiple-computers.md#release-acceptance).

@@ -1,4 +1,3 @@
-using System.Net.Http.Json;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
@@ -278,7 +277,8 @@ public sealed class ComputerLinkService : IComputerLinkService
         deadline.CancelAfter(TimeSpan.FromSeconds(4));
         ct = deadline.Token;
         using var request = new HttpRequestMessage(HttpMethod.Post, ComputerAddress.Normalize(server) + path);
-        request.Content = JsonContent.Create(body);
+        // The bounded private protocol requires Content-Length, not chunked JSON.
+        request.Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
         if (token != null) request.Headers.Authorization = new("Bearer", token);
         using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
         if (!response.IsSuccessStatusCode)
