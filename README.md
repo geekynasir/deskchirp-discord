@@ -23,17 +23,17 @@ App detection alone does not establish agent activity. T3 counts come from fresh
 
 ## Download
 
-Get **[v0.1.0-preview.1 from GitHub Releases](https://github.com/geekynasir/deskchirp-discord/releases/tag/v0.1.0-preview.1)**.
+Get **[v0.1.0-preview.2 from GitHub Releases](https://github.com/geekynasir/deskchirp-discord/releases/tag/v0.1.0-preview.2)**.
 
 | Computer | Download |
 | --- | --- |
-| Apple Silicon Mac | [macOS arm64](https://github.com/geekynasir/deskchirp-discord/releases/download/v0.1.0-preview.1/Deskchirp-0.1.0-preview.1-macos-arm64.zip) |
-| Intel Mac | [macOS x86_64](https://github.com/geekynasir/deskchirp-discord/releases/download/v0.1.0-preview.1/Deskchirp-0.1.0-preview.1-macos-x86_64.zip) |
-| Windows PC | [Windows x64](https://github.com/geekynasir/deskchirp-discord/releases/download/v0.1.0-preview.1/Deskchirp-0.1.0-preview.1-windows-x64.zip) |
+| Apple Silicon Mac | [macOS arm64](https://github.com/geekynasir/deskchirp-discord/releases/download/v0.1.0-preview.2/Deskchirp-0.1.0-preview.2-macos-arm64.zip) |
+| Intel Mac | [macOS x86_64](https://github.com/geekynasir/deskchirp-discord/releases/download/v0.1.0-preview.2/Deskchirp-0.1.0-preview.2-macos-x86_64.zip) |
+| Windows PC | [Windows x64](https://github.com/geekynasir/deskchirp-discord/releases/download/v0.1.0-preview.2/Deskchirp-0.1.0-preview.2-windows-x64.zip) |
 
 Downloads include setup guides, license notices and build information. Verify them with the release’s `SHA256SUMS`. These are preview bundles, not signed installers. Read [setup](docs/trying-builds.md) before opening one. The optional [private linking service](coordination/README.md) has a separate source download on the same release page. The app needs Discord desktop; its public application ID is included.
 
-CI covers **80 Swift tests on each Mac architecture**, **145 portable C# tests** (142 core, 3 settings presentation), **17 linking-service tests**, and a real HTTP handoff between two native client services. It also builds both Mac app bundles and the Windows app with its runtimes. Actual Discord display, cross-computer handoff, application detection, and desktop lifecycle behavior still require validation on real machines. See [verification status](docs/validation.md).
+CI covers **85 Swift tests on each Mac architecture**, **161 portable C# tests** (156 core, 5 settings presentation), **17 linking-service tests**, and a real HTTP handoff between two native client services. It also builds both Mac app bundles and the Windows app with its runtimes. Actual Discord display, cross-computer handoff, application detection, and desktop lifecycle behavior still require validation on real machines. See [verification status](docs/validation.md).
 
 ## Development
 

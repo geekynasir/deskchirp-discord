@@ -4,7 +4,7 @@ This specification is shared by the Swift and C# implementations. Neither platfo
 
 ## Baseline: app name
 
-The user explicitly enables sharing and configures a public numeric Discord application ID. Until then no connection or activity update is made. A foreground observation contains an application enum (`t3`, `claude`, or `codex`) or no supported application. Detection uses application identity, not window titles, process command lines, conversation contents, or an AI inference.
+The user explicitly enables sharing. Deskchirp’s publisher-owned public Discord application ID is included; a custom application ID is optional under Advanced. Until sharing is enabled, no Discord connection or activity update is made. A foreground observation contains an application enum (`t3`, `claude`, or `codex`) or no supported application. Detection uses application identity, not window titles, process command lines, conversation contents, or an AI inference.
 
 Identity matching must be exact. Configurable mappings are necessary for application variants; a process containing `code` in its name is not evidence of Codex. Product identifiers must be verified on each release platform. The UI must distinguish an unsupported/unknown foreground application from a supported app with zero running tasks.
 
