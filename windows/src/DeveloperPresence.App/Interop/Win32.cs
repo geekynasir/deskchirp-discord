@@ -51,6 +51,7 @@ public static class Win32
 
     // Context menu flags
     public const uint MF_STRING = 0x00000000;
+    public const uint MF_GRAYED = 0x00000001;
     public const uint MF_CHECKED = 0x00000008;
     public const uint MF_UNCHECKED = 0x00000000;
     public const uint MF_SEPARATOR = 0x00000800;

@@ -1,0 +1,53 @@
+{
+  "description": "Synthetic metadata only. Private names are bait and must never appear in public output.",
+  "providers": [
+    { "providerInstanceId": "personal-claude", "driverKind": "claudeAgent", "displayName": "PRIVATE account routing" },
+    { "providerInstanceId": "work-ag", "driverKind": "antigravity", "displayName": "PRIVATE organization" },
+    { "providerInstanceId": "custom", "driverKind": "private-internal-driver", "displayName": "PRIVATE custom label" }
+  ],
+  "cases": [
+    {
+      "name": "Mixed children use their own tools, forks remain tasks, duplicates and finished work do not inflate counts",
+      "threads": [
+        { "threadId": "main", "providerInstanceId": "personal-claude", "status": "running", "relationshipToParent": null },
+        { "threadId": "helper-claude", "providerInstanceId": "personal-claude", "status": "running", "relationshipToParent": "subagent" },
+        { "threadId": "helper-ag-a", "providerInstanceId": "work-ag", "status": "running", "relationshipToParent": "subagent", "model": "claude-model" },
+        { "threadId": "helper-ag-b", "providerInstanceId": "work-ag", "status": "running", "relationshipToParent": "subagent" },
+        { "threadId": "fork-ag", "providerInstanceId": "work-ag", "status": "running", "relationshipToParent": "fork", "parentThreadId": "main" },
+        { "threadId": "helper-ag-a", "providerInstanceId": "work-ag", "status": "running", "relationshipToParent": "subagent" },
+        { "threadId": "finished", "providerInstanceId": "personal-claude", "status": "completed", "relationshipToParent": "subagent" },
+        { "threadId": "waiting", "providerInstanceId": "work-ag", "status": "waiting", "relationshipToParent": null }
+      ],
+      "expected": { "details": "T3 Code · Antigravity", "state": "1 task · 2 helpers" }
+    },
+    {
+      "name": "A helper-only group is real work, not an invented parent task",
+      "threads": [
+        { "threadId": "one-helper", "providerInstanceId": "personal-claude", "status": "running", "relationshipToParent": "subagent" }
+      ],
+      "expected": { "details": "T3 Code · Claude Code", "state": "1 helper" }
+    },
+    {
+      "name": "Waiting work is explicitly waiting",
+      "threads": [
+        { "threadId": "one-task", "providerInstanceId": "personal-claude", "status": "waiting", "relationshipToParent": null },
+        { "threadId": "one-helper", "providerInstanceId": "personal-claude", "status": "waiting", "relationshipToParent": "subagent" }
+      ],
+      "expected": { "details": "T3 Code · Claude Code", "state": "1 task waiting · 1 helper waiting" }
+    },
+    {
+      "name": "Unknown tool names never echo account or driver labels",
+      "threads": [
+        { "threadId": "custom-task", "providerInstanceId": "custom", "status": "running", "relationshipToParent": null }
+      ],
+      "expected": { "details": "T3 Code · Other tools", "state": "1 task" }
+    },
+    {
+      "name": "Finished work falls back to app name",
+      "threads": [
+        { "threadId": "finished", "providerInstanceId": "personal-claude", "status": "completed", "relationshipToParent": "subagent" }
+      ],
+      "expected": { "details": "Using T3 Code", "state": null }
+    }
+  ]
+}

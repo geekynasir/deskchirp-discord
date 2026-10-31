@@ -9,8 +9,8 @@ Researched on 2026-10-31. This document synthesizes deep research into upstream 
 * **Primary Sources Inspected:**
   * GitHub upstream: `pingdotgg/t3code` PR #18346 (read-only fresh state, timeline, reviews, comments, and release assets).
   * GitHub upstream: `pingdotgg/t3code` Ideas Discussion #18348 (read-only approval status and community discussion).
-  * Local repository: `/data/ubuntu/projects/t3code-discord-presence` (contracts, server orchestration, usage aggregation, MCP services, and PR #18346 source ref `pr-18346`).
-  * Local companion: `/data/ubuntu/projects/developer-presence` (architecture, specs, validation docs, and native build artifacts).
+  * Local repository: `the T3 Code checkout` (contracts, server orchestration, usage aggregation, MCP services, and PR #18346 source ref `pr-18346`).
+  * Local companion: `the Deskchirp checkout` (architecture, specs, validation docs, and native build artifacts).
   * Community extensions: `iCrawl/discord-vscode` and `leonardssh/vscord` (VS Code Rich Presence architectures and privacy models).
 * **Core Distinction:** Documented facts and code structures are strictly distinguished from analytical inferences. Stored internal server state is distinguished from externally accessible metadata.
 * **Key Findings:**
@@ -106,7 +106,7 @@ PR #18346 provided evidence hosted as release assets on `snekxs/t3code`:
 * **Badging Slots:** Discord provides exactly one `small_image` slot overlaying the `large_image`. A client cannot simultaneously display multiple badges (e.g., provider mark and working status); it must choose between them or compose icons.
 
 ### 4.3 Recommendations for Independent Companion (`developer-presence`)
-1. **Public Client ID Ownership:** The companion cannot use an official T3 Code Discord application ID because it is maintained independently and also monitors Claude Desktop and Codex Desktop. The companion must register its own Discord Application (e.g., `Developer Presence` or configurable custom client ID).
+1. **Public Client ID Ownership:** The companion cannot use an official T3 Code Discord application ID because it is maintained independently and also monitors Claude Desktop and Codex Desktop. The companion must register its own Discord Application (e.g., `Deskchirp` or configurable custom client ID).
 2. **Multi-App Asset Pack:** Upload distinctive, high-contrast assets to the companion's Discord Application:
    * **App Logos (Large Image):** `app_t3code`, `app_claude`, `app_codex`, `app_unknown`.
    * **Status Badges (Small Image):** `status_working` (green/pulse), `status_attention` (amber/alert), `status_idle` (slate), `status_paused` (gray).
@@ -142,7 +142,7 @@ Inspection of leading VS Code Discord presence implementations (`iCrawl/discord-
 
 ## 6. T3 Code Telemetry Audit: Stored Internal Data vs External Metadata
 
-A rigorous audit of `/data/ubuntu/projects/t3code-discord-presence` reveals how tokens, cost, and threads are modeled internally versus what is exposed to outside consumers.
+A rigorous audit of `the T3 Code checkout` reveals how tokens, cost, and threads are modeled internally versus what is exposed to outside consumers.
 
 ### 6.1 Internal Token Usage Schemas (`packages/contracts/src/`)
 

@@ -2,23 +2,30 @@ using DeveloperPresence.Core.Discord;
 using DeveloperPresence.Core.Foreground;
 using DeveloperPresence.Core.Models;
 using DeveloperPresence.Core.Privacy;
+using DeveloperPresence.Core.T3;
+using DeveloperPresence.Core.Computers;
 
 namespace DeveloperPresence.Core.Services;
 
 /// <summary>
 /// Central coordinator orchestrating foreground app detection, privacy filtering,
-/// rate-limited Discord updates, session locks, power suspensions, and settings persistence.
+/// rate-limited Discord updates, session locks, power suspensions, settings persistence,
+/// and T3 agent workload polling.
 /// </summary>
 public sealed class PresenceCoordinator : IAsyncDisposable
 {
     private readonly ISettingsService _settingsService;
     private readonly IDiscordIpcClient _discordClient;
     private readonly IForegroundDetector _foregroundDetector;
+    private readonly IT3ActivityService? _t3ActivityService;
+    private readonly IComputerLinkService? _computers;
+
     private readonly SemaphoreSlim _evalLock = new(1, 1);
     private readonly SemaphoreSlim _triggerSignal = new(0, 1);
     private readonly object _stateLock = new();
     private readonly object _operationLock = new();
     private CancellationTokenSource? _operationCts;
+    private CancellationTokenSource? _t3PollCts;
 
     private readonly PresenceState _currentState = new();
     private CancellationTokenSource? _loopCts;
@@ -26,6 +33,9 @@ public sealed class PresenceCoordinator : IAsyncDisposable
 
     private DateTimeOffset _lastSentTimestamp = DateTimeOffset.MinValue;
     private SupportedApp _lastSentApp = SupportedApp.None;
+    private DiscordActivity? _lastSentActivity;
+    private DateTimeOffset _lastT3PollTimestamp = DateTimeOffset.MinValue;
+
     private string? _connectedClientId;
     private bool _connectionNeedsPublish;
     private long _currentGeneration;
@@ -34,6 +44,7 @@ public sealed class PresenceCoordinator : IAsyncDisposable
     private bool _isSessionLocked;
     private bool _isSystemSuspended;
     private bool _isDisposed;
+    private bool _wasT3Eligible;
 
     public event Action<PresenceState>? StateChanged;
 
@@ -58,13 +69,33 @@ public sealed class PresenceCoordinator : IAsyncDisposable
         ISettingsService settingsService,
         IDiscordIpcClient discordClient,
         IForegroundDetector foregroundDetector)
+        : this(settingsService, discordClient, foregroundDetector, null)
     {
-        _settingsService = settingsService;
-        _discordClient = discordClient;
-        _foregroundDetector = foregroundDetector;
+    }
+
+    public PresenceCoordinator(
+        ISettingsService settingsService,
+        IDiscordIpcClient discordClient,
+        IForegroundDetector foregroundDetector,
+        IT3ActivityService? t3ActivityService,
+        IComputerLinkService? computers = null)
+    {
+        _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
+        _discordClient = discordClient ?? throw new ArgumentNullException(nameof(discordClient));
+        _foregroundDetector = foregroundDetector ?? throw new ArgumentNullException(nameof(foregroundDetector));
+        _t3ActivityService = t3ActivityService;
+        _computers = computers;
+        _discordClient.PublishAllowed = () => !_settingsService.Settings.FollowComputers || _computers?.CanPublish == true;
+        if (_computers != null) _computers.Changed += OnComputerChanged;
 
         _discordClient.StatusChanged += OnDiscordStatusChanged;
         _settingsService.SettingsChanged += OnSettingsChanged;
+
+        if (_t3ActivityService != null)
+        {
+            _t3ActivityService.StatusChanged += OnT3StatusChanged;
+            _t3ActivityService.SnapshotUpdated += OnT3SnapshotUpdated;
+        }
     }
 
     /// <summary>
@@ -75,6 +106,13 @@ public sealed class PresenceCoordinator : IAsyncDisposable
         if (_isStarted) return;
         // Strict requirement: load saved privacy settings BEFORE any sends or connections
         await _settingsService.LoadSettingsAsync().ConfigureAwait(false);
+
+        if (_computers != null) await _computers.InitializeAsync(ct).ConfigureAwait(false);
+
+        if (_t3ActivityService != null)
+        {
+            await _t3ActivityService.InitializeAsync(ct).ConfigureAwait(false);
+        }
 
         _loopCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         _isStarted = true;
@@ -90,7 +128,14 @@ public sealed class PresenceCoordinator : IAsyncDisposable
     public async Task StopAsync()
     {
         _isStarted = false;
+        _computers?.UpdateContext(false, null);
         InvalidateOperation();
+        if (_wasT3Eligible)
+        {
+            _wasT3Eligible = false;
+            CancelT3Poll();
+                    _t3ActivityService?.Invalidate();
+        }
         _loopCts?.Cancel();
 
         try
@@ -119,6 +164,7 @@ public sealed class PresenceCoordinator : IAsyncDisposable
 
         _loopCts?.Dispose();
         _loopCts = null;
+        if (_computers != null) await _computers.StopAsync().ConfigureAwait(false);
     }
 
     /// <summary>
@@ -128,13 +174,22 @@ public sealed class PresenceCoordinator : IAsyncDisposable
     public void OnSessionLock()
     {
         _isSessionLocked = true;
+        _computers?.UpdateContext(false, null);
         InvalidateOperation();
+        if (_wasT3Eligible)
+        {
+            _wasT3Eligible = false;
+            CancelT3Poll();
+                    _t3ActivityService?.Invalidate();
+        }
 
         _ = ClearAndDropConnectionAsync();
 
         UpdateState(state =>
         {
             state.OutgoingHeadline = ActivityFormatter.HeadlineNone;
+            state.OutgoingState = null;
+            state.ActivityNote = null;
             state.StatusMessage = "Session locked (presence cleared)";
         });
 
@@ -157,13 +212,22 @@ public sealed class PresenceCoordinator : IAsyncDisposable
     public void OnSystemSuspend()
     {
         _isSystemSuspended = true;
+        _computers?.UpdateContext(false, null);
         InvalidateOperation();
+        if (_wasT3Eligible)
+        {
+            _wasT3Eligible = false;
+            CancelT3Poll();
+                    _t3ActivityService?.Invalidate();
+        }
 
         _ = ClearAndDropConnectionAsync();
 
         UpdateState(state =>
         {
             state.OutgoingHeadline = ActivityFormatter.HeadlineNone;
+            state.OutgoingState = null;
+            state.ActivityNote = null;
             state.StatusMessage = "System suspended (presence cleared)";
         });
 
@@ -253,9 +317,16 @@ public sealed class PresenceCoordinator : IAsyncDisposable
 
             if (!isSharingAllowed)
             {
+                _computers?.UpdateContext(false, null);
                 Interlocked.Increment(ref _currentGeneration);
+                if (_wasT3Eligible)
+                {
+                    _wasT3Eligible = false;
+                    CancelT3Poll();
+                    _t3ActivityService?.Invalidate();
+                }
 
-                if (_lastSentApp != SupportedApp.None || _discordClient.IsConnected)
+                if (_lastSentApp != SupportedApp.None || _lastSentActivity != null || _discordClient.IsConnected)
                 {
                     if (_discordClient.IsConnected)
                     {
@@ -268,6 +339,7 @@ public sealed class PresenceCoordinator : IAsyncDisposable
                         await _discordClient.CloseAsync().ConfigureAwait(false);
                     }
                     _lastSentApp = SupportedApp.None;
+                    _lastSentActivity = null;
                     _connectedClientId = null;
                 }
 
@@ -275,6 +347,8 @@ public sealed class PresenceCoordinator : IAsyncDisposable
                 {
                     s.ForegroundApp = SupportedApp.None;
                     s.OutgoingHeadline = ActivityFormatter.HeadlineNone;
+                    s.OutgoingState = null;
+                    s.ActivityNote = null;
                     s.StatusMessage = !settings.EnableSharing ? "Sharing disabled" :
                                       settings.IsPaused ? "Presence paused" :
                                       _isSessionLocked ? "Session locked" :
@@ -286,22 +360,144 @@ public sealed class PresenceCoordinator : IAsyncDisposable
 
             // Detect current foreground application from exact process identity
             SupportedApp focusedApp = _foregroundDetector.DetectForegroundApp(settings.ProcessMappings);
-            string headline = ActivityFormatter.GetHeadline(focusedApp);
+
+            if (settings.FollowComputers)
+            {
+                // Even with Discord closed, recent use here must suppress an unattended peer.
+                _computers?.UpdateContext(true, _discordClient.CurrentUserId);
+                // A standby connection reads READY account identity but sends no activity.
+                if (!_discordClient.IsConnected)
+                {
+                    if (!await _discordClient.ConnectAsync(settings.DiscordClientId, token).ConfigureAwait(false))
+                    { _computers?.UpdateContext(true, null); return; }
+                    _connectedClientId = settings.DiscordClientId;
+                    _connectionNeedsPublish = true;
+                }
+                _computers?.UpdateContext(true, _discordClient.CurrentUserId);
+                if (_computers?.CanPublish != true)
+                {
+                    if (_wasT3Eligible) { _wasT3Eligible = false; CancelT3Poll(); _t3ActivityService?.Invalidate(); }
+                    if (_lastSentActivity != null || _lastSentApp != SupportedApp.None)
+                        await ClearAndDropConnectionAsync().ConfigureAwait(false);
+                    _lastSentApp = SupportedApp.None; _lastSentActivity = null;
+                    UpdateState(s => {
+                        s.ForegroundApp = focusedApp; s.OutgoingHeadline = ActivityFormatter.HeadlineNone;
+                        s.OutgoingState = null; s.ActivityNote = null;
+                        s.ComputerStatus = _computers?.Status ?? "Waiting for a connection";
+                    });
+                    return;
+                }
+            }
+
+            bool isT3Eligible = isSharingAllowed && focusedApp == SupportedApp.T3Code && settings.ShowT3Activity;
+            if (_wasT3Eligible && !isT3Eligible)
+            {
+                _wasT3Eligible = false;
+                CancelT3Poll();
+                    _t3ActivityService?.Invalidate();
+            }
+            else if (isT3Eligible)
+            {
+                _wasT3Eligible = true;
+            }
+
+            if (focusedApp == SupportedApp.None)
+            {
+                // Keep a linked standby connection for account identity. Unsupported apps
+                // still select this computer, but never publish developer activity.
+                if (!settings.FollowComputers || _lastSentActivity != null || _lastSentApp != SupportedApp.None)
+                    await ClearAndDropConnectionAsync().ConfigureAwait(false);
+                _lastSentApp = SupportedApp.None;
+                _lastSentActivity = null;
+                _connectedClientId = null;
+                UpdateState(s =>
+                {
+                    s.ForegroundApp = SupportedApp.None;
+                    s.OutgoingHeadline = ActivityFormatter.HeadlineNone;
+                    s.OutgoingState = null;
+                    s.ActivityNote = null;
+                    s.StatusMessage = "No supported developer app in foreground";
+                });
+                return;
+            }
+
+            // Handle T3 Code polling and rich workload formatting
+            DiscordActivity? activity = null;
+            string headline;
+            string? outgoingState = null;
+            string? activityNote = null;
+
+            if (focusedApp == SupportedApp.T3Code)
+            {
+                if (settings.ShowT3Activity)
+                {
+                    if (_t3ActivityService != null && _t3ActivityService.ConnectionStatus == T3ConnectionStatus.Connected)
+                    {
+                        // Poll no more often than every 15 seconds while awake and T3 is foreground, including on failures
+                        var now = DateTimeOffset.UtcNow;
+                        if ((now - _lastT3PollTimestamp) >= TimeSpan.FromSeconds(15))
+                        {
+                            _lastT3PollTimestamp = now;
+                            BeginT3Poll();
+                        }
+
+                        var snapshot = _t3ActivityService.CurrentSnapshot;
+                        bool isValid = snapshot != null && snapshot.IsValid && (DateTimeOffset.UtcNow - snapshot.Timestamp) <= T3ActivityService.SnapshotTtl;
+
+                        if (isValid && snapshot!.WinningHarness != null)
+                        {
+                            activity = ActivityFormatter.FormatT3Activity(snapshot, true, false, true, settings.ShowAppIcons);
+                            headline = activity?.Details ?? ActivityFormatter.HeadlineT3Code;
+                            outgoingState = activity?.State;
+                            activityNote = null;
+                        }
+                        else if (isValid && snapshot!.WinningHarness == null)
+                        {
+                            activity = ActivityFormatter.FormatT3Activity(null, true, false, false, settings.ShowAppIcons);
+                            headline = ActivityFormatter.HeadlineT3Code;
+                            outgoingState = null;
+                            activityNote = "No tasks right now, so only the app name is shown.";
+                        }
+                        else
+                        {
+                            activity = ActivityFormatter.FormatT3Activity(null, true, false, false, settings.ShowAppIcons);
+                            headline = ActivityFormatter.HeadlineT3Code;
+                            outgoingState = null;
+                            activityNote = "T3 activity isn’t available right now, so only the app name is shown.";
+                        }
+                    }
+                    else
+                    {
+                        activity = ActivityFormatter.FormatT3Activity(null, true, false, false, settings.ShowAppIcons);
+                        headline = ActivityFormatter.HeadlineT3Code;
+                        outgoingState = null;
+                        activityNote = "Connect T3 Code to show agent activity.";
+                    }
+                }
+                else
+                {
+                    activity = ActivityFormatter.FormatT3Activity(null, true, false, false, settings.ShowAppIcons);
+                    headline = ActivityFormatter.HeadlineT3Code;
+                    outgoingState = null;
+                    activityNote = null;
+                }
+            }
+            else
+            {
+                // Claude / Codex desktop: T3 activity is never published to other apps
+                activity = ActivityFormatter.FormatActivity(focusedApp, true, false);
+                headline = ActivityFormatter.GetHeadline(focusedApp);
+                outgoingState = null;
+                activityNote = null;
+            }
 
             UpdateState(s =>
             {
                 s.ForegroundApp = focusedApp;
                 s.OutgoingHeadline = headline;
+                s.OutgoingState = outgoingState;
+                s.ActivityNote = activityNote;
             });
-
-            if (focusedApp == SupportedApp.None)
-            {
-                await ClearAndDropConnectionAsync().ConfigureAwait(false);
-                _lastSentApp = SupportedApp.None;
-                _connectedClientId = null;
-                UpdateState(s => s.StatusMessage = "No supported developer app in foreground");
-                return;
-            }
 
             // Ensure Discord IPC connection is active
             if (!_discordClient.IsConnected)
@@ -324,7 +520,8 @@ public sealed class PresenceCoordinator : IAsyncDisposable
                                     !_isSessionLocked &&
                                     !_isSystemSuspended &&
                                     freshSettings.IsValidDiscordClientId() &&
-                                    genBeforeConnect == Interlocked.Read(ref _currentGeneration);
+                                    genBeforeConnect == Interlocked.Read(ref _currentGeneration) &&
+                                    (!freshSettings.FollowComputers || _computers?.CanPublish == true);
 
                 if (!stillAllowed)
                 {
@@ -339,19 +536,25 @@ public sealed class PresenceCoordinator : IAsyncDisposable
                 {
                     await ClearAndDropConnectionAsync().ConfigureAwait(false);
                     _lastSentApp = SupportedApp.None;
+                    _lastSentActivity = null;
                     return;
                 }
 
-                focusedApp = freshApp;
-                headline = ActivityFormatter.GetHeadline(focusedApp);
+                if (freshApp != focusedApp)
+                {
+                    // Focus changed during connect; retry evaluation immediately
+                    TriggerImmediateEvaluation();
+                    return;
+                }
             }
 
-            // Respect 5-second minimum throttle between Discord updates
+            // Respect minimum throttle interval between Discord updates
             var elapsed = DateTimeOffset.UtcNow - _lastSentTimestamp;
             double throttleLimitSeconds = Math.Max(5.0, settings.UpdateIntervalSeconds);
 
-            bool needsPublish = _connectionNeedsPublish ||
-                                (focusedApp != _lastSentApp);
+            // Same-app count republish: detect when activity details, state, or icons change
+            bool activityChanged = !DiscordActivity.Equals(activity, _lastSentActivity);
+            bool needsPublish = _connectionNeedsPublish || activityChanged;
 
             if (!needsPublish)
             {
@@ -362,9 +565,20 @@ public sealed class PresenceCoordinator : IAsyncDisposable
             {
                 // Rate limit satisfied or fresh connection: send immediately
                 token.ThrowIfCancellationRequested();
-                await _discordClient.SendActivityAsync(focusedApp, token).ConfigureAwait(false);
+                if (settings.FollowComputers && _computers?.CanPublish != true) return;
+
+                if (activity != null)
+                {
+                    await _discordClient.SendActivityAsync(activity, token).ConfigureAwait(false);
+                }
+                else
+                {
+                    await _discordClient.SendActivityAsync(focusedApp, token).ConfigureAwait(false);
+                }
+
                 _lastSentTimestamp = DateTimeOffset.UtcNow;
                 _lastSentApp = focusedApp;
+                _lastSentActivity = activity;
                 _connectionNeedsPublish = false;
 
                 UpdateState(s =>
@@ -393,6 +607,12 @@ public sealed class PresenceCoordinator : IAsyncDisposable
 
     private void OnDiscordStatusChanged(PresenceConnectionStatus status, string? message)
     {
+        if (status != PresenceConnectionStatus.Connected)
+        {
+            var settings = _settingsService.Settings;
+            _computers?.UpdateContext(settings.EnableSharing && !settings.IsPaused &&
+                !_isSessionLocked && !_isSystemSuspended && settings.IsValidDiscordClientId(), null);
+        }
         UpdateState(s =>
         {
             s.ConnectionStatus = status;
@@ -403,12 +623,78 @@ public sealed class PresenceCoordinator : IAsyncDisposable
         });
     }
 
+    private void BeginT3Poll()
+    {
+        CancellationTokenSource source;
+        lock (_operationLock)
+        {
+            if (_t3PollCts != null || _t3ActivityService == null) return;
+            source = CancellationTokenSource.CreateLinkedTokenSource(_loopCts?.Token ?? CancellationToken.None);
+            _t3PollCts = source;
+        }
+        _ = PollInBackgroundAsync(source);
+    }
+
+    private async Task PollInBackgroundAsync(CancellationTokenSource source)
+    {
+        try { await _t3ActivityService!.PollOnceAsync(source.Token).ConfigureAwait(false); }
+        catch { /* The service clears failed snapshots; the next attempt waits 15 seconds. */ }
+        finally
+        {
+            lock (_operationLock)
+            {
+                if (ReferenceEquals(_t3PollCts, source)) _t3PollCts = null;
+            }
+            source.Dispose();
+        }
+    }
+
+    private void CancelT3Poll()
+    {
+        lock (_operationLock) { _t3PollCts?.Cancel(); }
+    }
+
+    private void OnT3StatusChanged(T3ConnectionStatus status, string detail)
+    {
+        UpdateState(s =>
+        {
+            s.T3ConnectionStatus = status;
+            s.T3StatusDetail = detail;
+        });
+    }
+
+    private void OnT3SnapshotUpdated(T3Snapshot? snapshot)
+    {
+        if (_wasT3Eligible || snapshot != null || _lastSentApp == SupportedApp.T3Code)
+        {
+            TriggerImmediateEvaluation();
+        }
+    }
+
     private void OnSettingsChanged(PresenceSettings settings)
     {
         if (!_isStarted) return;
+        _computers?.UpdateContext(false, null);
         InvalidateOperation();
+        CancelT3Poll();
+        _t3ActivityService?.Invalidate();
         // Capture and close the old socket now, before a worker can create its replacement.
         _ = ClearAndDropConnectionAsync();
+        TriggerImmediateEvaluation();
+    }
+
+    private void OnComputerChanged()
+    {
+        if (!_isStarted) return;
+        UpdateState(s => s.ComputerStatus = _computers?.Status ?? "Waiting for a connection");
+        if (_settingsService.Settings.FollowComputers && _computers?.CanPublish != true)
+        {
+            if (_lastSentActivity != null || _lastSentApp != SupportedApp.None)
+            {
+                InvalidateOperation();
+                _ = ClearAndDropConnectionAsync();
+            }
+        }
         TriggerImmediateEvaluation();
     }
 
@@ -454,6 +740,14 @@ public sealed class PresenceCoordinator : IAsyncDisposable
         _isDisposed = true;
         _discordClient.StatusChanged -= OnDiscordStatusChanged;
         _settingsService.SettingsChanged -= OnSettingsChanged;
+        if (_computers != null) _computers.Changed -= OnComputerChanged;
+
+        if (_t3ActivityService != null)
+        {
+            _t3ActivityService.StatusChanged -= OnT3StatusChanged;
+            _t3ActivityService.SnapshotUpdated -= OnT3SnapshotUpdated;
+            await _t3ActivityService.DisposeAsync().ConfigureAwait(false);
+        }
 
         await StopAsync().ConfigureAwait(false);
         _evalLock.Dispose();

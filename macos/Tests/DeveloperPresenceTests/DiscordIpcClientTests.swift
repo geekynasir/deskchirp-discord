@@ -72,6 +72,11 @@ final class ScriptedMockDiscordTransport: DiscordTransport, @unchecked Sendable 
         return isConnected
     }
 
+    func snapshotSentFrames() -> [DiscordIpcFrame] {
+        lock.lock(); defer { lock.unlock() }
+        return sentFrames
+    }
+
     func simulateIncomingData(_ data: Data) {
         onDataReceived?(data)
     }
@@ -82,15 +87,16 @@ final class ScriptedMockDiscordTransport: DiscordTransport, @unchecked Sendable 
         }
     }
 
-    func simulateReady(waitForHandshake: Bool = true) {
+    func simulateReady(waitForHandshake: Bool = true, userId: String? = nil) {
         // A real Discord server cannot send READY before receiving the
         // handshake. Synchronize with the client queue instead of racing it.
         if waitForHandshake {
             XCTAssertEqual(handshakeSent.wait(timeout: .now() + 2), .success)
         }
+        let user = userId.map { ",\"user\":{\"id\":\"\($0)\"}" } ?? ""
         simulateIncomingFrame(
             opcode: DiscordIpcFrame.opcodeFrame,
-            json: "{\"cmd\":\"DISPATCH\",\"evt\":\"READY\",\"data\":{\"v\":1}}"
+            json: "{\"cmd\":\"DISPATCH\",\"evt\":\"READY\",\"data\":{\"v\":1\(user)}}"
         )
     }
 

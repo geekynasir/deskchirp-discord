@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Developer Presence · Discord card concept</title>
+<title>Deskchirp · Discord card concept</title>
 <style>
 /* Product-specific tokens. color-scheme is set from the host's actual background (see script), never from prefers-color-scheme alone. */
 #dp {
@@ -125,7 +125,7 @@
 <body>
 <div id="dp">
   <div class="dp-head">
-    <h2>Discord card for Developer Presence</h2>
+    <h2>Discord card for Deskchirp</h2>
     <span class="dp-chip">Proposal · fictional sample data · not in current builds</span>
   </div>
 
@@ -191,7 +191,7 @@
         <label class="dp-label" for="dp-buttons">Buttons (max 2)</label>
         <select id="dp-buttons">
           <option value="none">None</option>
-          <option value="companion">Get Developer Presence</option>
+          <option value="companion">Get Deskchirp</option>
           <option value="both">Companion + public repo</option>
         </select>
       </div>
@@ -215,7 +215,7 @@
               <span id="dp-small" class="dc-small" hidden></span>
             </div>
             <div class="dc-text">
-              <div class="dc-name">Developer Presence</div>
+              <div class="dc-name">Deskchirp</div>
               <div id="dp-details" class="dc-line" aria-live="polite"></div>
               <div id="dp-state" class="dc-line" aria-live="polite"></div>
               <div id="dp-time" class="dc-time">
@@ -228,7 +228,7 @@
         </div>
         <div class="dc dc-member" aria-label="Mock Discord member list row">
           <span class="dc-avatar" aria-hidden="true">S</span>
-          <div class="dc-mtext"><div class="dc-mname">sample_dev</div>Playing <b>Developer Presence</b></div>
+          <div class="dc-mtext"><div class="dc-mname">sample_dev</div>Playing <b>Deskchirp</b></div>
         </div>
       </div>
       <p id="dp-fit" class="dp-fit" role="status" hidden></p>
@@ -397,7 +397,7 @@
     $('time').hidden = !timer;
 
     const btns = [];
-    if ($('buttons').value !== 'none') btns.push('Get Developer Presence');
+    if ($('buttons').value !== 'none') btns.push('Get Deskchirp');
     if ($('buttons').value === 'both') btns.push(`View ${sample.alias} on GitHub`);
     $('btns').innerHTML = btns.map(b => `<span class="dc-btn">${b}</span>`).join('');
 
@@ -405,7 +405,7 @@
 
     const shipped = details === `Using ${app.label}`;
     const rows = [
-      ['name', 'Developer Presence', 'Registered app name', ''],
+      ['name', 'Deskchirp', 'Registered app name', ''],
       ['details', details, shipped ? 'Shipped' : 'Needs T3 adapter', shipped ? 'shipped' : 'adapter'],
       state && ['state', state, 'Needs T3 adapter', 'adapter'],
       ['large_image', `${apps[appKey].key} · “${largeText}”`, 'Companion asset', ''],
@@ -439,7 +439,7 @@
   });
   new ResizeObserver(() => requestAnimationFrame(checkFit)).observe(root.querySelector('.dc-card'));
   render(); tick(); setInterval(tick, 1000);
-  console.log('Developer Presence card concept ready (fictional sample data). scheme=' + root.style.colorScheme);
+  console.log('Deskchirp card concept ready (fictional sample data). scheme=' + root.style.colorScheme);
 })();
 </script>
 </body>

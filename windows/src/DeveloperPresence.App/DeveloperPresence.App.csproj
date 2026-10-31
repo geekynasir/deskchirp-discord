@@ -1,6 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
+    <AssemblyName>Deskchirp</AssemblyName>
+    <Title>Deskchirp for Discord</Title>
+    <Product>Deskchirp for Discord</Product>
     <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
     <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
     <RootNamespace>DeveloperPresence.App</RootNamespace>

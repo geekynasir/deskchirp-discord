@@ -31,4 +31,22 @@ Record OS version, CPU architecture, Discord channel/version, and companion comm
 - Inspect outbound payloads: no window title, code, prompt, path, project, model, or fabricated counts.
 - Distinguish outgoing preview from acknowledged Discord state. Revoke sharing and restart the companion: saved choices apply before any send.
 
-Deep activity adapters need additional coverage for stale records, partial capabilities, top-level/helper counts, and proven duplicate session IDs before being enabled.
+## Both platforms: optional T3 activity
+
+- Fresh install and an upgrade from an older build: **Show T3 activity** and **Show app icons** remain off. Existing Discord settings and app mappings survive the upgrade.
+- Copy a T3 address from Settings → Environments → Copy MCP URL. Connect without administrator privileges, approve **Read only** in the browser, and confirm the app returns to **Connected**. Test both local HTTP and remote HTTPS environments.
+- Cancel in the app, deny in the browser, let sign-in time out, and send an invalid callback. No listener remains open, and an existing saved connection stays usable. Confirm Disconnect removes the saved sign-in from Keychain or Windows Credential Manager.
+- With sharing and T3 activity enabled, focus T3 Code. Run tasks and helpers with Claude Code, Codex, and Antigravity. Check that each helper counts under the tool that runs it, even when its parent uses another tool. A fork counts as a task.
+- Confirm the busiest tool wins by running task/helper count. Ties retain the current tool; a new leader must stay ahead for 10 seconds. Waiting and starting work must be labeled as such, and finished work must disappear.
+- Change counts without switching apps: the native preview and Discord update. Unknown tools show **Other tools**, with no private account or tool names.
+- Test multiple result pages, repeated thread IDs, an incomplete or oversized response, network failure, and expired/revoked access. Failed or stale data falls back to **Using T3 Code**, never a partial or remembered total.
+- Pause, lock, disconnect, change the T3 address, or switch to Claude/Codex while a poll or sign-in is pending. A late result must not restore activity or save a disconnected sign-in.
+- Inspect requests using a synthetic test environment: only capabilities and thread-list tools are called. No conversation-reading tool or transcript access occurs. Inspect settings/logs for accidental credential storage.
+- Enable icons after uploading the included artwork to the configured Discord application. Verify the T3 icon and supported tool badge on a real profile, including app-only mode. Disable icons and confirm both images disappear.
+- Read the app at larger text sizes and with a screen reader. Helper text wraps, the full two-line Discord preview is available, and normal status messages contain no protocol names or raw errors.
+
+Record which helpers T3 exposes as child threads. Helpers that exist only inside a provider's own run are not inferred or included in these counts.
+
+## Multiple computers: required before advertising automatic switching
+
+Follow [the multiple-computer contract and acceptance cases](../spec/multiple-computers.md#release-acceptance) for the new development implementation. It requires mixed Mac/Windows tests, account/channel verification, network partitions, ownership expiry, and delayed clear/update ordering observed from a second Discord account. Automated grant tests are not proof of visible Discord precedence. Earlier builds and independent installations should enable sharing on only one computer.

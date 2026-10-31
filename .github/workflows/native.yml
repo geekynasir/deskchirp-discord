@@ -2,6 +2,8 @@ name: Native apps
 
 on:
   push:
+    branches: [main]
+    tags: ["v*"]
   pull_request:
   workflow_dispatch:
 
@@ -13,6 +15,31 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  computer-coordination:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Test device selection and private HTTP protocol
+        run: python3 -m unittest discover -s coordination/tests -v
+      - name: Test native client services against the real coordination server
+        run: python3 coordination/tests/native_http.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Deskchirp-linking-service
+          path: |
+            coordination/service.py
+            coordination/README.md
+            coordination/tests/test_service.py
+            docs/computers.md
+            spec/multiple-computers.md
+            LICENSE
+            THIRD_PARTY_NOTICES.md
+          retention-days: 14
+
   macos:
     name: macOS (${{ matrix.arch }})
     strategy:
@@ -33,23 +60,50 @@ jobs:
         run: |
           cmp spec/presence-cases.json macos/Tests/DeveloperPresenceTests/Resources/presence-cases.json
           cmp spec/ipc-frames.json macos/Tests/DeveloperPresenceTests/Resources/ipc-frames.json
+          cmp spec/t3-activity-cases.json macos/Tests/DeveloperPresenceTests/Resources/t3-activity-cases.json
       - name: Test Swift implementation
         run: swift test --package-path macos
       - name: Build native app bundle
         run: bash macos/scripts/build-app.sh
       - name: Check app bundle metadata
-        run: plutil -lint macos/dist/DeveloperPresence.app/Contents/Info.plist
+        run: plutil -lint macos/dist/Deskchirp.app/Contents/Info.plist
       - name: Archive development app
         run: |
-          codesign --verify --deep --strict macos/dist/DeveloperPresence.app
+          codesign --verify --deep --strict macos/dist/Deskchirp.app
+          cp LICENSE THIRD_PARTY_NOTICES.md macos/dist/
+          cp -R licenses macos/dist/licenses
           cp docs/trying-builds.md macos/dist/READ-ME.md
-          ditto -c -k --sequesterRsrc --keepParent macos/dist/DeveloperPresence.app macos/dist/DeveloperPresence-macos-${{ matrix.arch }}.zip
+          ditto -c -k --sequesterRsrc --keepParent macos/dist/Deskchirp.app macos/dist/Deskchirp-macos-${{ matrix.arch }}.zip
+          cp docs/connect-t3.md macos/dist/CONNECT-T3.md
+          cp docs/computers.md macos/dist/COMPUTERS.md
+          cp -R assets/discord macos/dist/Discord-artwork
+      - name: Capture native settings for review
+        continue-on-error: true
+        run: |
+          open -n macos/dist/Deskchirp.app --args --show-settings --light-appearance
+          sleep 4
+          screencapture -x macos/dist/settings-light.png
+          pkill -x Deskchirp || true
+          open -n macos/dist/Deskchirp.app --args --show-settings --dark-appearance
+          sleep 4
+          screencapture -x macos/dist/settings-dark.png
+          pkill -x Deskchirp || true
+          open -n macos/dist/Deskchirp.app --args --show-settings --show-computers --light-appearance
+          sleep 4
+          screencapture -x macos/dist/settings-computers.png
       - uses: actions/upload-artifact@v4
         with:
-          name: DeveloperPresence-macos-${{ matrix.arch }}
+          name: Deskchirp-macos-${{ matrix.arch }}
           path: |
-            macos/dist/DeveloperPresence-macos-${{ matrix.arch }}.zip
+            macos/dist/Deskchirp-macos-${{ matrix.arch }}.zip
             macos/dist/READ-ME.md
+            macos/dist/CONNECT-T3.md
+            macos/dist/COMPUTERS.md
+            macos/dist/Discord-artwork/
+            macos/dist/LICENSE
+            macos/dist/THIRD_PARTY_NOTICES.md
+            macos/dist/licenses/
+            macos/dist/settings-*.png
           if-no-files-found: error
           retention-days: 14
 
@@ -84,11 +138,20 @@ jobs:
       - name: Check executable and include instructions
         shell: pwsh
         run: |
-          if (!(Test-Path dist/windows-x64/DeveloperPresence.App.exe)) { throw 'Application executable missing' }
+          if (!(Test-Path dist/windows-x64/Deskchirp.exe)) { throw 'Application executable missing' }
+          Copy-Item LICENSE, THIRD_PARTY_NOTICES.md dist/windows-x64/
+          Copy-Item -Recurse licenses dist/windows-x64/licenses
           Copy-Item docs/trying-builds.md dist/windows-x64/READ-ME.md
+          Copy-Item docs/connect-t3.md dist/windows-x64/CONNECT-T3.md
+          Copy-Item docs/computers.md dist/windows-x64/COMPUTERS.md
+          Copy-Item -Recurse assets/discord dist/windows-x64/Discord-artwork
+      - name: Capture native settings for review
+        continue-on-error: true
+        shell: pwsh
+        run: ./scripts/capture-windows.ps1
       - uses: actions/upload-artifact@v4
         with:
-          name: DeveloperPresence-windows-x64
+          name: Deskchirp-windows-x64
           path: dist/windows-x64/
           if-no-files-found: error
           retention-days: 14
@@ -96,3 +159,39 @@ jobs:
 # These jobs compile/test source. Real Discord, foreground identity, tray/menu,
 # lock/sleep, accessibility, signing and clean-machine installation need the
 # manual target-platform checks in docs/acceptance.md.
+
+  release:
+    name: Publish GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [computer-coordination, macos, windows-core, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate release tag and notes
+        shell: bash
+        run: |
+          test "$GITHUB_REF_NAME" = "v$(cat VERSION)"
+          test -f "docs/releases/$GITHUB_REF_NAME.md"
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Package checked builds and checksums
+        shell: bash
+        run: >-
+          python3 scripts/package-release.py --artifacts artifacts --output release-assets
+          --version "$(cat VERSION)" --commit "$GITHUB_SHA"
+          --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+      - name: Publish release downloads
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          release_flags=()
+          if [[ "$(cat VERSION)" == *-* ]]; then
+            release_flags+=(--prerelease --latest=false)
+          fi
+          gh release create "$GITHUB_REF_NAME" release-assets/* --verify-tag \
+            --title "Deskchirp for Discord $GITHUB_REF_NAME" \
+            --notes-file "docs/releases/$GITHUB_REF_NAME.md" "${release_flags[@]}"

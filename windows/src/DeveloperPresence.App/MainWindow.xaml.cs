@@ -1,10 +1,14 @@
 using System.Runtime.InteropServices;
 using DeveloperPresence.App.Interop;
 using DeveloperPresence.App.ViewModels;
+using DeveloperPresence.Core.Credentials;
 using DeveloperPresence.Core.Discord;
 using DeveloperPresence.Core.Foreground;
 using DeveloperPresence.Core.Models;
+using DeveloperPresence.Core.Privacy;
 using DeveloperPresence.Core.Services;
+using DeveloperPresence.Core.T3;
+using DeveloperPresence.Core.Computers;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
@@ -14,9 +18,12 @@ public sealed partial class MainWindow : Window
 {
     private readonly IntPtr _hWnd;
     private readonly ISettingsService _settingsService;
+    private readonly ICredentialStore _credentialStore;
+    private readonly IT3ActivityService _t3ActivityService;
     private readonly IDiscordIpcClient _discordClient;
     private readonly IForegroundDetector _foregroundDetector;
     private readonly PresenceCoordinator _coordinator;
+    private readonly IComputerLinkService _computers;
 
     private readonly Win32.WndProcDelegate _wndProcDelegate;
     private readonly IntPtr _oldWndProc;
@@ -27,6 +34,8 @@ public sealed partial class MainWindow : Window
 
     public MainViewModel ViewModel { get; }
 
+    public Visibility BoolToVisibility(bool value) => value ? Visibility.Visible : Visibility.Collapsed;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -35,23 +44,33 @@ public sealed partial class MainWindow : Window
 
         // Instantiate core architecture
         _settingsService = new SettingsService();
+        _credentialStore = new WindowsCredentialManager();
+        _t3ActivityService = new T3ActivityService(_settingsService, _credentialStore);
         _discordClient = new DiscordIpcClient();
         _foregroundDetector = new ForegroundDetector();
-        _coordinator = new PresenceCoordinator(_settingsService, _discordClient, _foregroundDetector);
+        _computers = new ComputerLinkService(_settingsService, _credentialStore);
+        _coordinator = new PresenceCoordinator(_settingsService, _discordClient, _foregroundDetector, _t3ActivityService, _computers);
 
         // Instantiate ViewModel with UI thread dispatcher
         ViewModel = new MainViewModel(_settingsService, _coordinator, action =>
         {
             DispatcherQueue.TryEnqueue(() => action());
-        });
+        }, _t3ActivityService, _computers);
 
         // Initialize Native Tray Icon
         _trayIcon = new TrayIcon(
             _hWnd,
             onShow: RestoreWindow,
-            onTogglePause: () => ViewModel.IsPaused = !ViewModel.IsPaused,
+            onTogglePause: () =>
+            {
+                if (ViewModel.IsPauseEnabled)
+                {
+                    ViewModel.IsPaused = !ViewModel.IsPaused;
+                }
+            },
             onQuit: ExplicitQuit,
-            isPausedProvider: () => ViewModel.IsPaused
+            isPausedProvider: () => ViewModel.IsPaused,
+            isSharingEnabledProvider: () => ViewModel.EnableSharing
         );
 
         // Register for Windows session lock/unlock notifications
@@ -147,7 +166,26 @@ public sealed partial class MainWindow : Window
 
     private void OnCoordinatorStateChanged(PresenceState state)
     {
-        string tooltip = $"Developer Presence - {state.OutgoingHeadline}";
+        string tooltip;
+        if (state.OutgoingHeadline == ActivityFormatter.HeadlineNone)
+        {
+            tooltip = "Deskchirp\nNot shown on Discord";
+        }
+        else
+        {
+            string line = state.OutgoingHeadline;
+            if (!string.IsNullOrEmpty(state.OutgoingState))
+            {
+                line += $" · {state.OutgoingState}";
+            }
+            tooltip = $"Deskchirp\n{line}";
+        }
+
+        if (tooltip.Length > 127)
+        {
+            tooltip = tooltip.Substring(0, 127);
+        }
+
         DispatcherQueue.TryEnqueue(() => _trayIcon.UpdateTooltip(tooltip));
     }
 
@@ -157,6 +195,11 @@ public sealed partial class MainWindow : Window
         {
             ViewModel.RemoveMappingCommand.Execute(item);
         }
+    }
+
+    private void OnLinkingCodeChanged(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel != null && sender is PasswordBox box) ViewModel.LinkingCode = box.Password;
     }
 
     private async void OnWindowClosed(object sender, WindowEventArgs args)
@@ -177,6 +220,6 @@ public sealed partial class MainWindow : Window
     private async Task StartCoordinatorAsync()
     {
         try { await _coordinator.StartAsync(); }
-        catch (Exception ex) { ViewModel.ShowError($"Couldn't start sharing: {ex.Message}"); }
+        catch (Exception) { ViewModel.ShowError("Couldn’t start sharing. Quit and reopen Deskchirp."); }
     }
 }

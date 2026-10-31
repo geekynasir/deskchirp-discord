@@ -9,9 +9,22 @@ private enum AppModel {
 
 @MainActor
 private final class AppDelegate: NSObject, NSApplicationDelegate {
+    private let instanceLock = SingleInstanceLock()
     func applicationDidFinishLaunching(_ notification: Notification) {
+        guard instanceLock.acquire() else { NSApp.terminate(nil); return }
         NSApp.setActivationPolicy(.accessory)
+        // Explicit review appearances leave the user's system preference untouched.
+        if CommandLine.arguments.contains("--dark-appearance") {
+            NSApp.appearance = NSAppearance(named: .darkAqua)
+        } else if CommandLine.arguments.contains("--light-appearance") {
+            NSApp.appearance = NSAppearance(named: .aqua)
+        }
         AppModel.coordinator.start()
+
+        // Support --show-settings launch argument for CI native screenshots
+        if CommandLine.arguments.contains("--show-settings") {
+            SettingsWindowController.shared.showSettings(coordinator: AppModel.coordinator)
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -26,7 +39,7 @@ struct DeveloperPresenceApp: App {
     @StateObject private var coordinator = AppModel.coordinator
 
     var body: some Scene {
-        MenuBarExtra("Developer Presence", systemImage: coordinator.menuBarIconName) {
+        MenuBarExtra("Deskchirp", systemImage: coordinator.menuBarIconName) {
             MenuBarContentView(coordinator: coordinator)
         }
     }

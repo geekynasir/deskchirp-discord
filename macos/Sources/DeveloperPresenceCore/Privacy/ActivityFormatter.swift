@@ -2,7 +2,7 @@ import Foundation
 
 /// Strict privacy gate and presence formatter.
 /// Guaranteed behavior:
-/// - Only formats whitelisted static strings: "Using T3 Code", "Using Claude", "Using Codex".
+/// - Only formats whitelisted static strings or verified T3 agent tool names and counts.
 /// - Window titles, file names, URLs, repositories, and screens are NEVER read or formatted.
 /// - Never fabricates fake task counts or agent activity.
 /// - Returns nil activity (clearing Discord presence) when disabled, paused, session is suspended/locked,
@@ -29,7 +29,8 @@ public enum ActivityFormatter {
         enableSharing: Bool,
         isPaused: Bool,
         isSuspended: Bool,
-        isValidClientId: Bool
+        isValidClientId: Bool,
+        t3FormattedActivity: T3FormattedActivity? = nil
     ) -> DiscordActivity? {
         // Sharing gate conditions:
         // 1. Sharing must be enabled
@@ -40,9 +41,29 @@ public enum ActivityFormatter {
         guard enableSharing, !isPaused, !isSuspended, isValidClientId else {
             return nil
         }
-        guard let details = app.presenceDetails else {
+        guard app != .none else {
             return nil
         }
-        return DiscordActivity(details: details)
+
+        switch app {
+        case .none:
+            return nil
+        case .claude:
+            // Other desktop apps retain app-name-only presence. T3 data never goes onto Claude card.
+            return DiscordActivity(details: "Using Claude")
+        case .codex:
+            // Other desktop apps retain app-name-only presence. T3 data never goes onto Codex card.
+            return DiscordActivity(details: "Using Codex")
+        case .t3Code:
+            if let t3 = t3FormattedActivity {
+                return DiscordActivity(
+                    details: t3.details,
+                    state: t3.state,
+                    assets: t3.assets
+                )
+            } else {
+                return DiscordActivity(details: "Using T3 Code")
+            }
+        }
     }
 }

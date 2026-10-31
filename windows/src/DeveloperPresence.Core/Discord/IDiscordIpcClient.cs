@@ -22,6 +22,9 @@ public interface IDiscordIpcClient : IAsyncDisposable
     /// </summary>
     bool IsConnected { get; }
 
+    string? CurrentUserId => null;
+    Func<bool>? PublishAllowed { get => null; set { } }
+
     /// <summary>
     /// Attempts to locate and connect to a running Discord instance via named pipes 0..9.
     /// Sends Opcode 0 Handshake upon successful stream connection.
@@ -29,8 +32,14 @@ public interface IDiscordIpcClient : IAsyncDisposable
     Task<bool> ConnectAsync(string clientId, CancellationToken ct = default);
 
     /// <summary>
-    /// Sends a SET_ACTIVITY command for the active supported developer application.
+    /// Sends a SET_ACTIVITY command for the specified safe Discord activity.
     /// Formats atomic whole frame with process ID and nonce.
+    /// </summary>
+    Task SendActivityAsync(DiscordActivity activity, CancellationToken ct = default);
+
+    /// <summary>
+    /// Sends a SET_ACTIVITY command for the active supported developer application.
+    /// Legacy compatibility overload.
     /// </summary>
     Task SendActivityAsync(SupportedApp app, CancellationToken ct = default);
 

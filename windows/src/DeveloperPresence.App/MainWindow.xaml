@@ -4,57 +4,164 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:vm="using:DeveloperPresence.App.ViewModels"
     xmlns:media="using:Microsoft.UI.Xaml.Media"
-    Title="Developer Presence">
+    Title="Deskchirp for Discord">
     <Window.SystemBackdrop>
         <media:MicaBackdrop />
     </Window.SystemBackdrop>
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Spacing="24" Padding="28" MaxWidth="720" HorizontalAlignment="Stretch">
+            <!-- Header Section -->
             <StackPanel Spacing="6">
-                <TextBlock Text="Developer Presence" Style="{StaticResource TitleTextBlockStyle}" />
-                <TextBlock Text="Share the developer app you're using on Discord." TextWrapping="Wrap" />
+                <TextBlock Text="Deskchirp for Discord" Style="{StaticResource TitleTextBlockStyle}" />
+                <TextBlock Text="Show your Discord friends which developer app you’re using." TextWrapping="Wrap" />
             </StackPanel>
+
+            <!-- Sharing Section -->
             <StackPanel Spacing="16">
-                <ToggleSwitch Header="Share activity on Discord" AutomationProperties.Name="Share activity on Discord"
+                <ToggleSwitch Header="Share on Discord" AutomationProperties.Name="Share on Discord"
                     IsOn="{x:Bind ViewModel.EnableSharing, Mode=TwoWay}" />
                 <ToggleSwitch Header="Pause sharing" AutomationProperties.Name="Pause sharing"
+                    IsEnabled="{x:Bind ViewModel.IsPauseEnabled, Mode=OneWay}"
                     IsOn="{x:Bind ViewModel.IsPaused, Mode=TwoWay}" />
-                <TextBox Header="Discord application ID" AutomationProperties.Name="Discord application ID"
-                    Text="{x:Bind ViewModel.DiscordClientId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                    PlaceholderText="Enter your public application ID" MaxLength="20" />
-                <HyperlinkButton Content="Create an application in the Discord Developer Portal"
-                    NavigateUri="https://discord.com/developers/applications" Padding="0" />
             </StackPanel>
+
+            <!-- Discord Preview Section -->
             <Border Padding="20" CornerRadius="8" BorderThickness="1"
                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
                 <StackPanel Spacing="10">
-                    <TextBlock Text="Outgoing preview" Style="{StaticResource CaptionTextBlockStyle}" />
+                    <TextBlock Text="Discord preview" Style="{StaticResource CaptionTextBlockStyle}" />
                     <TextBlock Text="{x:Bind ViewModel.OutgoingHeadlineText, Mode=OneWay}"
                         Style="{StaticResource SubtitleTextBlockStyle}" TextWrapping="Wrap" />
-                    <TextBlock Text="{x:Bind ViewModel.ConnectionStatusText, Mode=OneWay}" />
+                    <TextBlock Text="{x:Bind ViewModel.OutgoingStateText, Mode=OneWay}"
+                        Style="{StaticResource BodyTextBlockStyle}" TextWrapping="Wrap"
+                        Visibility="{x:Bind BoolToVisibility(ViewModel.HasOutgoingState), Mode=OneWay}" />
+                    <TextBlock Text="{x:Bind ViewModel.ActivityNoteText, Mode=OneWay}" TextWrapping="Wrap"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Visibility="{x:Bind BoolToVisibility(ViewModel.HasActivityNote), Mode=OneWay}" />
                     <TextBlock Text="{x:Bind ViewModel.StatusMessage, Mode=OneWay}" TextWrapping="Wrap"
                         Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                    <TextBlock Text="Foreground application" Style="{StaticResource CaptionTextBlockStyle}" />
-                    <TextBlock Text="{x:Bind ViewModel.ForegroundAppText, Mode=OneWay}" />
-                    <TextBlock Text="Last acknowledged update" Style="{StaticResource CaptionTextBlockStyle}" />
-                    <TextBlock Text="{x:Bind ViewModel.LastUpdateText, Mode=OneWay}" />
+                    <TextBlock Text="{x:Bind ViewModel.StatusRecoveryText, Mode=OneWay}" TextWrapping="Wrap"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Visibility="{x:Bind BoolToVisibility(ViewModel.HasStatusRecovery), Mode=OneWay}" />
+                    <TextBlock Text="{x:Bind ViewModel.LastUpdateText, Mode=OneWay}"
+                        Style="{StaticResource CaptionTextBlockStyle}"
+                        Visibility="{x:Bind BoolToVisibility(ViewModel.HasLastUpdate), Mode=OneWay}" />
                 </StackPanel>
             </Border>
-            <Expander Header="Application detection" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+
+            <!-- Linked computers -->
+            <Expander Header="Computers" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                IsEnabled="{x:Bind ViewModel.CanChangeComputerLink, Mode=OneWay}">
                 <StackPanel Spacing="12">
-                    <TextBlock Text="App versions can use different executable names. Add a name if your app isn't detected."
+                    <TextBlock Text="Follow me" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                    <TextBlock Text="Share from the computer you most recently used. Other linked computers wait. Switching waits briefly for the previous computer to stop. Activity hides after five minutes without input."
                         TextWrapping="Wrap" />
-                    <TextBox Header="Executable name" AutomationProperties.Name="Executable name"
+                    <TextBlock Text="{x:Bind ViewModel.ComputerStatus, Mode=OneWay}" TextWrapping="Wrap"
+                        AutomationProperties.LiveSetting="Polite" />
+                    <HyperlinkButton Content="How to link your computers" Padding="0"
+                        NavigateUri="https://github.com/geekynasir/deskchirp-discord/blob/main/docs/computers.md" />
+                    <StackPanel Spacing="8" Visibility="{x:Bind BoolToVisibility(ViewModel.ShowComputerLinkForm), Mode=OneWay}">
+                        <TextBox Header="Linking address" AutomationProperties.Name="Linking address"
+                            Text="{x:Bind ViewModel.LinkingAddress, Mode=TwoWay}" PlaceholderText="Paste your linking address" />
+                        <TextBox Header="Computer name" AutomationProperties.Name="Computer name"
+                            Text="{x:Bind ViewModel.ComputerName, Mode=TwoWay}" MaxLength="48" />
+                        <PasswordBox Header="Linking code" AutomationProperties.Name="Linking code" MaxLength="32"
+                            PasswordChanged="OnLinkingCodeChanged" />
+                        <TextBlock Text="Use a new code from a linked computer. For your first computer, get a code from your linking service. Use the same Discord account on every computer."
+                            TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <Button Content="Link this computer" Command="{x:Bind ViewModel.LinkComputerCommand}" />
+                    </StackPanel>
+                    <Button Content="Link another computer" Command="{x:Bind ViewModel.CreateComputerCodeCommand}"
+                        Visibility="{x:Bind BoolToVisibility(ViewModel.HasComputerLink), Mode=OneWay}" />
+                    <TextBlock Text="{x:Bind ViewModel.ComputerPairingCode, Mode=OneWay}" IsTextSelectionEnabled="True"
+                        Visibility="{x:Bind BoolToVisibility(ViewModel.HasComputerPairingCode), Mode=OneWay}" />
+                    <TextBlock Text="Use once within five minutes. Keep this code private." TextWrapping="Wrap"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Visibility="{x:Bind BoolToVisibility(ViewModel.HasComputerPairingCode), Mode=OneWay}" />
+                    <Button Content="Unlink this computer" Command="{x:Bind ViewModel.UnlinkComputerCommand}"
+                        Visibility="{x:Bind BoolToVisibility(ViewModel.ShowUnlinkComputer), Mode=OneWay}" />
+                    <TextBlock Text="Your linking service sees computer names and recent-use timing. Your app activity stays on your computers. Pause sharing affects this computer only. Unlinking turns sharing off here."
+                        TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+            </Expander>
+
+            <!-- T3 Code Section -->
+            <StackPanel Spacing="16">
+                <TextBlock Text="T3 Code" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                <StackPanel Spacing="4">
+                    <ToggleSwitch Header="Show T3 activity" AutomationProperties.Name="Show T3 activity"
+                        IsOn="{x:Bind ViewModel.ShowT3Activity, Mode=TwoWay}" />
+                    <TextBlock Text="While T3 Code is the active app, also show which agent tool is busiest and how many tasks and helpers it’s running. A helper is an extra agent that a task starts to handle part of its work. Each T3 thread counts as a task."
+                        TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+                <StackPanel Spacing="4">
+                    <TextBox Header="T3 address" AutomationProperties.Name="T3 address"
+                        Text="{x:Bind ViewModel.T3Address, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                        PlaceholderText="Paste from T3 Code" IsEnabled="{x:Bind ViewModel.IsT3AddressEditable, Mode=OneWay}" />
+                    <TextBlock Text="In T3 Code, open Settings → Environments and choose Copy MCP URL."
+                        TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+                <StackPanel Spacing="8">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="Status:" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        <TextBlock Text="{x:Bind ViewModel.T3StatusText, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                    </StackPanel>
+                    <TextBlock Text="{x:Bind ViewModel.T3StatusDetail, Mode=OneWay}" TextWrapping="Wrap"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <Button Content="{x:Bind ViewModel.T3ConnectButtonText, Mode=OneWay}"
+                        Command="{x:Bind ViewModel.ConnectT3Command}"
+                        AutomationProperties.Name="{x:Bind ViewModel.T3ConnectButtonAutomationName, Mode=OneWay}" />
+                    <TextBlock Text="Opens your browser so you can approve read-only access in T3 Code. Deskchirp only reads which agent tools are working and how many tasks and helpers they have."
+                        TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Visibility="{x:Bind BoolToVisibility(ViewModel.ShowT3Consent), Mode=OneWay}" />
+                    <TextBlock Text="Your sign-in is saved in Windows Credential Manager."
+                        TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Visibility="{x:Bind BoolToVisibility(ViewModel.IsT3Connected), Mode=OneWay}" />
+                </StackPanel>
+            </StackPanel>
+
+            <!-- Discord Section -->
+            <StackPanel Spacing="16">
+                <TextBlock Text="Discord" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                <TextBox Header="Discord application ID" AutomationProperties.Name="Discord application ID"
+                    Text="{x:Bind ViewModel.DiscordClientId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                    PlaceholderText="15–20 digits" />
+                <TextBlock Text="Find it under General Information for your app in the Discord Developer Portal. It’s public, not a password or token."
+                    TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <TextBlock Text="Application IDs are 15 to 20 digits. Check that you copied the whole number."
+                    TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    Visibility="{x:Bind BoolToVisibility(ViewModel.ShowClientIdError), Mode=OneWay}" />
+                <HyperlinkButton Content="Open the Discord Developer Portal"
+                    NavigateUri="https://discord.com/developers/applications" Padding="0" />
+                <StackPanel Spacing="4">
+                    <ToggleSwitch Header="Show app icons" AutomationProperties.Name="Show app icons"
+                        IsOn="{x:Bind ViewModel.ShowAppIcons, Mode=TwoWay}" />
+                    <TextBlock Text="Adds the T3 Code icon and agent tool icons to your status. Add the icons to your Discord application first, or they won’t appear."
+                        TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+            </StackPanel>
+
+            <HyperlinkButton Content="How to add the icons"
+                NavigateUri="https://github.com/geekynasir/deskchirp-discord/blob/main/docs/connect-t3.md#add-logos" Padding="0" />
+
+            <!-- App Detection Section -->
+            <Expander Header="App detection" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="If T3 Code, Claude, or Codex isn’t recognized, add its version here."
+                        TextWrapping="Wrap" />
+                    <TextBox Header="Program file" AutomationProperties.Name="Program file"
                         Text="{x:Bind ViewModel.NewExecutableName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                        PlaceholderText="app.exe" />
-                    <ComboBox Header="Application" AutomationProperties.Name="Application" HorizontalAlignment="Stretch"
+                        PlaceholderText="example.exe" />
+                    <TextBlock Text="The .exe name shown in Task Manager under Details." TextWrapping="Wrap"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <ComboBox Header="Recognize as" AutomationProperties.Name="Recognize as" HorizontalAlignment="Stretch"
                         SelectedIndex="{x:Bind ViewModel.SelectedAppIndex, Mode=TwoWay}">
                         <ComboBoxItem Content="T3 Code" />
                         <ComboBoxItem Content="Claude Desktop" />
                         <ComboBoxItem Content="Codex Desktop" />
                     </ComboBox>
-                    <Button Content="Add mapping" Command="{x:Bind ViewModel.AddMappingCommand}" />
+                    <Button Content="Add app" Command="{x:Bind ViewModel.AddMappingCommand}" />
                     <ListView ItemsSource="{x:Bind ViewModel.ProcessMappings}" SelectionMode="None" MaxHeight="220">
                         <ListView.ItemTemplate>
                             <DataTemplate x:DataType="vm:ProcessMappingItem">
@@ -69,14 +176,26 @@
                                             Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     </StackPanel>
                                     <Button Grid.Column="1" Content="Remove" Click="OnRemoveMappingClicked"
-                                        AutomationProperties.Name="Remove application mapping" />
+                                        AutomationProperties.Name="{x:Bind RemoveAutomationName, Mode=OneWay}" />
                                 </Grid>
                             </DataTemplate>
                         </ListView.ItemTemplate>
                     </ListView>
                 </StackPanel>
             </Expander>
-            <TextBlock Text="Shares app focus only. Conversation text, window titles, and task counts aren't shared. Close this window to keep running in the notification area."
+
+            <!-- Troubleshooting Section -->
+            <Expander Header="Troubleshooting" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                <StackPanel Spacing="10">
+                    <TextBlock Text="Active app" Style="{StaticResource CaptionTextBlockStyle}" />
+                    <TextBlock Text="{x:Bind ViewModel.ForegroundAppText, Mode=OneWay}" />
+                    <TextBlock Text="Discord connection" Style="{StaticResource CaptionTextBlockStyle}" />
+                    <TextBlock Text="{x:Bind ViewModel.ConnectionStatusText, Mode=OneWay}" />
+                </StackPanel>
+            </Expander>
+
+            <!-- Privacy Footer -->
+            <TextBlock Text="{x:Bind ViewModel.PrivacyFooterText, Mode=OneWay}"
                 TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
         </StackPanel>
     </ScrollViewer>

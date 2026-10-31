@@ -38,13 +38,13 @@ Use the T3 logo as large artwork and the featured harness as the one small overl
 Example text (fictional, with a constant registered companion title):
 
 ```
-Developer Presence
+Deskchirp
 T3 Code · Claude Code
 2 tasks · 4 subagents
 ```
 
 ```
-Developer Presence
+Deskchirp
 T3 Code · Antigravity
 6 active · Claude Code 2
 ```
