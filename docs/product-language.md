@@ -103,8 +103,8 @@ Keep the native controls and system appearance: SwiftUI `Form(.grouped)` on macO
 
 1. Section without a header: **Share on Discord** and **Pause sharing**. Disable Pause while sharing is off; the menu already does this, but Settings doesn't.
 2. Section **Discord preview**: the details line (`.headline`), the state line if there is one (`.body`), one status line (`.secondary`), an optional recovery line, and the caption **Last updated {time}**.
-3. Section **T3 Code**: the **Show T3 activity** toggle and its help, the **T3 address** field and its help, `LabeledContent("Status")`, and **Connect T3 Code** or **Disconnect**.
-4. Section **Discord**: the **Discord application ID** field, its help and validation, the **Open Discord Developer Portal** link, the **Show app icons** toggle, its help, and the **How to Add the Icons** link.
+3. Section **T3 Code**: plain-language task/helper explanation, connection status, and **Allow T3 activity** or **Disconnect**. The sharing-count toggle appears after connection. Local discovery runs as part of approval; no address field appears here.
+4. Collapsed **Advanced**: optional **T3 address**, custom **Discord application ID**, and optional artwork. The publisher application ID is included. Developer Portal registration is never part of normal setup.
 5. Footer for the last section: the privacy sentence (see below).
 6. Rename the second tab to **App Detection**. Move the active-app identifier there; it's for troubleshooting.
 
@@ -129,7 +129,7 @@ The macOS settings window sits at 520 pt minimum width, so help text must wrap: 
 | Section title (`SettingsView.swift:41`, `MainWindow.xaml:32`) | **Discord preview** |
 | Nothing being sent (replaces `None / Cleared`) | **Not shown on Discord** |
 | Updated time (replaces `Last acknowledged`, `Last acknowledged update`) | **Last updated {time}**. Use the locale's time format: SwiftUI `.formatted(date: .omitted, time: .shortened)`; Windows `ToString("t")` instead of the hard-coded `"HH:mm:ss"` at `MainViewModel.cs:252`. Hide the row until the first update instead of showing `Never`. |
-| Activity note (one line under the preview) | Not opted in: *(none)* · Not connected: **Connect T3 Code to show agent activity.** · No running, waiting, or starting work: **No tasks right now, so only the app name is shown.** · Unavailable, stale, or incomplete: **T3 activity isn’t available right now, so only the app name is shown.** |
+| Activity note (one line under the preview) | Not opted in: *(none)* · Not connected: **Allow T3 activity to show agent activity.** · No running, waiting, or starting work: **No tasks right now, so only the app name is shown.** · Unavailable, stale, or incomplete: **T3 activity isn’t available right now, so only the app name is shown.** |
 | Accessibility label | “Discord will show: {details}. {state}.” Replace " · " with ", " so screen readers don't read out "middle dot". |
 
 ### T3 Code
@@ -142,7 +142,7 @@ The macOS settings window sits at 520 pt minimum width, so help text must wrap: 
 | Address field label | **T3 address** |
 | Address placeholder | Paste from T3 Code |
 | Address help | In T3 Code, open Settings → Environments and choose Copy MCP URL. |
-| Connect button | macOS **Connect T3 Code** / Windows **Connect T3 Code** |
+| Connect button | macOS **Allow T3 activity** / Windows **Allow T3 activity** |
 | Consent line under Connect | Opens your browser so you can approve read-only access in T3 Code. Deskchirp only reads which agent tools are working and how many tasks and helpers they have. |
 | Disconnect button | **Disconnect**. Accessible name: “Disconnect T3 Code”. No confirmation, because reconnecting is easy. Help after disconnecting: “To revoke access in T3 too, open T3 Code Settings → Sharing & access.” |
 | Stored credential note (shown once connected) | macOS: Your sign-in is saved in Keychain. · Windows: Your sign-in is saved in Windows Credential Manager. |
@@ -231,11 +231,11 @@ These labels come from the spec, with recovery added.
 
 | Status label | When | Recovery / detail line | Action |
 |---|---|---|---|
-| **Not connected** | No saved sign-in | Paste the T3 address, then connect. | Connect T3 Code |
+| **Not connected** | No saved sign-in | Deskchirp finds T3 Code on this computer. Allow access once to share task and helper counts. | Allow T3 activity |
 | **Opening sign-in…** | Browser launched, callback pending | Approve Read only access in your browser, then come back here. If T3 asks for a pairing code, create one in T3 Code under Settings → Sharing & access. | Cancel *(accessible name: “Cancel T3 sign-in”)* |
 | **Connected** | Valid credential | Activity is checked only while T3 Code is the active app. | Disconnect |
-| **Sign in again** | 401 or expired token | Your T3 Code sign-in expired. Connect again to keep showing activity. | Connect T3 Code |
-| **Couldn’t reach T3 Code** | Network failure or timeout | Check that T3 Code is running and the address is right. | Connect T3 Code |
+| **Sign in again** | 401 or expired token | Your T3 Code sign-in expired. Connect again to keep showing activity. | Allow T3 activity |
+| **Couldn’t reach T3 Code** | Network failure or timeout | Check that T3 Code is running and the address is right. | Allow T3 activity |
 
 ### T3 address and sign-in errors
 
@@ -326,3 +326,7 @@ User docs that say task counts aren't shared and need the conditional wording ab
 - `README.md:16`
 - `macos/README.md:23`
 - `docs/trying-builds.md:26`
+
+## Simpler setup (preview 2)
+
+The current setup flow takes precedence over the original field inventory above: normal users turn on Share on Discord, then choose Allow T3 activity for optional counts. Deskchirp finds the local T3 app and opens T3’s approval; it does not bypass consent. Custom IDs, manual addresses and artwork stay under Advanced. Local discovery failures show a recovery action; multiple environments require a choice. “Finding T3 Code…” and a Cancel button cover discovery without exposing protocol terms. Remote environments can require a manually selected address. Icons stay off until the publisher application has artwork.
