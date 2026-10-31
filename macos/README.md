@@ -14,7 +14,7 @@ open macos/dist/Deskchirp.app
 
 The packaging script builds a release executable, creates a dockless `.app` bundle (`LSUIElement`), and applies an ad-hoc signature. Developer ID signing, notarization, release artwork, and an installer are not implemented. Ad-hoc signing is for local development.
 
-GitHub-hosted macOS runners have passed all 71 Swift tests on Apple Silicon and Intel and built, ad-hoc signed, and archived both app bundles. Download the matching artifact from the [successful build](https://github.com/geekynasir/deskchirp-discord/actions/runs/41198285124) to try it without Xcode; see [download instructions](../docs/trying-builds.md). App launch, actual Discord, and desktop lifecycle behavior still need real-machine validation. Follow the [target-platform acceptance checklist](../docs/acceptance.md) before distributing the app.
+GitHub-hosted macOS runners have passed all 71 Swift tests on Apple Silicon and Intel and built, ad-hoc signed, and archived both app bundles. Download the matching artifact from the [successful build](https://github.com/geekynasir/deskchirp-discord/releases/tag/v0.1.0-preview.1) to try it without Xcode; see [download instructions](../docs/trying-builds.md). App launch, actual Discord, and desktop lifecycle behavior still need real-machine validation. Follow the [target-platform acceptance checklist](../docs/acceptance.md) before distributing the app.
 
 ## First run
 

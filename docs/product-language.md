@@ -4,11 +4,9 @@ The words Deskchirp uses in its macOS and Windows settings, menus, status messag
 
 This guide doesn't change any approved behavior. Sharing stays off by default. T3 access is read-only. Only the active app is in scope. When T3 activity is unavailable, the app shows the app name only. Thread titles, models, projects, prompts, paths, private URLs, and credentials are never published.
 
-Method: [Impeccable](https://github.com/pbakaus/impeccable) 4.8.0 `clarify`, Operate mode, and the craft floor. The project context launcher didn't run, and there is no PRODUCT.md or DESIGN.md, so this guide uses only the existing source and `spec/t3-activity.md`.
+The guide uses the native-interface and copy-editing principles in [Impeccable](https://github.com/pbakaus/impeccable). It also adapts audit guidance from [Unslop by Damir Sokolovsky (@heydamir)](https://github.com/heydamir/unslop/blob/main/skills/unslop/SKILL.md), under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). The adaptations focus on native settings, recovery messages, privacy explanations, and the task/helper vocabulary.
 
-Follow-up review on 2026-10-31: the user confirmed **Unslop** as the intended name. Applied the audit guidance from [Unslop by Damir Sokolovsky (@heydamir)](https://github.com/heydamir/unslop/blob/main/skills/unslop/SKILL.md), licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). This review note adapts that guidance. The earlier “Stack Cursor” attribution remains unverified.
-
-The review covered both native settings implementations, their public status messages, the task/helper formatters, the connection guide, and existing build screenshots: macOS light/dark and Windows light. No decorative gradients, emoji labels, hype copy, or unnecessary animation were found in those surfaces. The settings explain helpers, keep connection terminology out of normal status messages, and show a concrete next step when setup fails. Discord uses short tool names and task/helper counts, with waiting and starting work labeled explicitly. Retained the native controls and existing wording; this pass changed documentation only. The screenshots cover only the captured portion of settings, and do not establish accessibility, scaling, live sign-in, or real Discord rendering. Those checks remain in `docs/acceptance.md`.
+Keep the native controls, short labels, and factual status messages. Screenshots cover only the captured settings; accessibility, scaling, sign-in, and real Discord rendering still need the [acceptance checks](acceptance.md).
 
 ## Voice
 
