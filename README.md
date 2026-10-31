@@ -11,9 +11,11 @@ There is no Electron, embedded browser, or shared UI runtime. Platform implement
 
 ## Implementation scope
 
-The initial source implements foreground-app presence: **“Using T3 Code,” “Using Claude,” or “Using Codex.”** Sharing is disabled by default. A user-supplied public Discord application ID and a locally running Discord desktop client are required. A public application ID is not a bot token or client secret.
+The app shows **“Using T3 Code,” “Using Claude,” or “Using Codex.”** Sharing is disabled by default. A user-supplied public Discord application ID and a locally running Discord desktop client are required. A public application ID is not a bot token or client secret.
 
-Foreground detection does not establish agent activity or task counts. The authenticated T3 metadata adapter and richer Claude/Codex activity adapters remain future work. No conversation bodies, window titles, code, or file paths are intended for presence payloads.
+Optional **T3 activity** connects to one T3 environment with read-only access. It shows the busiest agent tool and separate task/helper counts, for example **“T3 Code · Claude Code”** and **“2 tasks · 4 helpers.”** A helper is an extra agent working on a task. [Connect T3 Code](docs/connect-t3.md) to use it. Artwork is a separate opt-in with an [included icon pack](assets/discord/README.md).
+
+App detection alone does not establish agent activity. T3 counts come from fresh metadata, and unavailable data falls back to the app name. Claude Desktop and Codex Desktop remain app-name-only. Conversations, window titles, projects, model names, code, and file paths are not published.
 
 Native development builds are available for Apple Silicon Macs, Intel Macs, and Windows x64 from the [successful GitHub Actions run](https://github.com/geekynasir/developer-presence/actions/runs/41190337628). Sign in to the repository account to download its artifacts; see [trying a build](docs/trying-builds.md). These are development bundles, not signed releases or installers.
 

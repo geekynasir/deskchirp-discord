@@ -16,17 +16,46 @@ public class SettingsPresentationTests
         using var model = new MainViewModel(settings, coordinator);
 
         Assert.False(model.EnableSharing);
+        Assert.False(model.IsPauseEnabled);
+
         settings.Load(new PresenceSettings
         {
-            EnableSharing = true, IsPaused = true, DiscordClientId = "123456789012345678",
+            EnableSharing = true,
+            IsPaused = true,
+            DiscordClientId = "123456789012345678",
+            ShowT3Activity = true,
+            ShowAppIcons = true,
+            T3Address = "http://127.0.0.1:8080/mcp",
             ProcessMappings = new() { ["custom.exe"] = SupportedApp.Claude }
         });
 
         Assert.True(model.EnableSharing);
+        Assert.True(model.IsPauseEnabled);
         Assert.True(model.IsPaused);
         Assert.Equal("123456789012345678", model.DiscordClientId);
+        Assert.True(model.ShowT3Activity);
+        Assert.True(model.ShowAppIcons);
+        Assert.Equal("http://127.0.0.1:8080/mcp", model.T3Address);
         Assert.Single(model.ProcessMappings);
         Assert.Equal("custom.exe", model.ProcessMappings[0].ExecutableName);
+    }
+
+    [Fact]
+    public async Task PauseSharing_IsDisabledWhenSharingIsOff()
+    {
+        var settings = new SettingsStub();
+        await using var discord = new DiscordIpcClient();
+        await using var coordinator = new PresenceCoordinator(settings, discord, new ForegroundDetector(() => null));
+        using var model = new MainViewModel(settings, coordinator);
+
+        model.EnableSharing = false;
+        Assert.False(model.IsPauseEnabled);
+
+        model.EnableSharing = true;
+        Assert.True(model.IsPauseEnabled);
+
+        model.EnableSharing = false;
+        Assert.False(model.IsPauseEnabled);
     }
 
     [Fact]

@@ -12,6 +12,11 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         AppModel.coordinator.start()
+
+        // Support --show-settings launch argument for CI native screenshots
+        if CommandLine.arguments.contains("--show-settings") {
+            SettingsWindowController.shared.showSettings(coordinator: AppModel.coordinator)
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {

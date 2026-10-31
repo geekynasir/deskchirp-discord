@@ -4,7 +4,7 @@ namespace DeveloperPresence.App.Interop;
 
 /// <summary>
 /// Manages the native Win32 system tray notification icon using Shell_NotifyIcon.
-/// Provides native popup context menu (Show, Pause/Resume, Quit) and double-click restore.
+/// Provides native popup context menu (Open, Pause/Resume, Exit) and double-click restore.
 /// </summary>
 public sealed class TrayIcon : IDisposable
 {
@@ -18,6 +18,7 @@ public sealed class TrayIcon : IDisposable
     private readonly Action _onTogglePause;
     private readonly Action _onQuit;
     private readonly Func<bool> _isPausedProvider;
+    private readonly Func<bool> _isSharingEnabledProvider;
 
     private Win32.NOTIFYICONDATA _nid;
     private bool _isCreated;
@@ -35,13 +36,15 @@ public sealed class TrayIcon : IDisposable
         Action onShow,
         Action onTogglePause,
         Action onQuit,
-        Func<bool> isPausedProvider)
+        Func<bool> isPausedProvider,
+        Func<bool>? isSharingEnabledProvider = null)
     {
         _hWnd = hWnd;
         _onShow = onShow;
         _onTogglePause = onTogglePause;
         _onQuit = onQuit;
         _isPausedProvider = isPausedProvider;
+        _isSharingEnabledProvider = isSharingEnabledProvider ?? (() => true);
 
         InitializeTrayIcon();
     }
@@ -58,7 +61,7 @@ public sealed class TrayIcon : IDisposable
             uFlags = Win32.NIF_MESSAGE | Win32.NIF_ICON | Win32.NIF_TIP,
             uCallbackMessage = Win32.WM_TRAYICON,
             hIcon = hIcon,
-            szTip = "Developer Presence"
+            szTip = "Developer Presence\nNot shown on Discord"
         };
 
         _isCreated = Win32.Shell_NotifyIcon(Win32.NIM_ADD, ref _nid);
@@ -66,6 +69,7 @@ public sealed class TrayIcon : IDisposable
 
     /// <summary>
     /// Updates the tooltip displayed when hovering over the tray icon.
+    /// Kept within Win32 szTip limit (128 characters max).
     /// </summary>
     public void UpdateTooltip(string text)
     {
@@ -74,7 +78,7 @@ public sealed class TrayIcon : IDisposable
             return;
         }
 
-        string safeText = text.Length > 120 ? text.Substring(0, 120) : text;
+        string safeText = text.Length > 127 ? text.Substring(0, 127) : text;
         _nid.szTip = safeText;
         _nid.uFlags = Win32.NIF_TIP;
         Win32.Shell_NotifyIcon(Win32.NIM_MODIFY, ref _nid);
@@ -111,13 +115,14 @@ public sealed class TrayIcon : IDisposable
         try
         {
             bool isPaused = _isPausedProvider();
-            string pauseText = isPaused ? "Resume Presence" : "Pause Presence";
-            uint pauseFlags = Win32.MF_STRING | (isPaused ? Win32.MF_CHECKED : Win32.MF_UNCHECKED);
+            string pauseText = isPaused ? "Resume sharing" : "Pause sharing";
+            // Drop MF_CHECKED per Windows UX conventions (a checked 'Resume' item contradicts itself)
+            uint pauseFlags = Win32.MF_STRING | (_isSharingEnabledProvider() ? 0 : Win32.MF_GRAYED);
 
-            Win32.AppendMenu(hMenu, Win32.MF_STRING, CmdShow, "Show Developer Presence");
+            Win32.AppendMenu(hMenu, Win32.MF_STRING, CmdShow, "Open Developer Presence");
             Win32.AppendMenu(hMenu, pauseFlags, CmdTogglePause, pauseText);
             Win32.AppendMenu(hMenu, Win32.MF_SEPARATOR, 0, string.Empty);
-            Win32.AppendMenu(hMenu, Win32.MF_STRING, CmdQuit, "Quit");
+            Win32.AppendMenu(hMenu, Win32.MF_STRING, CmdQuit, "Exit");
 
             Win32.GetCursorPos(out Win32.POINT pt);
             Win32.SetForegroundWindow(_hWnd);

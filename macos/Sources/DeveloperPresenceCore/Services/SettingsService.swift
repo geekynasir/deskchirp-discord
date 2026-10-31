@@ -8,6 +8,7 @@ public protocol SettingsServicing: AnyObject, Sendable {
 /// Manages persistence of user settings in UserDefaults.
 /// Guarantees:
 /// - Sharing is disabled (OFF) by default.
+/// - Show T3 Activity is disabled (OFF) by default.
 /// - Discord Client ID is EMPTY ("") by default.
 /// - Contains NO secrets, passwords, tokens, or credentials.
 public final class SettingsService: SettingsServicing, @unchecked Sendable {
@@ -22,6 +23,9 @@ public final class SettingsService: SettingsServicing, @unchecked Sendable {
         public static let discordClientId = "developer_presence_discord_client_id"
         public static let updateIntervalSeconds = "developer_presence_update_interval_seconds"
         public static let bundleMappings = "developer_presence_bundle_mappings"
+        public static let showT3Activity = "developer_presence_show_t3_activity"
+        public static let t3Address = "developer_presence_t3_address"
+        public static let showAppIcons = "developer_presence_show_app_icons"
     }
 
     public init(userDefaults: UserDefaults = .standard) {
@@ -42,12 +46,19 @@ public final class SettingsService: SettingsServicing, @unchecked Sendable {
                 bundleMappings = savedMappings
             }
 
+            let showT3Activity = userDefaults.bool(forKey: Keys.showT3Activity)
+            let t3Address = userDefaults.string(forKey: Keys.t3Address) ?? ""
+            let showAppIcons = userDefaults.bool(forKey: Keys.showAppIcons)
+
             return PresenceSettings(
                 enableSharing: enableSharing,
                 isPaused: isPaused,
                 discordClientId: discordClientId,
                 updateIntervalSeconds: updateIntervalSeconds,
-                bundleMappings: bundleMappings
+                bundleMappings: bundleMappings,
+                showT3Activity: showT3Activity,
+                t3Address: t3Address,
+                showAppIcons: showAppIcons
             )
         }
     }
@@ -62,6 +73,10 @@ public final class SettingsService: SettingsServicing, @unchecked Sendable {
             if let data = try? JSONEncoder().encode(settings.bundleMappings) {
                 userDefaults.set(data, forKey: Keys.bundleMappings)
             }
+
+            userDefaults.set(settings.showT3Activity, forKey: Keys.showT3Activity)
+            userDefaults.set(settings.t3Address, forKey: Keys.t3Address)
+            userDefaults.set(settings.showAppIcons, forKey: Keys.showAppIcons)
         }
     }
 }

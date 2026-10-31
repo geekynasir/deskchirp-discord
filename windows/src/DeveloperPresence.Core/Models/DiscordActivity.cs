@@ -39,10 +39,47 @@ public sealed class DiscordSetActivityArgs
 }
 
 /// <summary>
-/// Discord Activity payload.
-/// Strictly limited to details only in version 1. No timestamps, assets, secrets, or fake states.
+/// Discord Activity artwork and overlay icons.
 /// </summary>
-public sealed class DiscordActivity
+public sealed class DiscordActivityAssets : IEquatable<DiscordActivityAssets>
+{
+    [JsonPropertyName("large_image")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? LargeImage { get; set; }
+
+    [JsonPropertyName("large_text")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? LargeText { get; set; }
+
+    [JsonPropertyName("small_image")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SmallImage { get; set; }
+
+    [JsonPropertyName("small_text")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SmallText { get; set; }
+
+    public bool Equals(DiscordActivityAssets? other)
+    {
+        if (other is null) return false;
+        if (ReferenceEquals(this, other)) return true;
+        return string.Equals(LargeImage, other.LargeImage, StringComparison.Ordinal) &&
+               string.Equals(LargeText, other.LargeText, StringComparison.Ordinal) &&
+               string.Equals(SmallImage, other.SmallImage, StringComparison.Ordinal) &&
+               string.Equals(SmallText, other.SmallText, StringComparison.Ordinal);
+    }
+
+    public override bool Equals(object? obj) => Equals(obj as DiscordActivityAssets);
+
+    public override int GetHashCode() =>
+        HashCode.Combine(LargeImage, LargeText, SmallImage, SmallText);
+}
+
+/// <summary>
+/// Discord Activity payload.
+/// Supports details, state, and optional artwork assets. Strictly no timestamps, secrets, or fake data.
+/// </summary>
+public sealed class DiscordActivity : IEquatable<DiscordActivity>
 {
     [JsonPropertyName("details")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -51,6 +88,24 @@ public sealed class DiscordActivity
     [JsonPropertyName("state")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? State { get; set; }
+
+    [JsonPropertyName("assets")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DiscordActivityAssets? Assets { get; set; }
+
+    public bool Equals(DiscordActivity? other)
+    {
+        if (other is null) return false;
+        if (ReferenceEquals(this, other)) return true;
+        return string.Equals(Details, other.Details, StringComparison.Ordinal) &&
+               string.Equals(State, other.State, StringComparison.Ordinal) &&
+               Equals(Assets, other.Assets);
+    }
+
+    public override bool Equals(object? obj) => Equals(obj as DiscordActivity);
+
+    public override int GetHashCode() =>
+        HashCode.Combine(Details, State, Assets);
 }
 
 /// <summary>

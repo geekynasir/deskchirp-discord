@@ -33,6 +33,7 @@ jobs:
         run: |
           cmp spec/presence-cases.json macos/Tests/DeveloperPresenceTests/Resources/presence-cases.json
           cmp spec/ipc-frames.json macos/Tests/DeveloperPresenceTests/Resources/ipc-frames.json
+          cmp spec/t3-activity-cases.json macos/Tests/DeveloperPresenceTests/Resources/t3-activity-cases.json
       - name: Test Swift implementation
         run: swift test --package-path macos
       - name: Build native app bundle
@@ -44,12 +45,23 @@ jobs:
           codesign --verify --deep --strict macos/dist/DeveloperPresence.app
           cp docs/trying-builds.md macos/dist/READ-ME.md
           ditto -c -k --sequesterRsrc --keepParent macos/dist/DeveloperPresence.app macos/dist/DeveloperPresence-macos-${{ matrix.arch }}.zip
+          cp docs/connect-t3.md macos/dist/CONNECT-T3.md
+          cp -R assets/discord macos/dist/Discord-artwork
+      - name: Capture native settings for review
+        continue-on-error: true
+        run: |
+          open -n macos/dist/DeveloperPresence.app --args --show-settings
+          sleep 5
+          screencapture -x macos/dist/settings.png
       - uses: actions/upload-artifact@v4
         with:
           name: DeveloperPresence-macos-${{ matrix.arch }}
           path: |
             macos/dist/DeveloperPresence-macos-${{ matrix.arch }}.zip
             macos/dist/READ-ME.md
+            macos/dist/CONNECT-T3.md
+            macos/dist/Discord-artwork/
+            macos/dist/settings.png
           if-no-files-found: error
           retention-days: 14
 
@@ -86,6 +98,12 @@ jobs:
         run: |
           if (!(Test-Path dist/windows-x64/DeveloperPresence.App.exe)) { throw 'Application executable missing' }
           Copy-Item docs/trying-builds.md dist/windows-x64/READ-ME.md
+          Copy-Item docs/connect-t3.md dist/windows-x64/CONNECT-T3.md
+          Copy-Item -Recurse assets/discord dist/windows-x64/Discord-artwork
+      - name: Capture native settings for review
+        continue-on-error: true
+        shell: pwsh
+        run: ./scripts/capture-windows.ps1
       - uses: actions/upload-artifact@v4
         with:
           name: DeveloperPresence-windows-x64

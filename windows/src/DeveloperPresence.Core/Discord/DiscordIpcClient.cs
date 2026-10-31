@@ -196,6 +196,19 @@ public sealed class DiscordIpcClient : IDiscordIpcClient
         return null;
     }
 
+    public async Task SendActivityAsync(DiscordActivity activity, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(activity);
+
+        var session = _currentSession;
+        if (session == null || !session.IsReady || session.IsDisposed)
+        {
+            throw new InvalidOperationException("Not connected to Discord IPC.");
+        }
+
+        await SendSetActivityPayloadAsync(session, activity, ct).ConfigureAwait(false);
+    }
+
     public async Task SendActivityAsync(SupportedApp app, CancellationToken ct = default)
     {
         var session = _currentSession;

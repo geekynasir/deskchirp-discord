@@ -4,51 +4,45 @@ import Combine
 import AppKit
 #endif
 
-/// Central coordinator managing application state, privacy enforcement, and Discord IPC.
+/// Main coordinator managing app lifecycle, foreground detection, session events,
+/// T3 Code activity polling, privacy policy enforcement, and Discord IPC.
 @MainActor
 public final class PresenceCoordinator: ObservableObject {
-    @Published public private(set) var settings: PresenceSettings
     @Published public private(set) var state: PresenceState
-    @Published public private(set) var menuBarIconName: String = "antenna.radiowaves.left.and.right.slash"
-
-    private var started = false
+    @Published public private(set) var settings: PresenceSettings
+    @Published public private(set) var menuBarIconName: String = "circle"
 
     private let settingsService: SettingsServicing
     private let foregroundDetector: ForegroundDetecting
     private let sessionObserver: SessionStateObserving
     private let discordClient: DiscordIpcClient
+    public let t3Service: T3ActivityService
+
+    private var started = false
 
     public init(
         settingsService: SettingsServicing = SettingsService.shared,
-        foregroundDetector: ForegroundDetecting? = nil,
-        sessionObserver: SessionStateObserving? = nil,
-        discordClient: DiscordIpcClient? = nil
+        foregroundDetector: ForegroundDetecting = WorkspaceForegroundDetector.shared,
+        sessionObserver: SessionStateObserving = WorkspaceSessionObserver.shared,
+        discordClient: DiscordIpcClient = DiscordIpcClient.shared,
+        t3Service: T3ActivityService = T3ActivityService()
     ) {
-        let loadedSettings = settingsService.loadSettings()
-        self.settings = loadedSettings
         self.settingsService = settingsService
+        self.foregroundDetector = foregroundDetector
+        self.sessionObserver = sessionObserver
+        self.discordClient = discordClient
+        self.t3Service = t3Service
 
-        let assignedDetector = foregroundDetector ?? WorkspaceForegroundDetector(bundleMappings: loadedSettings.bundleMappings)
-        self.foregroundDetector = assignedDetector
+        let initialSettings = settingsService.loadSettings()
+        self.settings = initialSettings
+        self.state = PresenceState()
 
-        let assignedSessionObserver = sessionObserver ?? WorkspaceSessionObserver()
-        self.sessionObserver = assignedSessionObserver
+        setupBindings()
 
-        let assignedClient = discordClient ?? DiscordIpcClient()
-        self.discordClient = assignedClient
-
-        self.state = PresenceState(
-            connectionStatus: .disconnected,
-            foregroundApp: .none,
-            detectedBundleId: nil,
-            outgoingHeadline: "None / Cleared",
-            isSessionSuspended: assignedSessionObserver.isSuspended,
-            lastUpdate: nil,
-            statusMessage: loadedSettings.enableSharing ? "Ready" : "Disabled",
-            lastError: nil
-        )
-
-        self.setupBindings()
+        // Restore saved T3 connection if address was previously configured
+        if !initialSettings.t3Address.isEmpty {
+            t3Service.restoreSavedConnection(address: initialSettings.t3Address)
+        }
     }
 
     private func setupBindings() {
@@ -67,9 +61,11 @@ public final class PresenceCoordinator: ObservableObject {
                 self.state.isSessionSuspended = isSuspended
                 if isSuspended {
                     // Privacy rule: immediate clear on sleep or lock
+                    self.t3Service.updateEligibility(isEligibleToPoll: false)
                     self.discordClient.clearAndCloseImmediately()
                     self.state.connectionStatus = .disconnected
-                    self.state.outgoingHeadline = "None / Cleared (Locked or Sleeping)"
+                    self.state.outgoingHeadline = "None / Cleared"
+                    self.state.outgoingState = nil
                     self.updateIcon()
                 } else {
                     // On wake or unlock, refresh foreground app
@@ -78,6 +74,28 @@ public final class PresenceCoordinator: ObservableObject {
                     self.state.detectedBundleId = bundleId
                     self.evaluatePresence(immediate: true)
                 }
+            }
+        }
+
+        t3Service.onStatusChanged = { [weak self] status, message in
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
+                self.state.t3ConnectionStatus = status
+                self.state.t3StatusDetail = message ?? status.recoveryText
+                if status == .couldNotReach || status == .signInAgain {
+                    self.state.t3LastError = message
+                } else {
+                    self.state.t3LastError = nil
+                }
+                self.evaluatePresence(immediate: false)
+            }
+        }
+
+        t3Service.onActivityUpdated = { [weak self] snapshot, winner in
+            Task { @MainActor [weak self] in
+                guard let self = self, self.started else { return }
+                self.state.t3ActiveWinner = winner
+                self.evaluatePresence(immediate: false)
             }
         }
 
@@ -126,6 +144,7 @@ public final class PresenceCoordinator: ObservableObject {
         started = false
         foregroundDetector.stop()
         sessionObserver.stop()
+        t3Service.updateEligibility(isEligibleToPoll: false)
         discordClient.clearAndCloseImmediately()
     }
 
@@ -133,21 +152,55 @@ public final class PresenceCoordinator: ObservableObject {
 
     public func evaluatePresence(immediate: Bool = false) {
         guard started else { return }
+
         let isEligible = settings.enableSharing &&
                          !settings.isPaused &&
                          !state.isSessionSuspended &&
                          settings.isValidDiscordClientId
+
+        // Update T3 polling eligibility: poll only when sharing is active, awake, T3 activity enabled, and T3 Code focused
+        let isEligibleToPoll = isEligible &&
+                              settings.showT3Activity &&
+                              state.foregroundApp == .t3Code
+        t3Service.updateEligibility(isEligibleToPoll: isEligibleToPoll)
+
+        let t3Formatted: T3FormattedActivity?
+        if state.foregroundApp == .t3Code {
+            t3Formatted = settings.showT3Activity
+                ? t3Service.currentFormattedActivity(showAppIcons: settings.showAppIcons)
+                : T3ActivityFormatter.format(snapshot: nil, winningTool: nil, showAppIcons: settings.showAppIcons)
+        } else {
+            t3Formatted = nil
+        }
 
         let activity = ActivityFormatter.formatActivity(
             app: state.foregroundApp,
             enableSharing: settings.enableSharing,
             isPaused: settings.isPaused,
             isSuspended: state.isSessionSuspended,
-            isValidClientId: settings.isValidDiscordClientId
+            isValidClientId: settings.isValidDiscordClientId,
+            t3FormattedActivity: t3Formatted
         )
 
         if isEligible {
             state.outgoingHeadline = ActivityFormatter.getHeadline(for: activity)
+            state.outgoingState = activity?.state
+
+            // Activity note per product language specification
+            if !settings.showT3Activity || state.foregroundApp != .t3Code {
+                state.t3ActivityNote = nil
+            } else if t3Service.connectionStatus != .connected {
+                state.t3ActivityNote = "Connect T3 Code to show agent activity."
+            } else if t3Service.currentSnapshot == nil {
+                state.t3ActivityNote = "T3 activity isn’t available right now, so only the app name is shown."
+            } else if let t3 = t3Formatted, t3.winningTool == nil {
+                state.t3ActivityNote = "No tasks right now, so only the app name is shown."
+            } else if t3Formatted == nil {
+                state.t3ActivityNote = "T3 activity isn’t available right now, so only the app name is shown."
+            } else {
+                state.t3ActivityNote = nil
+            }
+
             if state.foregroundApp != .none {
                 state.statusMessage = "Preparing activity for \(state.foregroundApp.displayName)"
             } else {
@@ -155,6 +208,9 @@ public final class PresenceCoordinator: ObservableObject {
             }
         } else {
             state.outgoingHeadline = "None / Cleared"
+            state.outgoingState = nil
+            state.t3ActivityNote = nil
+
             if !settings.enableSharing {
                 state.statusMessage = "Disabled"
             } else if settings.isPaused {
@@ -205,6 +261,7 @@ public final class PresenceCoordinator: ObservableObject {
         settingsService.saveSettings(settings)
         if !settings.enableSharing {
             discordClient.clearAndCloseImmediately()
+            t3Service.updateEligibility(isEligibleToPoll: false)
         }
         evaluatePresence(immediate: true)
     }
@@ -214,7 +271,49 @@ public final class PresenceCoordinator: ObservableObject {
         settingsService.saveSettings(settings)
         if settings.isPaused {
             discordClient.clearAndCloseImmediately()
+            t3Service.updateEligibility(isEligibleToPoll: false)
         }
+        evaluatePresence(immediate: true)
+    }
+
+    public func toggleT3Activity() {
+        settings.showT3Activity.toggle()
+        settingsService.saveSettings(settings)
+        evaluatePresence(immediate: true)
+    }
+
+    public func toggleShowAppIcons() {
+        settings.showAppIcons.toggle()
+        settingsService.saveSettings(settings)
+        evaluatePresence(immediate: true)
+    }
+
+    public func setT3Address(_ address: String) {
+        let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        settings.t3Address = trimmed
+        settingsService.saveSettings(settings)
+        t3Service.handleEndpointChange(address: trimmed)
+        evaluatePresence(immediate: false)
+    }
+
+    public func connectT3() {
+        Task {
+            do {
+                try await t3Service.connect(address: settings.t3Address)
+                self.evaluatePresence(immediate: true)
+            } catch {
+                self.evaluatePresence(immediate: false)
+            }
+        }
+    }
+
+    public func cancelT3SignIn() {
+        t3Service.cancelSignIn()
+        evaluatePresence(immediate: false)
+    }
+
+    public func disconnectT3() {
+        t3Service.disconnect()
         evaluatePresence(immediate: true)
     }
 

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Menu dropdown contents displayed by MenuBarExtra.
+/// Menu dropdown contents displayed by MenuBarExtra matching product language specification.
 @MainActor
 public struct MenuBarContentView: View {
     @ObservedObject public var coordinator: PresenceCoordinator
@@ -11,28 +11,26 @@ public struct MenuBarContentView: View {
 
     public var body: some View {
         Group {
-            // Status and Foreground Display
             Text("Developer Presence")
                 .font(.headline)
 
-            Text("Status: \(coordinator.state.statusMessage)")
+            Text(UserFacingStatus.describe(state: coordinator.state, settings: coordinator.settings).title)
 
-            if coordinator.state.foregroundApp != .none {
-                Text("Foreground: \(coordinator.state.foregroundApp.displayName)")
-            } else if let bundleId = coordinator.state.detectedBundleId {
-                Text("Foreground: Unmapped (\(bundleId))")
-            } else {
-                Text("Foreground: None")
+            if coordinator.state.outgoingHeadline != ActivityFormatter.headlineNone {
+                Text(coordinator.state.outgoingHeadline)
+                if let state = coordinator.state.outgoingState {
+                    Text(state)
+                }
             }
-
-            Text("Preview: \(coordinator.state.outgoingHeadline)")
 
             Divider()
 
-            // Actions
-            Button(coordinator.settings.enableSharing ? "Disable Presence Sharing" : "Enable Presence Sharing") {
-                coordinator.toggleSharing()
-            }
+            Toggle("Share on Discord", isOn: Binding(
+                get: { coordinator.settings.enableSharing },
+                set: { value in
+                    if value != coordinator.settings.enableSharing { coordinator.toggleSharing() }
+                }
+            ))
 
             Button(coordinator.settings.isPaused ? "Resume Sharing" : "Pause Sharing") {
                 coordinator.togglePause()

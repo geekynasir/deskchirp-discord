@@ -29,8 +29,14 @@ public interface IDiscordIpcClient : IAsyncDisposable
     Task<bool> ConnectAsync(string clientId, CancellationToken ct = default);
 
     /// <summary>
-    /// Sends a SET_ACTIVITY command for the active supported developer application.
+    /// Sends a SET_ACTIVITY command for the specified safe Discord activity.
     /// Formats atomic whole frame with process ID and nonce.
+    /// </summary>
+    Task SendActivityAsync(DiscordActivity activity, CancellationToken ct = default);
+
+    /// <summary>
+    /// Sends a SET_ACTIVITY command for the active supported developer application.
+    /// Legacy compatibility overload.
     /// </summary>
     Task SendActivityAsync(SupportedApp app, CancellationToken ct = default);
 

@@ -35,6 +35,23 @@ public sealed class PresenceSettings
     public Dictionary<string, SupportedApp> ProcessMappings { get; set; } = CreateDefaultMappings();
 
     /// <summary>
+    /// Separate OFF-by-default switch to show rich T3 agent workload activity on Discord.
+    /// </summary>
+    public bool ShowT3Activity { get; set; } = false;
+
+    /// <summary>
+    /// Normalized MCP endpoint address of the explicitly connected T3 Code environment.
+    /// Contains NO tokens, secrets, or credentials.
+    /// </summary>
+    public string T3Address { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Optional OFF-by-default toggle to show Discord rich presence app artwork/icons.
+    /// Requires assets configured on user's registered Discord application.
+    /// </summary>
+    public bool ShowAppIcons { get; set; } = false;
+
+    /// <summary>
     /// Validates that Discord Client ID consists purely of ASCII numeric digits (15-20 chars).
     /// Does not permit whitespace or Unicode digits to avoid wire mismatch.
     /// </summary>

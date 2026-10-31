@@ -33,11 +33,45 @@ public class MockDiscordClient : IDiscordIpcClient
         return Task.FromResult(true);
     }
 
+    public DiscordActivity? LastSentActivity { get; set; }
+    public Func<DiscordActivity, CancellationToken, Task>? SendActivityCustomBehavior { get; set; }
+
     public Task SendActivityAsync(SupportedApp app, CancellationToken ct = default)
     {
-        if (SendBehavior != null) return SendBehavior(app, ct);
         SendActivityCallCount++;
         LastSentApp = app;
+        if (SendBehavior != null) return SendBehavior(app, ct);
+        return Task.CompletedTask;
+    }
+
+    public Task SendActivityAsync(DiscordActivity activity, CancellationToken ct = default)
+    {
+        SendActivityCallCount++;
+        LastSentActivity = activity;
+        SupportedApp app = SupportedApp.None;
+        if (activity.Details != null)
+        {
+            if (activity.Details.Contains("T3 Code", StringComparison.OrdinalIgnoreCase))
+                app = SupportedApp.T3Code;
+            else if (activity.Details.Contains("Claude", StringComparison.OrdinalIgnoreCase))
+                app = SupportedApp.Claude;
+            else if (activity.Details.Contains("Codex", StringComparison.OrdinalIgnoreCase))
+                app = SupportedApp.Codex;
+        }
+        if (app != SupportedApp.None)
+        {
+            LastSentApp = app;
+        }
+
+        if (SendActivityCustomBehavior != null)
+        {
+            return SendActivityCustomBehavior(activity, ct);
+        }
+        if (SendBehavior != null)
+        {
+            return SendBehavior(app != SupportedApp.None ? app : SupportedApp.T3Code, ct);
+        }
+
         return Task.CompletedTask;
     }
 

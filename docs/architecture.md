@@ -4,7 +4,7 @@ Status: selected by the user on 2026-10-30. Supersedes the Electron companion pr
 
 ## Platform ownership
 
-macOS owns its SwiftUI menu-bar interface, AppKit foreground observation, preferences, local Discord socket, lifecycle notifications, and eventually Keychain credentials. Windows owns its WinUI 3 settings window, native notification-area integration, foreground observation, preferences, local Discord named pipe, lifecycle notifications, and eventually Credential Manager credentials.
+macOS owns its SwiftUI menu-bar interface, AppKit foreground observation, preferences, local Discord socket, lifecycle notifications, and Keychain credentials. Windows owns its WinUI 3 settings window, native notification-area integration, foreground observation, preferences, local Discord named pipe, lifecycle notifications, and Credential Manager credentials.
 
 Use each platform's built-in text styles, spacing, colors, focus treatment, accessibility, light/dark mode, and reduced-motion behavior. The two interfaces need feature parity, not identical layouts. Standard native controls take precedence over recreating the old HTML concept.
 
@@ -20,7 +20,9 @@ Logical boundaries on each platform:
 4. A connection service owns framing, readiness, throttling, acknowledgment, reconnect, and clearing.
 5. The native shell shows preferences, source capability, connection state, and the outgoing preview.
 
-The current foundation is foreground-only. No OAuth, conversation fetching, remote T3 state polling, or task-count telemetry should be advertised as working yet.
+The baseline identifies the active desktop app. The optional [T3 activity adapter](../spec/t3-activity.md) adds a browser-approved, read-only connection to one T3 environment. It reads capabilities and paginated thread metadata, groups tasks and helpers by the tool that runs them, and publishes the busiest tool with separate counts. No conversation-reading tools are used. Claude Desktop and Codex Desktop remain app-name-only.
+
+The adapter runs only while T3 Code is active and sharing is allowed. A failed, incomplete, or stale snapshot falls back to the app name. Private provider labels, projects, thread titles, model names, and addresses never enter the Discord card. Tokens and cost remain research topics, outside this adapter's scope. See [verification status](validation.md) for the builds and behavior actually checked.
 
 ## Native integrations
 
@@ -28,7 +30,7 @@ SwiftUI `MenuBarExtra` requires macOS 13+. AppKit `NSWorkspace` exposes the fore
 
 WinUI 3 is the desktop UI framework in Windows App SDK. The app is an unpackaged desktop process, allowing ordinary Win32 foreground and notification-area APIs alongside WinUI controls. WinUI does not supply a built-in tray component; the tray is an OS integration, not a second UI framework. The initial target is Windows 10 build 19041+; verify the selected Windows App SDK version's requirements before shipping.
 
-Both apps connect to Discord running on the same computer. T3 may run remotely on the VPS; a later read-only adapter will connect to that environment over an authorized secure endpoint. The VPS itself cannot publish to Discord on the user's Mac or PC.
+Both apps connect to Discord running on the same computer. T3 may run remotely on the VPS; the optional adapter connects to that environment over an authorized secure endpoint. The VPS itself cannot publish to Discord on the user's Mac or PC.
 
 ## Distribution and cost
 

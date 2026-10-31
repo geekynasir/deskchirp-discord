@@ -23,6 +23,6 @@ The app lives in the notification area. Closing its settings hides the window wh
 3. Open the companion's settings, paste the Application ID, and enable sharing.
 4. Focus a supported desktop application and check your Discord activity. Discord's activity-sharing setting must permit it.
 
-This version shows only `Using T3 Code`, `Using Claude`, or `Using Codex`. It does not report tasks, projects, models, or conversation contents. Codex on macOS needs a custom bundle-identifier mapping in Settings until its identity is verified. Desktop app variants may also need custom mappings.
+By default, sharing shows only `Using T3 Code`, `Using Claude`, or `Using Codex`. Builds with the optional **Show T3 activity** setting can also show agent tool names and task/helper counts after [connecting T3 Code](connect-t3.md). Use the included `CONNECT-T3.md` when trying a downloaded build. Older builds without that setting remain app-name-only. Projects, models, and conversation contents are not published. Codex on macOS may need an entry under App Detection; desktop app variants may also need one.
 
 Pause, disable, or quit should clear presence. Verify these behaviors, Discord restarts, screen lock, and sleep before relying on the app. See `docs/acceptance.md` in the source repository for the full checklist.
