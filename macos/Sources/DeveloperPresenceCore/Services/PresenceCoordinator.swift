@@ -21,6 +21,11 @@ public final class PresenceCoordinator: ObservableObject {
     private var computerTimer: Timer?
     private var discordUserId: String?
 
+    @Published public private(set) var isFindingT3 = false
+    @Published public private(set) var t3SetupMessage: String?
+    private var t3SetupTask: Task<Void, Never>?
+    private let t3Discovery: T3LocalDiscovery
+
     private var started = false
 
     public init(
@@ -29,9 +34,11 @@ public final class PresenceCoordinator: ObservableObject {
         sessionObserver: SessionStateObserving? = nil,
         discordClient: DiscordIpcClient? = nil,
         t3Service: T3ActivityService = T3ActivityService(),
-        computers: ComputerLinkService? = nil
+        computers: ComputerLinkService? = nil,
+        t3Discovery: T3LocalDiscovery = T3LocalDiscovery()
     ) {
         self.settingsService = settingsService
+        self.t3Discovery = t3Discovery
         let initialSettings = settingsService.loadSettings()
         self.foregroundDetector = foregroundDetector ?? WorkspaceForegroundDetector(bundleMappings: initialSettings.bundleMappings)
         self.sessionObserver = sessionObserver ?? WorkspaceSessionObserver()
@@ -174,6 +181,9 @@ public final class PresenceCoordinator: ObservableObject {
     }
 
     public func stop() {
+        t3SetupTask?.cancel()
+        t3Service.cancelSignIn()
+        isFindingT3 = false
         started = false
         computerTimer?.invalidate(); computerTimer = nil
         computers.stop()
@@ -354,6 +364,9 @@ public final class PresenceCoordinator: ObservableObject {
     }
 
     public func setT3Address(_ address: String) {
+        t3SetupTask?.cancel()
+        isFindingT3 = false
+        t3SetupMessage = nil
         let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
         settings.t3Address = trimmed
         settingsService.saveSettings(settings)
@@ -362,22 +375,52 @@ public final class PresenceCoordinator: ObservableObject {
     }
 
     public func connectT3() {
-        Task {
+        guard !isFindingT3, state.t3ConnectionStatus != .openingSignIn else { return }
+        t3SetupTask?.cancel()
+        t3SetupMessage = nil
+        let needsDiscovery = settings.t3Address.isEmpty
+        isFindingT3 = needsDiscovery
+        t3SetupTask = Task {
             do {
+                if needsDiscovery {
+                    let address = try await t3Discovery.find()
+                    try Task.checkCancellation()
+                    settings.t3Address = address
+                    settingsService.saveSettings(settings)
+                    t3Service.handleEndpointChange(address: address)
+                }
+                try Task.checkCancellation()
+                isFindingT3 = false
                 try await t3Service.connect(address: settings.t3Address)
-                self.evaluatePresence(immediate: true)
+                try Task.checkCancellation()
+                if t3Service.connectionStatus == .connected {
+                    settings.showT3Activity = true
+                    settingsService.saveSettings(settings)
+                }
+                evaluatePresence(immediate: true)
             } catch {
-                self.evaluatePresence(immediate: false)
+                guard !Task.isCancelled else { return }
+                isFindingT3 = false
+                if needsDiscovery && settings.t3Address.isEmpty {
+                    t3SetupMessage = error.localizedDescription
+                }
+                evaluatePresence(immediate: false)
             }
         }
     }
 
     public func cancelT3SignIn() {
+        t3SetupTask?.cancel()
+        isFindingT3 = false
+        t3SetupMessage = "Connection cancelled. You can try again whenever you’re ready."
         t3Service.cancelSignIn()
         evaluatePresence(immediate: false)
     }
 
     public func disconnectT3() {
+        t3SetupTask?.cancel()
+        isFindingT3 = false
+        t3SetupMessage = nil
         t3Service.disconnect()
         evaluatePresence(immediate: true)
     }

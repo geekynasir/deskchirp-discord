@@ -13,9 +13,9 @@ There is no Electron, embedded browser, or shared UI runtime. Platform implement
 
 ## Implementation scope
 
-The app shows **“Using T3 Code,” “Using Claude,” or “Using Codex.”** Sharing is disabled by default. A user-supplied public Discord application ID and a locally running Discord desktop client are required. A public application ID is not a bot token or client secret.
+The app shows **“Using T3 Code,” “Using Claude,” or “Using Codex.”** Sharing is disabled by default. Open Discord desktop and turn on **Share on Discord**. Deskchirp includes its public Discord application ID and connects locally; users do not need a Developer Portal account, bot token, or client secret.
 
-Optional **T3 activity** connects to one T3 environment with read-only access. It shows the busiest agent tool and separate task/helper counts, for example **“T3 Code · Claude Code”** and **“2 tasks · 4 helpers.”** A helper is an extra agent working on a task. [Connect T3 Code](docs/connect-t3.md) to use it. Artwork is a separate opt-in with an [included icon pack](assets/discord/README.md).
+Choose **Allow T3 activity** to find the local T3 Code app and approve read-only access in your browser. Remote and custom addresses are under **Advanced**. Optional **T3 activity** connects to one approved environment. It shows the busiest agent tool and separate task/helper counts, for example **“T3 Code · Claude Code”** and **“2 tasks · 4 helpers.”** A helper is an extra agent working on a task. [Connect T3 Code](docs/connect-t3.md) to use it. Artwork is a separate opt-in with an [included icon pack](assets/discord/README.md).
 
 **Using several computers:** **Follow me** selects the linked computer you most recently used. It requires a [private linking service](coordination/README.md); no public service is deployed. [Set up your computers](docs/computers.md). Earlier builds and unlinked installations still act independently—enable sharing on only one of those computers. Real multi-computer Discord acceptance is pending.
 
@@ -31,7 +31,7 @@ Get **[v0.1.0-preview.1 from GitHub Releases](https://github.com/geekynasir/desk
 | Intel Mac | [macOS x86_64](https://github.com/geekynasir/deskchirp-discord/releases/download/v0.1.0-preview.1/Deskchirp-0.1.0-preview.1-macos-x86_64.zip) |
 | Windows PC | [Windows x64](https://github.com/geekynasir/deskchirp-discord/releases/download/v0.1.0-preview.1/Deskchirp-0.1.0-preview.1-windows-x64.zip) |
 
-Downloads include setup guides, license notices and build information. Verify them with the release’s `SHA256SUMS`. These are preview bundles, not signed installers. Read [setup](docs/trying-builds.md) before opening one. The optional [private linking service](coordination/README.md) has a separate source download on the same release page. The app needs Discord desktop and a public Discord application ID; no bot token or client secret.
+Downloads include setup guides, license notices and build information. Verify them with the release’s `SHA256SUMS`. These are preview bundles, not signed installers. Read [setup](docs/trying-builds.md) before opening one. The optional [private linking service](coordination/README.md) has a separate source download on the same release page. The app needs Discord desktop; its public application ID is included.
 
 CI covers **80 Swift tests on each Mac architecture**, **145 portable C# tests** (142 core, 3 settings presentation), **17 linking-service tests**, and a real HTTP handoff between two native client services. It also builds both Mac app bundles and the Windows app with its runtimes. Actual Discord display, cross-computer handoff, application detection, and desktop lifecycle behavior still require validation on real machines. See [verification status](docs/validation.md).
 

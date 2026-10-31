@@ -33,6 +33,12 @@ public struct SettingsView: View {
 
     private var generalTab: some View {
         Form {
+            Section {
+                Text("Open Discord and your developer app, then turn on sharing. Deskchirp connects to Discord automatically.")
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             // 1. Sharing switches
             Section {
                 Toggle("Share on Discord", isOn: Binding(
@@ -93,35 +99,28 @@ public struct SettingsView: View {
             // 3. T3 Code section
             Section("T3 Code") {
                 VStack(alignment: .leading, spacing: 6) {
-                    Toggle("Show T3 activity", isOn: Binding(
-                        get: { coordinator.settings.showT3Activity },
-                        set: { value in
-                            if value != coordinator.settings.showT3Activity { coordinator.toggleT3Activity() }
-                        }
-                    ))
+                    if coordinator.state.t3ConnectionStatus == .connected {
+                        Toggle("Show T3 activity", isOn: Binding(
+                            get: { coordinator.settings.showT3Activity },
+                            set: { value in
+                                if value != coordinator.settings.showT3Activity { coordinator.toggleT3Activity() }
+                            }
+                        ))
+                    }
 
-                    Text("While T3 Code is the active app, also show which agent tool is busiest and how many tasks and helpers it’s running. A helper is an extra agent that a task starts to handle part of its work. Each T3 thread counts as a task.")
+                    Text("Show the busiest agent tool and its task and helper counts. A helper is an extra agent working on part of a task. Each T3 thread counts as a task.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
-                    TextField("T3 address", text: Binding(
-                        get: { coordinator.settings.t3Address },
-                        set: { coordinator.setT3Address($0) }
-                    ), prompt: Text("Paste from T3 Code"))
-                    .textFieldStyle(.roundedBorder)
-                    .disabled(coordinator.state.t3ConnectionStatus == .openingSignIn)
+                    LabeledContent("Status", value: coordinator.isFindingT3 ? "Finding T3 Code…" : coordinator.state.t3ConnectionStatus.rawValue)
 
-                    Text("In T3 Code, open Settings → Environments and choose Copy MCP URL.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                VStack(alignment: .leading, spacing: 6) {
-                    LabeledContent("Status", value: coordinator.state.t3ConnectionStatus.rawValue)
+                    if let message = coordinator.t3SetupMessage {
+                        Text(message).font(.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
 
                     if let detail = coordinator.state.t3StatusDetail {
                         Text(UserFacingStatus.t3Detail(status: coordinator.state.t3ConnectionStatus, message: detail))
@@ -132,7 +131,11 @@ public struct SettingsView: View {
                 }
 
                 HStack {
-                    switch coordinator.state.t3ConnectionStatus {
+                    if coordinator.isFindingT3 {
+                        Button("Cancel") { coordinator.cancelT3SignIn() }
+                            .accessibilityLabel("Cancel finding T3 Code")
+                    } else {
+                        switch coordinator.state.t3ConnectionStatus {
                     case .openingSignIn:
                         Button("Cancel") {
                             coordinator.cancelT3SignIn()
@@ -144,10 +147,11 @@ public struct SettingsView: View {
                         }
                         .accessibilityLabel("Disconnect T3 Code")
                     case .notConnected, .signInAgain, .couldNotReach:
-                        Button("Connect T3 Code") {
+                        Button("Allow T3 activity") {
                             coordinator.connectT3()
                         }
-                        .disabled(coordinator.settings.t3Address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                        }
                     }
                 }
 
@@ -155,7 +159,7 @@ public struct SettingsView: View {
                     Text("Your sign-in is saved in Keychain.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                } else if coordinator.state.t3ConnectionStatus != .openingSignIn {
+                } else if !coordinator.isFindingT3 && coordinator.state.t3ConnectionStatus != .openingSignIn {
                     Text("Opens your browser so you can approve read-only access in T3 Code. Deskchirp only reads which agent tools are working and how many tasks and helpers they have.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -164,7 +168,25 @@ public struct SettingsView: View {
             }
 
             // 4. Discord Section
-            Section("Discord") {
+            DisclosureGroup("Advanced") {
+                VStack(alignment: .leading, spacing: 6) {
+                    TextField("T3 address", text: Binding(
+                        get: { coordinator.settings.t3Address },
+                        set: { coordinator.setT3Address($0) }
+                    ), prompt: Text("Paste from T3 Code"))
+                    .textFieldStyle(.roundedBorder)
+                    .disabled(coordinator.isFindingT3 || coordinator.state.t3ConnectionStatus == .openingSignIn)
+
+                    Text("In T3 Code, open Settings → Environments and choose Copy MCP URL.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Text("Leave the T3 address empty to find the local app. Enter an address only for a remote or custom installation.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
                 VStack(alignment: .leading, spacing: 6) {
                     TextField("Discord application ID", text: Binding(
                         get: { coordinator.settings.discordClientId },
@@ -179,7 +201,7 @@ public struct SettingsView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
-                    Text("Find it under General Information for your app in the Discord Developer Portal. It’s public, not a password or token.")
+                    Text("Deskchirp’s application ID is included. Change this only to use your own Discord application.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -195,7 +217,7 @@ public struct SettingsView: View {
                         }
                     ))
 
-                    Text("Adds the T3 Code icon and agent tool icons to your status. Add the icons to your Discord application first, or they won’t appear.")
+                    Text("Optional artwork. Keep this off unless the icons have been added to the Discord application.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

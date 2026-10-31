@@ -4,13 +4,21 @@ Deskchirp can show which agent tools are working in T3 Code, along with the numb
 
 ## Connect T3 Code
 
-1. In T3 Code, open **Settings → Environments**, open your environment's menu, and choose **Copy MCP URL**.
-2. Open Deskchirp settings and paste it into **T3 address**.
-3. Choose **Connect T3 Code**. Your browser opens T3's sign-in page.
-4. Approve **Read only** access. If T3 asks for a pairing code, create one in its **Settings → Sharing & access**. Enter that code on T3's page.
-5. Turn on **Show T3 activity** and Discord sharing, then return to T3 Code.
+1. Open Discord desktop and T3 Code on your computer.
+2. Turn on **Share on Discord** in Deskchirp. It finds Discord automatically; no Developer Portal setup is needed.
+3. Choose **Allow T3 activity**. Deskchirp finds the local T3 address and opens your browser.
+4. Approve **Read only** access. If T3 asks for a pairing code, create one in its **Settings → Sharing & access**, then enter it on T3’s page.
+5. Return to T3 Code. Task and helper sharing turns on after approval.
 
-The app follows the connected T3 environment. It does not automatically connect every environment saved in T3. The connection needs HTTPS, or a localhost address when T3 runs on the same computer.
+The saved connection is restored on later launches. T3 currently grants access for 30 days; Deskchirp asks you to approve again when it expires. It never opens approval repeatedly in the background.
+
+### Remote or custom installations
+
+Local discovery reads only T3’s public `server-runtime.json` address and checks its read-only connection metadata. It also checks the default local port, 3773. It never opens T3’s encrypted connection catalog or reads saved tokens. If more than one environment answers, Deskchirp asks you to choose instead of guessing.
+
+To select a remote environment, open **Advanced** in Deskchirp. In T3 Code, use **Settings → Environments → Copy MCP URL**, paste it into **T3 address**, and choose **Allow T3 activity**. Use HTTPS for a remote environment. Leave the address empty to discover the local app again. If T3 changes its local port after an update or restart, clear the old address and reconnect.
+
+Deskchirp follows the approved environment, which can differ from the environment selected in T3’s desktop window. It does not merge every saved environment. Custom data folders are found when Deskchirp inherits `T3CODE_HOME`; otherwise use the address override.
 
 ## What friends see
 
@@ -29,7 +37,7 @@ If T3 cannot be reached or the activity is out of date, Discord falls back to **
 
 ## Add logos
 
-Artwork is optional. Upload the included [Discord artwork](../assets/discord/README.md) to your Discord application, then enable **Show app icons**. You can use the activity feature without artwork.
+Artwork is optional and off by default. Deskchirp’s shared Discord application is included, so users do not need to register an application. If you choose a custom application in **Advanced**, upload the included [Discord artwork](../assets/discord/README.md) there before enabling **Show app icons**.
 
 ## Privacy and disconnecting
 
@@ -37,4 +45,4 @@ Task counts and agent tool names are optional. Project names, conversation title
 
 T3 grants read-only access to thread metadata. The app uses it to read tool names and activity; it does not open conversations or run agents. Sign-in credentials stay in your computer's secure storage.
 
-Pause sharing, turn it off, or quit to clear Discord. **Disconnect** removes this app's saved T3 connection. You can also revoke its access in T3's **Settings → Sharing & access**. If access expires or is revoked, choose **Connect T3 Code** again.
+Pause sharing, turn it off, or quit to clear Discord. **Disconnect** removes this app's saved T3 connection. You can also revoke its access in T3's **Settings → Sharing & access**. If access expires or is revoked, choose **Allow T3 activity** again.
