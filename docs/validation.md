@@ -1,13 +1,16 @@
 # Verification status
 
-Updated 2026-10-31. T3 activity is implemented in both native companions. The tested application source is `1c4e4c1591972c64bbc20ed8915b617f147733ef`; later documentation changes do not change those binaries.
+Updated 2026-10-31. T3 activity and linked-computer switching are implemented in both native companions. The tested application and service source is `6692ff57d101192add7d31429d049378e3ba7d47`; later documentation changes do not change those binaries.
 
-Native builds: [run 41198285124](https://github.com/geekynasir/developer-presence/actions/runs/41198285124). The repository and artifacts are private; sign in with an account that has access. Artifacts are kept for 14 days.
+Native builds: [run 41239907490](https://github.com/geekynasir/developer-presence/actions/runs/41239907490). The repository and artifacts are private; sign in with an account that has access. Artifacts are kept for 14 days. No linking service has been deployed.
 
 ## Automated checks
 
-- **71 Swift tests on each Mac architecture**, Apple Silicon and Intel. These cover the existing Discord protocol/privacy checks, settings migration, task/helper grouping, tool selection, TTL fallback, MCP sessions, bounded streaming responses, browser sign-in, and real local callback requests (including rejection of a missing issuer).
-- **122 C# core tests and 3 Windows settings tests**, locally and on the portable CI runner. These include shared activity cases, session/stream handling, late sign-in after Disconnect, late polls after invalidation, endpoint changes, and slow polling without blocking active-app detection.
+- **80 Swift tests on each Mac architecture**, Apple Silicon and Intel. These cover the existing Discord protocol/privacy checks, settings migration, task/helper grouping, tool selection, TTL fallback, MCP sessions, bounded streaming responses, browser sign-in, and real local callback requests (including rejection of a missing issuer).
+- **142 C# core tests and 3 Windows settings tests**, locally and on the portable CI runner. These include shared activity cases, session/stream handling, late sign-in after Disconnect, late polls after invalidation, endpoint changes, and slow polling without blocking active-app detection.
+- Linked-mode native tests cover account fingerprints, standby handshakes without activity, publishing gates, idle time, expiry, delayed grants, credential recovery, unlinking, and a selected computer with Discord closed.
+- **17 Python service tests** cover enrollment, hashed device tokens, account isolation, concurrent claims, near ties, unchanged input, idle/unavailable devices, Discord-closed selection, grant expiry, revocation, restart quarantine, and real HTTP requests.
+- An additional integration check runs **two actual C# client services against the Python server over TCP**, with simulated OS input and real grant expiry. Enrollment, an idle peer staying quiet, the old client stopping, and exclusive takeover passed locally and in CI.
 - Release macOS app bundles, plist checks, and ad-hoc signature verification for arm64 and x86_64.
 - Windows x64 WinUI/XAML compilation and self-contained publication, including .NET and Windows App SDK runtimes.
 - JSON, project/XAML XML, plist, shared fixture equality, packaging shell syntax, and source whitespace checks.
@@ -18,14 +21,16 @@ Swift 5 language mode is used. Concurrency warnings remain, including lock calls
 
 ## Downloaded builds and visual checks
 
-The previous successful build of the same activity implementation, [run 41198069787](https://github.com/geekynasir/developer-presence/actions/runs/41198069787), passed all four jobs. Native artifacts are downloaded under `/data/ubuntu/tmp/developer-presence/`; the final run includes stable setup links and explicit appearance selection for Mac screenshot capture.
+Artifacts from the linked-computer build are downloaded under `/data/ubuntu/tmp/developer-presence/build-6692ff5/`. Both Mac archives passed CRC checks and contain the expected Mach-O CPU architecture. The Windows folder contains an x64 PE executable, XAML resources, .NET/WinUI runtimes, setup notes, and artwork. Local checksums accompany the downloads.
 
-The Mac settings window was launched and its light and dark screenshots inspected: native controls, wrapping helper text, clear setup and privacy choices, and the off-by-default state render correctly in the captured view. A Windows light-mode settings screenshot was also inspected; the app launches and its sharing controls and Discord preview render correctly. Longer settings remain scrollable. This does not cover every state, tab, scaling setting, or screen reader.
+The captured Mac General settings window was inspected in light and dark appearance, plus the new Computers tab in light appearance. Native controls, linking fields, explanatory text, and the off-by-default state render correctly in the captured views. A Windows light-mode settings screenshot was also inspected; the app launches and its sharing controls, Discord preview, and collapsed Computers section render correctly. The expanded Windows linking form, other connection states, scaling, and screen readers still need hands-on checks.
 
-Both downloaded Mac archives passed CRC checks and contain the expected Mach-O CPU architecture. The Windows folder contains an x64 PE executable, XAML resources, .NET/WinUI runtimes, setup notes, and artwork. Local checksums accompany the downloads. Hosted-runner launch captures do not replace clean-machine installation checks.
+Hosted-runner launch captures and artifact inspection do not replace clean-machine installation or real-device acceptance.
 
 ## Checks still needed on real machines
 
+- Linked computers: at least two Macs and one Windows PC, the same Discord account/application ID, and a second account observing the profile. Check switching, near ties, unsupported apps, Discord closed, five-minute idle hiding, local pause, lock/sleep, crashes, and delayed clears.
+- Network partitions, a service restart, process suspension beyond a grant deadline, remote desktop/input sharing, Discord Stable/Canary, and multiple OS-user sessions. Automated grant checks do not prove Discord’s global display ordering.
 - T3 browser approval against a real local/remote environment, secure-store persistence, expiry, and revocation.
 - A real Discord profile displaying the card and uploaded artwork, including reconnect after Discord restarts.
 - Exact app identities, active-app transitions, menu/tray behavior, lock/sleep, and quitting during pending operations.
@@ -37,5 +42,7 @@ The Linux VPS has no local Xcode or Windows desktop. Native builds and screensho
 ## Scope
 
 The optional T3 connection reads only capabilities and thread lists from one explicitly connected environment. It shows the busiest public agent tool and separate task/helper counts, with waiting/starting work labeled. Failed, incomplete, expired, or unavailable activity falls back to `Using T3 Code`. Only helpers that T3 exposes as child threads are counted; internal provider helpers are not inferred.
+
+Follow me requires explicit computer enrollment and a private HTTPS linking service. It selects recent OS input, never workload size or background polls. Only the selected computer’s T3 environment contributes counts; remote work is never added across computers. Missing service access stops sharing instead of reverting to independent publishing. Discord may still display an already accepted activity temporarily, so instantaneous handoff and absolute global exclusivity are not claimed. The linking service receives computer names, availability, coarse input timing, and a group-specific account fingerprint, but no activity text or T3 information. See [computer setup](computers.md) and [the real-device checks](../spec/multiple-computers.md#release-acceptance).
 
 Claude Desktop and Codex Desktop remain app-name-only. Conversations, projects, thread titles, model names, private provider labels, and file paths are excluded from the Discord card. Tokens and cost are outside this feature. The companion does not modify upstream T3 Code. See [the setup guide](connect-t3.md) and [the companion PR](https://github.com/geekynasir/developer-presence/pull/1).

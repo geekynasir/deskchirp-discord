@@ -2,7 +2,7 @@
 
 These are unsigned development builds, not signed releases or installers. CI compilation and automated tests do not verify real Discord display, desktop focus, lock/sleep behavior, or clean-machine installation. Sharing is off by default. macOS lock-state handling still needs native validation; pause or quit the companion before leaving it unattended.
 
-Download the artifact from the successful [**Native apps** GitHub Actions run](https://github.com/geekynasir/developer-presence/actions/runs/41198285124) while signed in to the repository account. Artifacts expire after 14 days.
+Download the artifact from the [**Native apps** GitHub Actions run](https://github.com/geekynasir/developer-presence/actions/runs/41239907490) while signed in to the repository account. Artifacts expire after 14 days.
 
 ## macOS 13 or newer
 
@@ -26,3 +26,7 @@ The app lives in the notification area. Closing its settings hides the window wh
 By default, sharing shows only `Using T3 Code`, `Using Claude`, or `Using Codex`. Builds with the optional **Show T3 activity** setting can also show agent tool names and task/helper counts after [connecting T3 Code](connect-t3.md). Use the included `CONNECT-T3.md` when trying a downloaded build. Older builds without that setting remain app-name-only. Projects, models, and conversation contents are not published. Codex on macOS may need an entry under App Detection; desktop app variants may also need one.
 
 Pause, disable, or quit should clear presence. Verify these behaviors, Discord restarts, screen lock, and sleep before relying on the app. See `docs/acceptance.md` in the source repository for the full checklist.
+
+## Using several computers
+
+The new builds include **Computers → Follow me**. It selects the linked computer you most recently used, with a short wait while the previous computer stops sharing. A [private linking service](../coordination/README.md) is required; none is deployed for you. Follow [computer setup](computers.md), also included as `COMPUTERS.md` in the download. Earlier builds and unlinked installations cannot agree on which computer should win.
