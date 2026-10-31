@@ -1,0 +1,83 @@
+<Window
+    x:Class="DeveloperPresence.App.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:DeveloperPresence.App.ViewModels"
+    xmlns:media="using:Microsoft.UI.Xaml.Media"
+    Title="Developer Presence">
+    <Window.SystemBackdrop>
+        <media:MicaBackdrop />
+    </Window.SystemBackdrop>
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Spacing="24" Padding="28" MaxWidth="720" HorizontalAlignment="Stretch">
+            <StackPanel Spacing="6">
+                <TextBlock Text="Developer Presence" Style="{StaticResource TitleTextBlockStyle}" />
+                <TextBlock Text="Share the developer app you're using on Discord." TextWrapping="Wrap" />
+            </StackPanel>
+            <StackPanel Spacing="16">
+                <ToggleSwitch Header="Share activity on Discord" AutomationProperties.Name="Share activity on Discord"
+                    IsOn="{x:Bind ViewModel.EnableSharing, Mode=TwoWay}" />
+                <ToggleSwitch Header="Pause sharing" AutomationProperties.Name="Pause sharing"
+                    IsOn="{x:Bind ViewModel.IsPaused, Mode=TwoWay}" />
+                <TextBox Header="Discord application ID" AutomationProperties.Name="Discord application ID"
+                    Text="{x:Bind ViewModel.DiscordClientId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                    PlaceholderText="Enter your public application ID" MaxLength="20" />
+                <HyperlinkButton Content="Create an application in the Discord Developer Portal"
+                    NavigateUri="https://discord.com/developers/applications" Padding="0" />
+            </StackPanel>
+            <Border Padding="20" CornerRadius="8" BorderThickness="1"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                <StackPanel Spacing="10">
+                    <TextBlock Text="Outgoing preview" Style="{StaticResource CaptionTextBlockStyle}" />
+                    <TextBlock Text="{x:Bind ViewModel.OutgoingHeadlineText, Mode=OneWay}"
+                        Style="{StaticResource SubtitleTextBlockStyle}" TextWrapping="Wrap" />
+                    <TextBlock Text="{x:Bind ViewModel.ConnectionStatusText, Mode=OneWay}" />
+                    <TextBlock Text="{x:Bind ViewModel.StatusMessage, Mode=OneWay}" TextWrapping="Wrap"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBlock Text="Foreground application" Style="{StaticResource CaptionTextBlockStyle}" />
+                    <TextBlock Text="{x:Bind ViewModel.ForegroundAppText, Mode=OneWay}" />
+                    <TextBlock Text="Last acknowledged update" Style="{StaticResource CaptionTextBlockStyle}" />
+                    <TextBlock Text="{x:Bind ViewModel.LastUpdateText, Mode=OneWay}" />
+                </StackPanel>
+            </Border>
+            <Expander Header="Application detection" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="App versions can use different executable names. Add a name if your app isn't detected."
+                        TextWrapping="Wrap" />
+                    <TextBox Header="Executable name" AutomationProperties.Name="Executable name"
+                        Text="{x:Bind ViewModel.NewExecutableName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                        PlaceholderText="app.exe" />
+                    <ComboBox Header="Application" AutomationProperties.Name="Application" HorizontalAlignment="Stretch"
+                        SelectedIndex="{x:Bind ViewModel.SelectedAppIndex, Mode=TwoWay}">
+                        <ComboBoxItem Content="T3 Code" />
+                        <ComboBoxItem Content="Claude Desktop" />
+                        <ComboBoxItem Content="Codex Desktop" />
+                    </ComboBox>
+                    <Button Content="Add mapping" Command="{x:Bind ViewModel.AddMappingCommand}" />
+                    <ListView ItemsSource="{x:Bind ViewModel.ProcessMappings}" SelectionMode="None" MaxHeight="220">
+                        <ListView.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ProcessMappingItem">
+                                <Grid ColumnSpacing="12" Padding="0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Text="{x:Bind ExecutableName, Mode=OneWay}" TextWrapping="Wrap" />
+                                        <TextBlock Text="{x:Bind DisplayName, Mode=OneWay}"
+                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Content="Remove" Click="OnRemoveMappingClicked"
+                                        AutomationProperties.Name="Remove application mapping" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                </StackPanel>
+            </Expander>
+            <TextBlock Text="Shares app focus only. Conversation text, window titles, and task counts aren't shared. Close this window to keep running in the notification area."
+                TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+        </StackPanel>
+    </ScrollViewer>
+</Window>

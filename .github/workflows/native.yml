@@ -1,0 +1,98 @@
+name: Native apps
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos:
+    name: macOS (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x86_64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify runner architecture
+        run: test "$(uname -m)" = "${{ matrix.arch }}"
+      - name: Check shared Swift fixture copies
+        run: |
+          cmp spec/presence-cases.json macos/Tests/DeveloperPresenceTests/Resources/presence-cases.json
+          cmp spec/ipc-frames.json macos/Tests/DeveloperPresenceTests/Resources/ipc-frames.json
+      - name: Test Swift implementation
+        run: swift test --package-path macos
+      - name: Build native app bundle
+        run: bash macos/scripts/build-app.sh
+      - name: Check app bundle metadata
+        run: plutil -lint macos/dist/DeveloperPresence.app/Contents/Info.plist
+      - name: Archive development app
+        run: |
+          codesign --verify --deep --strict macos/dist/DeveloperPresence.app
+          cp docs/trying-builds.md macos/dist/READ-ME.md
+          ditto -c -k --sequesterRsrc --keepParent macos/dist/DeveloperPresence.app macos/dist/DeveloperPresence-macos-${{ matrix.arch }}.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DeveloperPresence-macos-${{ matrix.arch }}
+          path: |
+            macos/dist/DeveloperPresence-macos-${{ matrix.arch }}.zip
+            macos/dist/READ-ME.md
+          if-no-files-found: error
+          retention-days: 14
+
+  windows-core:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Test portable C# protocol and privacy logic
+        run: dotnet test windows/tests/DeveloperPresence.Tests/DeveloperPresence.Tests.csproj -c Release
+      - name: Test saved settings presentation and compile shell helpers
+        run: dotnet test checks/WindowsShell.Tests/WindowsShell.Tests.csproj -c Release
+
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Publish native WinUI application with runtimes
+        run: >-
+          dotnet publish windows/src/DeveloperPresence.App/DeveloperPresence.App.csproj
+          -c Release -p:Platform=x64 -r win-x64
+          --self-contained true -p:WindowsAppSDKSelfContained=true
+          -p:PublishSingleFile=false -p:PublishTrimmed=false
+          -o dist/windows-x64
+      - name: Check executable and include instructions
+        shell: pwsh
+        run: |
+          if (!(Test-Path dist/windows-x64/DeveloperPresence.App.exe)) { throw 'Application executable missing' }
+          Copy-Item docs/trying-builds.md dist/windows-x64/READ-ME.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DeveloperPresence-windows-x64
+          path: dist/windows-x64/
+          if-no-files-found: error
+          retention-days: 14
+
+# These jobs compile/test source. Real Discord, foreground identity, tray/menu,
+# lock/sleep, accessibility, signing and clean-machine installation need the
+# manual target-platform checks in docs/acceptance.md.

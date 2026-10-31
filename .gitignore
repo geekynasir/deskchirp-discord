@@ -1,0 +1,17 @@
+.DS_Store
+.build/
+.swiftpm/
+DerivedData/
+bin/
+obj/
+.vs/
+TestResults/
+dist/
+*.user
+*.pfx
+*.p12
+*.mobileprovision
+*.app/
+*.msix
+*.msixbundle
+*.cer

@@ -1,0 +1,121 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "t3-foreground",
+      "input": {
+        "enabled": true,
+        "paused": false,
+        "suspended": false,
+        "applicationId": "123456789012345678",
+        "focusedApp": "t3"
+      },
+      "expected": {
+        "details": "Using T3 Code"
+      }
+    },
+    {
+      "id": "claude-foreground",
+      "input": {
+        "enabled": true,
+        "paused": false,
+        "suspended": false,
+        "applicationId": "123456789012345678",
+        "focusedApp": "claude"
+      },
+      "expected": {
+        "details": "Using Claude"
+      }
+    },
+    {
+      "id": "codex-foreground",
+      "input": {
+        "enabled": true,
+        "paused": false,
+        "suspended": false,
+        "applicationId": "123456789012345678",
+        "focusedApp": "codex"
+      },
+      "expected": {
+        "details": "Using Codex"
+      }
+    },
+    {
+      "id": "unsupported-foreground",
+      "input": {
+        "enabled": true,
+        "paused": false,
+        "suspended": false,
+        "applicationId": "123456789012345678",
+        "focusedApp": null
+      },
+      "expected": null
+    },
+    {
+      "id": "disabled",
+      "input": {
+        "enabled": false,
+        "paused": false,
+        "suspended": false,
+        "applicationId": "123456789012345678",
+        "focusedApp": "t3"
+      },
+      "expected": null
+    },
+    {
+      "id": "paused",
+      "input": {
+        "enabled": true,
+        "paused": true,
+        "suspended": false,
+        "applicationId": "123456789012345678",
+        "focusedApp": "t3"
+      },
+      "expected": null
+    },
+    {
+      "id": "session-inactive",
+      "input": {
+        "enabled": true,
+        "paused": false,
+        "suspended": true,
+        "applicationId": "123456789012345678",
+        "focusedApp": "t3"
+      },
+      "expected": null
+    },
+    {
+      "id": "missing-app-id",
+      "input": {
+        "enabled": true,
+        "paused": false,
+        "suspended": false,
+        "applicationId": "",
+        "focusedApp": "t3"
+      },
+      "expected": null
+    },
+    {
+      "id": "nonnumeric-app-id",
+      "input": {
+        "enabled": true,
+        "paused": false,
+        "suspended": false,
+        "applicationId": "not-a-token",
+        "focusedApp": "t3"
+      },
+      "expected": null
+    },
+    {
+      "id": "disabled-and-paused",
+      "input": {
+        "enabled": false,
+        "paused": true,
+        "suspended": false,
+        "applicationId": "123456789012345678",
+        "focusedApp": "t3"
+      },
+      "expected": null
+    }
+  ]
+}

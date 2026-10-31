@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsTestProject>true</IsTestProject>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.10.0" />
+    <PackageReference Include="xunit" Version="2.9.0" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" PrivateAssets="all" />
+    <ProjectReference Include="../../windows/src/DeveloperPresence.Core/DeveloperPresence.Core.csproj" />
+    <!-- Compile shell logic without loading WinUI or invoking Windows APIs. -->
+    <Compile Include="../../windows/src/DeveloperPresence.App/ViewModels/*.cs" Link="ViewModels/%(Filename)%(Extension)" />
+    <Compile Include="../../windows/src/DeveloperPresence.App/Interop/*.cs" Link="Interop/%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>
