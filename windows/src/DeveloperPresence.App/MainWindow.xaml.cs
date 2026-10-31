@@ -41,6 +41,12 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
 
         _hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+        var iconPath = System.IO.Path.Combine(AppContext.BaseDirectory, "Discord-artwork", "deskchirp.ico");
+        if (System.IO.File.Exists(iconPath))
+        {
+            try { AppWindow.SetIcon(iconPath); }
+            catch { /* An unavailable icon must not prevent opening Settings. */ }
+        }
 
         // Instantiate core architecture
         _settingsService = new SettingsService();

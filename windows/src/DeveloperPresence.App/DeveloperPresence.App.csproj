@@ -30,6 +30,7 @@
 
   <ItemGroup>
     <Content Include="../../../assets/discord/*.png" Link="Discord-artwork/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="../../../assets/brand/deskchirp.ico" Link="Discord-artwork/deskchirp.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Manifest Include="$(ApplicationManifest)" />
   </ItemGroup>
 </Project>

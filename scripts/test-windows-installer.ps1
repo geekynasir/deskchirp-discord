@@ -19,7 +19,7 @@ $compiler = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6/ISCC.exe'
 & $compiler '/DAppNumericVersion=0.0.0.0' "/DAppVersion=$fixtureVersion" "/DPayloadDir=$payload" "/DInstallerDir=$fixtureOutput" (Join-Path (Split-Path $PSScriptRoot -Parent) 'windows/installer/Deskchirp.iss')
 if ($LASTEXITCODE -ne 0) { throw 'Could not build the previous-version installer fixture.' }
 Invoke-Setup (Join-Path $fixtureOutput "Deskchirp-$fixtureVersion-windows-x64-setup.exe")
-foreach ($file in @('Deskchirp.exe', 'Deskchirp.dll', 'coreclr.dll', 'Microsoft.ui.xaml.dll', 'vcruntime140.dll', 'msvcp140.dll', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'BUILD-INFO.json', 'unins000.exe')) {
+foreach ($file in @('Deskchirp.exe', 'Deskchirp.dll', 'coreclr.dll', 'Microsoft.ui.xaml.dll', 'vcruntime140.dll', 'msvcp140.dll', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'BUILD-INFO.json', 'Discord-artwork/deskchirp.ico', 'Discord-artwork/deskchirp.png', 'Discord-artwork/t3_code.png', 'Discord-artwork/harness_codex.png', 'unins000.exe')) {
     if (!(Test-Path (Join-Path $install $file))) { throw "Installed file missing: $file" }
 }
 if (!(Test-Path $shortcut)) { throw 'Start menu shortcut missing.' }

@@ -21,6 +21,7 @@ public sealed class TrayIcon : IDisposable
     private readonly Func<bool> _isSharingEnabledProvider;
 
     private Win32.NOTIFYICONDATA _nid;
+    private IntPtr _ownedIcon;
     private bool _isCreated;
     private bool _isDisposed;
 
@@ -51,7 +52,13 @@ public sealed class TrayIcon : IDisposable
 
     private void InitializeTrayIcon()
     {
-        IntPtr hIcon = Win32.LoadIcon(IntPtr.Zero, (IntPtr)32512); // IDI_APPLICATION standard icon
+        if (_ownedIcon == IntPtr.Zero)
+        {
+            // IMAGE_ICON, LR_LOADFROMFILE | LR_DEFAULTSIZE. Retain through Explorer restarts.
+            _ownedIcon = Win32.LoadImage(IntPtr.Zero,
+                System.IO.Path.Combine(AppContext.BaseDirectory, "Discord-artwork", "deskchirp.ico"), 1, 0, 0, 0x10 | 0x40);
+        }
+        IntPtr hIcon = _ownedIcon != IntPtr.Zero ? _ownedIcon : Win32.LoadIcon(IntPtr.Zero, (IntPtr)32512);
 
         _nid = new Win32.NOTIFYICONDATA
         {
@@ -168,6 +175,11 @@ public sealed class TrayIcon : IDisposable
         {
             Win32.Shell_NotifyIcon(Win32.NIM_DELETE, ref _nid);
             _isCreated = false;
+        }
+        if (_ownedIcon != IntPtr.Zero)
+        {
+            Win32.DestroyIcon(_ownedIcon);
+            _ownedIcon = IntPtr.Zero;
         }
     }
 }
