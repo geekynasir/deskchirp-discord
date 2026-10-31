@@ -18,32 +18,61 @@ public struct T3AuthMetadata: Sendable {
 /// - Validates Bearer token type, orchestration:read scope, and positive expiration.
 public final class T3OAuthClient: @unchecked Sendable {
     private let transport: HTTPTransporting
-    private let loopbackServer: OAuthLoopbackServing
+    private let injectedLoopback: OAuthLoopbackServing?
+    private let authLock = NSLock()
+    private var activeLoopback: OAuthLoopbackServing?
+    private var generation = 0
     private let browserOpener: BrowserOpening
 
     public init(
         transport: HTTPTransporting = URLSessionHTTPTransport.shared,
         keychain: KeychainManaging = KeychainService.shared, // Preserved for API compatibility
-        loopbackServer: OAuthLoopbackServing = BSDLoopbackServer(),
+        loopbackServer: OAuthLoopbackServing? = nil,
         browserOpener: BrowserOpening = WorkspaceBrowserOpener.shared
     ) {
         self.transport = transport
-        self.loopbackServer = loopbackServer
+        self.injectedLoopback = loopbackServer
         self.browserOpener = browserOpener
     }
 
     public func cancel() {
-        loopbackServer.cancel()
+        authLock.lock()
+        generation += 1
+        let current = activeLoopback
+        activeLoopback = nil
+        authLock.unlock()
+        current?.cancel()
     }
 
     public func signIn(to endpoint: T3NormalizedEndpoint) async throws -> T3StoredCredential {
+        let loopbackServer = injectedLoopback ?? BSDLoopbackServer()
+        authLock.lock()
+        generation += 1
+        let signGeneration = generation
+        let previous = activeLoopback
+        activeLoopback = loopbackServer
+        authLock.unlock()
+        previous?.cancel()
+        defer {
+            loopbackServer.cancel()
+            authLock.lock()
+            if generation == signGeneration { activeLoopback = nil }
+            authLock.unlock()
+        }
+        func checkActive() throws {
+            try Task.checkCancellation()
+            authLock.lock()
+            let current = generation == signGeneration
+            authLock.unlock()
+            if !current { throw OAuthError.cancelled }
+        }
+        try checkActive()
         // 1. Discover and validate metadata on the selected origin
         let metadata = try await discoverMetadata(endpoint: endpoint)
+        try checkActive()
 
         // 2. Prepare ephemeral loopback listener and obtain the exact callback URL BEFORE registration/browser
         let (redirectUri, _) = try loopbackServer.prepare()
-
-        defer { loopbackServer.cancel() }
 
         // 3. Register client with the exact same redirect URI
         let registeredClientId = try await registerClient(
@@ -52,6 +81,7 @@ public final class T3OAuthClient: @unchecked Sendable {
             endpoint: endpoint
         )
 
+        try checkActive()
         // 4. Prepare PKCE and State
         let codeVerifier = PKCEHelper.generateCodeVerifier()
         let codeChallenge = PKCEHelper.generateCodeChallenge(for: codeVerifier)
@@ -74,6 +104,7 @@ public final class T3OAuthClient: @unchecked Sendable {
             throw OAuthError.browserFailed
         }
 
+        try checkActive()
         // 6. Launch browser
         guard browserOpener.openURL(authUrl) else {
             loopbackServer.cancel()
@@ -87,6 +118,7 @@ public final class T3OAuthClient: @unchecked Sendable {
             timeoutSeconds: 120
         )
 
+        try checkActive()
         // 8. Exchange authorization code for token
         let credential = try await exchangeCodeForToken(
             code: code,
@@ -97,6 +129,7 @@ public final class T3OAuthClient: @unchecked Sendable {
             metadata: metadata
         )
 
+        try checkActive()
         return credential
     }
 

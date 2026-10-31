@@ -73,7 +73,11 @@ public static class ActivityFormatter
             return null;
         }
 
-        if (!showT3Activity || snapshot == null || !snapshot.IsValid || snapshot.WinningHarness == null)
+        var age = snapshot == null ? TimeSpan.MaxValue : DateTimeOffset.UtcNow - snapshot.Timestamp;
+        string? toolName = snapshot?.WinningHarness?.HarnessName;
+        bool publicName = toolName is "Claude Code" or "Codex" or "Antigravity" or "Cursor" or "OpenCode" or "Grok" or "Muse" or "Pi" or "Other tools";
+        if (!showT3Activity || snapshot == null || !snapshot.IsValid || snapshot.WinningHarness == null ||
+            age < TimeSpan.Zero || age > T3ActivityService.SnapshotTtl || !publicName || snapshot.WinningHarness.TotalActive <= 0)
         {
             // App-only presence for T3 Code
             var activity = new DiscordActivity
@@ -97,7 +101,7 @@ public static class ActivityFormatter
         var richActivity = new DiscordActivity
         {
             Details = $"T3 Code · {snapshot.WinningHarness.HarnessName}",
-            State = snapshot.WinningState
+            State = T3WorkloadAggregator.FormatState(snapshot.WinningHarness)
         };
 
         if (showAppIcons)
@@ -106,8 +110,8 @@ public static class ActivityFormatter
             {
                 LargeImage = "t3_code",
                 LargeText = "T3 Code",
-                SmallImage = snapshot.WinningHarness.SmallIcon,
-                SmallText = snapshot.WinningHarness.SmallIcon != null ? snapshot.WinningHarness.HarnessName : null
+                SmallImage = toolName switch { "Claude Code" => "harness_claude", "Codex" => "harness_codex", "Antigravity" => "harness_antigravity", _ => null },
+                SmallText = toolName is "Claude Code" or "Codex" or "Antigravity" ? toolName : null
             };
         }
 

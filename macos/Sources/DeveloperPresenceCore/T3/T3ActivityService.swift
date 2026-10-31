@@ -20,6 +20,7 @@ public final class T3ActivityService: @unchecked Sendable {
     private var authGeneration: Int = 0
     private var pollGeneration: Int = 0
     private var activePollTask: Task<Void, Never>?
+    private var activeAuthTask: Task<T3StoredCredential, Error>?
 
     public private(set) var connectionStatus: T3ConnectionStatus = .notConnected
     public private(set) var currentSnapshot: T3ActivitySnapshot?
@@ -65,12 +66,15 @@ public final class T3ActivityService: @unchecked Sendable {
         self.currentEndpoint = endpoint
         self.connectionStatus = .openingSignIn
         self.lastErrorMessage = nil
+        activeAuthTask?.cancel()
+        let authTask = Task { try await oauthClient.signIn(to: endpoint) }
+        activeAuthTask = authTask
         lock.unlock()
 
         notifyStatusChanged(.openingSignIn, message: nil)
 
         do {
-            let credential = try await oauthClient.signIn(to: endpoint)
+            let credential = try await authTask.value
 
             var finalStatus: T3ConnectionStatus?
             var finalMsg: String?
@@ -164,6 +168,8 @@ public final class T3ActivityService: @unchecked Sendable {
     public func cancelSignIn() {
         lock.lock()
         authGeneration += 1
+        activeAuthTask?.cancel()
+        activeAuthTask = nil
         lock.unlock()
 
         oauthClient.cancel()
@@ -188,6 +194,8 @@ public final class T3ActivityService: @unchecked Sendable {
     public func disconnect() {
         lock.lock()
         authGeneration += 1
+        activeAuthTask?.cancel()
+        activeAuthTask = nil
         pollGeneration += 1
         isEligibleToPoll = false
         stopTimerLocked()
@@ -240,6 +248,8 @@ public final class T3ActivityService: @unchecked Sendable {
     public func handleEndpointChange(address: String) {
         lock.lock()
         authGeneration += 1
+        activeAuthTask?.cancel()
+        activeAuthTask = nil
         pollGeneration += 1
         stopTimerLocked()
         activePollTask?.cancel()
@@ -406,12 +416,14 @@ public final class T3ActivityService: @unchecked Sendable {
 
                 self.currentSnapshot = snapshot
                 self.winningTool = winner
+                let recovered = self.connectionStatus != .connected
                 self.connectionStatus = .connected
                 self.lastErrorMessage = nil
                 newSnapshot = snapshot
                 newWinner = winner
                 shouldNotify = true
 
+                if recovered { self.notifyStatusChanged(.connected, message: nil) }
                 if shouldNotify {
                     self.notifyActivityUpdated(newSnapshot, winner: newWinner)
                 }

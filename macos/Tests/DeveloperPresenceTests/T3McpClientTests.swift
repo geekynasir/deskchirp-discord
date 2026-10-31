@@ -239,7 +239,7 @@ final class T3McpClientTests: XCTestCase {
             }
 
             if method == "initialize" {
-                return ("{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{}}".data(using: .utf8)!, HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!)
+                return ("{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"protocolVersion\":\"2025-06-18\"}}".data(using: .utf8)!, HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!)
             } else if method == "notifications/initialized" {
                 return (Data(), HTTPURLResponse(url: req.url!, statusCode: 202, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!)
             } else if method == "tools/call" {

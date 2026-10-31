@@ -11,7 +11,7 @@ final class SettingsMigrationTests: XCTestCase {
             "discordClientId": "123456789012345678",
             "updateIntervalSeconds": 5,
             "bundleMappings": {
-                "com.t3tools.t3code": "t3Code",
+                "com.t3tools.t3code": "t3",
                 "com.anthropic.claudefordesktop": "claude"
             }
         }

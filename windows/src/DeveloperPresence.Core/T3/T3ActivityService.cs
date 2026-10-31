@@ -24,6 +24,7 @@ public sealed class T3ActivityService : IT3ActivityService
     private long _pollGeneration;
     private long _authGeneration;
     private bool _isDisposed;
+    private string _observedAddress;
 
     public const string CredentialTarget = "DeveloperPresence:T3Code";
     public const string CredentialUsername = "OAuthBearerToken";
@@ -57,6 +58,21 @@ public sealed class T3ActivityService : IT3ActivityService
         _credentialStore = credentialStore ?? throw new ArgumentNullException(nameof(credentialStore));
         _oauthClient = oauthClient ?? new T3OAuthClient();
         _mcpClient = mcpClient ?? new T3McpClient();
+        _observedAddress = _settingsService.Settings.T3Address;
+        _settingsService.SettingsChanged += OnSettingsChanged;
+    }
+
+    private void OnSettingsChanged(PresenceSettings settings)
+    {
+        if (string.Equals(_observedAddress, settings.T3Address, StringComparison.Ordinal)) return;
+        _observedAddress = settings.T3Address;
+        Invalidate();
+        var saved = _storedToken;
+        if (saved == null) return;
+        bool matches = T3UrlValidator.TryNormalizeT3Address(settings.T3Address, out var selected, out _) &&
+                       string.Equals(selected!.AbsoluteUri, saved.McpUri, StringComparison.Ordinal);
+        SetStatus(matches && !saved.IsExpired ? T3ConnectionStatus.Connected : T3ConnectionStatus.NotConnected,
+            matches ? "Activity is checked only while T3 Code is the active app." : "Paste the T3 address, then connect.");
     }
 
     public async Task InitializeAsync(CancellationToken ct = default)
@@ -132,8 +148,10 @@ public sealed class T3ActivityService : IT3ActivityService
 
                 if (authGen != Interlocked.Read(ref _authGeneration))
                 {
-                    await _credentialStore.DeleteCredentialAsync(CredentialTarget, CredentialUsername, CancellationToken.None).ConfigureAwait(false);
-                    _storedToken = null;
+                    if (priorToken != null)
+                        await _credentialStore.SaveCredentialAsync(CredentialTarget, CredentialUsername, JsonSerializer.Serialize(priorToken), CancellationToken.None).ConfigureAwait(false);
+                    else
+                        await _credentialStore.DeleteCredentialAsync(CredentialTarget, CredentialUsername, CancellationToken.None).ConfigureAwait(false);
                     return false;
                 }
 
@@ -154,11 +172,13 @@ public sealed class T3ActivityService : IT3ActivityService
         }
         catch (OperationCanceledException)
         {
+            await _authLock.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+            try
+            {
             if (authGen != Interlocked.Read(ref _authGeneration)) return false;
             // Cancelled or denied
             if (priorStatus == T3ConnectionStatus.Connected && priorToken != null && !priorToken.IsExpired)
             {
-                _storedToken = priorToken;
                 SetStatus(T3ConnectionStatus.Connected, "Sign-in was cancelled. Your existing connection wasn’t changed.");
             }
             else
@@ -166,9 +186,14 @@ public sealed class T3ActivityService : IT3ActivityService
                 SetStatus(T3ConnectionStatus.NotConnected, "Sign-in was cancelled.");
             }
             return false;
+            }
+            finally { _authLock.Release(); }
         }
         catch (Exception ex)
         {
+            await _authLock.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+            try
+            {
             if (authGen != Interlocked.Read(ref _authGeneration)) return false;
             string msg = ex.Message.Contains("Check that you copied it with Copy MCP URL", StringComparison.OrdinalIgnoreCase) ||
                          ex.Message.Contains("didn’t respond like T3 Code", StringComparison.OrdinalIgnoreCase) ||
@@ -178,7 +203,6 @@ public sealed class T3ActivityService : IT3ActivityService
 
             if (priorStatus == T3ConnectionStatus.Connected && priorToken != null && !priorToken.IsExpired)
             {
-                _storedToken = priorToken;
                 SetStatus(T3ConnectionStatus.Connected, "Sign-in didn’t finish. Your existing connection wasn’t changed.");
             }
             else
@@ -186,6 +210,8 @@ public sealed class T3ActivityService : IT3ActivityService
                 SetStatus(T3ConnectionStatus.CouldNotReach, msg);
             }
             return false;
+            }
+            finally { _authLock.Release(); }
         }
     }
 
@@ -212,8 +238,8 @@ public sealed class T3ActivityService : IT3ActivityService
         await _authLock.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            _storedToken = null;
             await _credentialStore.DeleteCredentialAsync(CredentialTarget, CredentialUsername, ct).ConfigureAwait(false);
+            _storedToken = null;
             ClearSnapshot();
             _leaderTracker.Reset();
             SetStatus(T3ConnectionStatus.NotConnected, "To revoke access in T3 too, open T3 Code Settings → Sharing & access.");
@@ -227,7 +253,9 @@ public sealed class T3ActivityService : IT3ActivityService
     public async Task<T3Snapshot?> PollOnceAsync(CancellationToken ct = default)
     {
         var pollToken = _storedToken;
-        if (_connectionStatus != T3ConnectionStatus.Connected || pollToken == null)
+        if (_connectionStatus != T3ConnectionStatus.Connected || pollToken == null ||
+            !T3UrlValidator.TryNormalizeT3Address(_settingsService.Settings.T3Address, out var selectedEndpoint, out _) ||
+            !string.Equals(selectedEndpoint!.AbsoluteUri, pollToken.McpUri, StringComparison.Ordinal))
         {
             return null;
         }
@@ -386,6 +414,7 @@ public sealed class T3ActivityService : IT3ActivityService
     {
         if (_isDisposed) return;
         _isDisposed = true;
+        _settingsService.SettingsChanged -= OnSettingsChanged;
 
         Interlocked.Increment(ref _authGeneration);
         Invalidate();

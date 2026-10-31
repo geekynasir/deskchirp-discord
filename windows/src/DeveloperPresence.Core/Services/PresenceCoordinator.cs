@@ -23,6 +23,7 @@ public sealed class PresenceCoordinator : IAsyncDisposable
     private readonly object _stateLock = new();
     private readonly object _operationLock = new();
     private CancellationTokenSource? _operationCts;
+    private CancellationTokenSource? _t3PollCts;
 
     private readonly PresenceState _currentState = new();
     private CancellationTokenSource? _loopCts;
@@ -123,7 +124,8 @@ public sealed class PresenceCoordinator : IAsyncDisposable
         if (_wasT3Eligible)
         {
             _wasT3Eligible = false;
-            _t3ActivityService?.Invalidate();
+            CancelT3Poll();
+                    _t3ActivityService?.Invalidate();
         }
         _loopCts?.Cancel();
 
@@ -166,7 +168,8 @@ public sealed class PresenceCoordinator : IAsyncDisposable
         if (_wasT3Eligible)
         {
             _wasT3Eligible = false;
-            _t3ActivityService?.Invalidate();
+            CancelT3Poll();
+                    _t3ActivityService?.Invalidate();
         }
 
         _ = ClearAndDropConnectionAsync();
@@ -202,7 +205,8 @@ public sealed class PresenceCoordinator : IAsyncDisposable
         if (_wasT3Eligible)
         {
             _wasT3Eligible = false;
-            _t3ActivityService?.Invalidate();
+            CancelT3Poll();
+                    _t3ActivityService?.Invalidate();
         }
 
         _ = ClearAndDropConnectionAsync();
@@ -305,6 +309,7 @@ public sealed class PresenceCoordinator : IAsyncDisposable
                 if (_wasT3Eligible)
                 {
                     _wasT3Eligible = false;
+                    CancelT3Poll();
                     _t3ActivityService?.Invalidate();
                 }
 
@@ -347,7 +352,8 @@ public sealed class PresenceCoordinator : IAsyncDisposable
             if (_wasT3Eligible && !isT3Eligible)
             {
                 _wasT3Eligible = false;
-                _t3ActivityService?.Invalidate();
+                CancelT3Poll();
+                    _t3ActivityService?.Invalidate();
             }
             else if (isT3Eligible)
             {
@@ -388,14 +394,7 @@ public sealed class PresenceCoordinator : IAsyncDisposable
                         if ((now - _lastT3PollTimestamp) >= TimeSpan.FromSeconds(15))
                         {
                             _lastT3PollTimestamp = now;
-                            try
-                            {
-                                await _t3ActivityService.PollOnceAsync(token).ConfigureAwait(false);
-                            }
-                            catch
-                            {
-                                // Poll failure handled; next attempt will wait for the 15-second backoff
-                            }
+                            BeginT3Poll();
                         }
 
                         var snapshot = _t3ActivityService.CurrentSnapshot;
@@ -572,6 +571,37 @@ public sealed class PresenceCoordinator : IAsyncDisposable
         });
     }
 
+    private void BeginT3Poll()
+    {
+        CancellationTokenSource source;
+        lock (_operationLock)
+        {
+            if (_t3PollCts != null || _t3ActivityService == null) return;
+            source = CancellationTokenSource.CreateLinkedTokenSource(_loopCts?.Token ?? CancellationToken.None);
+            _t3PollCts = source;
+        }
+        _ = PollInBackgroundAsync(source);
+    }
+
+    private async Task PollInBackgroundAsync(CancellationTokenSource source)
+    {
+        try { await _t3ActivityService!.PollOnceAsync(source.Token).ConfigureAwait(false); }
+        catch { /* The service clears failed snapshots; the next attempt waits 15 seconds. */ }
+        finally
+        {
+            lock (_operationLock)
+            {
+                if (ReferenceEquals(_t3PollCts, source)) _t3PollCts = null;
+            }
+            source.Dispose();
+        }
+    }
+
+    private void CancelT3Poll()
+    {
+        lock (_operationLock) { _t3PollCts?.Cancel(); }
+    }
+
     private void OnT3StatusChanged(T3ConnectionStatus status, string detail)
     {
         UpdateState(s =>
@@ -593,6 +623,8 @@ public sealed class PresenceCoordinator : IAsyncDisposable
     {
         if (!_isStarted) return;
         InvalidateOperation();
+        CancelT3Poll();
+        _t3ActivityService?.Invalidate();
         // Capture and close the old socket now, before a worker can create its replacement.
         _ = ClearAndDropConnectionAsync();
         TriggerImmediateEvaluation();

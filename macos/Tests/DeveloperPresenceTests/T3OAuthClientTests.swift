@@ -202,7 +202,7 @@ final class T3OAuthClientTests: XCTestCase {
         // Verify browser was opened with the exact ephemeral redirect URI
         XCTAssertNotNil(mockBrowser.lastOpenedURL)
         let openedURL = mockBrowser.lastOpenedURL!
-        XCTAssertTrue(openedURL.absoluteString.contains("redirect_uri=http%3A%2F%2F127.0.0.1%3A54321%2Fcallback"))
+        XCTAssertEqual(URLComponents(url: openedURL, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "redirect_uri" })?.value, "http://127.0.0.1:54321/callback")
         XCTAssertTrue(openedURL.absoluteString.contains("scope=orchestration%3Aread") || openedURL.absoluteString.contains("scope=orchestration:read"))
         XCTAssertTrue(openedURL.absoluteString.contains("code_challenge_method=S256"))
         XCTAssertTrue(openedURL.absoluteString.contains("client_id=client-test-id"))
