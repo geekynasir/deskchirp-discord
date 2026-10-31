@@ -47,8 +47,8 @@ public sealed class PresenceSettings
     public string T3Address { get; set; } = string.Empty;
 
     /// <summary>
-    /// Optional OFF-by-default toggle to show Discord rich presence app artwork/icons.
-    /// Requires assets configured on user's registered Discord application.
+    /// Artwork is on by default and uses fixed public images fetched by Discord.
+    /// No per-user asset upload is required.
     /// </summary>
     public bool ShowAppIcons { get; set; } = true;
     public int ArtworkDefaultsVersion { get; set; } = 0;

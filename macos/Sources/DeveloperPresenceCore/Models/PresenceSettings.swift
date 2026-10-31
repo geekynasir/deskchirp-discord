@@ -27,7 +27,7 @@ public struct PresenceSettings: Codable, Equatable, Sendable {
     /// User-configured T3 Code address (e.g. from Copy MCP URL).
     public var t3Address: String
 
-    /// Toggle to show Discord app icons (t3_code, harness_*). OFF by default.
+    /// Toggle to show bundled app/agent artwork. ON by default.
     public var showAppIcons: Bool
     public var followComputers: Bool
     public var computerLinkAddress: String
