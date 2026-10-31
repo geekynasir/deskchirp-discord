@@ -22,20 +22,21 @@ public final class PresenceCoordinator: ObservableObject {
 
     public init(
         settingsService: SettingsServicing = SettingsService.shared,
-        foregroundDetector: ForegroundDetecting = WorkspaceForegroundDetector.shared,
-        sessionObserver: SessionStateObserving = WorkspaceSessionObserver.shared,
-        discordClient: DiscordIpcClient = DiscordIpcClient.shared,
+        foregroundDetector: ForegroundDetecting? = nil,
+        sessionObserver: SessionStateObserving? = nil,
+        discordClient: DiscordIpcClient? = nil,
         t3Service: T3ActivityService = T3ActivityService()
     ) {
         self.settingsService = settingsService
-        self.foregroundDetector = foregroundDetector
-        self.sessionObserver = sessionObserver
-        self.discordClient = discordClient
+        let initialSettings = settingsService.loadSettings()
+        self.foregroundDetector = foregroundDetector ?? WorkspaceForegroundDetector(bundleMappings: initialSettings.bundleMappings)
+        self.sessionObserver = sessionObserver ?? WorkspaceSessionObserver()
+        self.discordClient = discordClient ?? DiscordIpcClient()
         self.t3Service = t3Service
 
-        let initialSettings = settingsService.loadSettings()
         self.settings = initialSettings
         self.state = PresenceState()
+        self.state.isSessionSuspended = self.sessionObserver.isSuspended
 
         setupBindings()
 
