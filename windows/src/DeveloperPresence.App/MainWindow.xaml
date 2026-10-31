@@ -59,6 +59,8 @@
                         TextWrapping="Wrap" />
                     <TextBlock Text="{x:Bind ViewModel.ComputerStatus, Mode=OneWay}" TextWrapping="Wrap"
                         AutomationProperties.LiveSetting="Polite" />
+                    <HyperlinkButton Content="How to link your computers" Padding="0"
+                        NavigateUri="https://github.com/geekynasir/developer-presence/blob/d3f61e6e863ba798f6f3e75f500aadf4ff33770b/docs/computers.md" />
                     <StackPanel Spacing="8" Visibility="{x:Bind BoolToVisibility(ViewModel.ShowComputerLinkForm), Mode=OneWay}">
                         <TextBox Header="Linking address" AutomationProperties.Name="Linking address"
                             Text="{x:Bind ViewModel.LinkingAddress, Mode=TwoWay}" PlaceholderText="Paste your linking address" />
@@ -74,7 +76,11 @@
                         Visibility="{x:Bind BoolToVisibility(ViewModel.HasComputerLink), Mode=OneWay}" />
                     <TextBlock Text="{x:Bind ViewModel.ComputerPairingCode, Mode=OneWay}" IsTextSelectionEnabled="True"
                         Visibility="{x:Bind BoolToVisibility(ViewModel.HasComputerPairingCode), Mode=OneWay}" />
-                    <Button Content="Unlink this computer" Command="{x:Bind ViewModel.UnlinkComputerCommand}" />
+                    <TextBlock Text="Use once within five minutes. Keep this code private." TextWrapping="Wrap"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Visibility="{x:Bind BoolToVisibility(ViewModel.HasComputerPairingCode), Mode=OneWay}" />
+                    <Button Content="Unlink this computer" Command="{x:Bind ViewModel.UnlinkComputerCommand}"
+                        Visibility="{x:Bind BoolToVisibility(ViewModel.ShowUnlinkComputer), Mode=OneWay}" />
                     <TextBlock Text="Your linking service sees computer names and recent-use timing. Your app activity stays on your computers. Pause sharing affects this computer only. Unlinking turns sharing off here."
                         TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                 </StackPanel>

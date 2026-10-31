@@ -149,4 +149,17 @@ public sealed class ComputerLinkTests
         var settings = JsonSerializer.Deserialize<PresenceSettings>("{\"EnableSharing\":true}")!;
         Assert.False(settings.FollowComputers); Assert.Empty(settings.ComputerLinkAddress);
     }
+
+    [Fact]
+    public async Task SavedDeviceCredentialPreventsAccidentalIndependentStartup()
+    {
+        var settings = new TestSettings(); var store = new InMemoryCredentialStore();
+        await store.SaveCredentialAsync("DeveloperPresence:computers", "device", JsonSerializer.Serialize(
+            new ComputerCredential("https://link.example", "test_device_123456", "test_group_123456", "test_token_123456789012")));
+        var service = new ComputerLinkService(settings, store, new Input(), new HttpClient(new Handler()));
+        await service.InitializeAsync();
+        Assert.True(settings.Settings.FollowComputers);
+        Assert.False(service.CanPublish);
+        await service.StopAsync();
+    }
 }

@@ -120,7 +120,15 @@ public sealed class ComputerLinkService : IComputerLinkService
             {
                 var credential = JsonSerializer.Deserialize<ComputerCredential>(secret);
                 if (credential != null && ComputerAddress.Normalize(credential.Server) == credential.Server)
+                {
                     lock (_gate) _credential = credential;
+                    // A saved link is authoritative if a settings write was interrupted.
+                    // Never restart in independent mode with a live device credential.
+                    if (!_settings.Settings.FollowComputers)
+                        await _settings.UpdateSettingsAsync(s => {
+                            s.FollowComputers = true; s.ComputerLinkAddress = credential.Server;
+                        });
+                }
             }
         }
         catch { SetStatus("Couldn’t read your saved computer link. Try linking again.", clear: true); }

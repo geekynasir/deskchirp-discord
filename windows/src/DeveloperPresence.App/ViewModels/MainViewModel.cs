@@ -70,6 +70,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public bool HasComputerPairingCode => !string.IsNullOrEmpty(ComputerPairingCode);
     public bool HasComputerLink => _computers?.HasSavedLink == true;
     public bool ShowComputerLinkForm => !HasComputerLink;
+    public bool ShowUnlinkComputer => _settingsService.Settings.FollowComputers;
     public bool CanChangeComputerLink => !_computerBusy;
     public ICommand LinkComputerCommand { get; }
     public ICommand CreateComputerCodeCommand { get; }
@@ -451,6 +452,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         OnPropertyChanged(nameof(ComputerStatus)); OnPropertyChanged(nameof(ComputerPairingCode));
         OnPropertyChanged(nameof(HasComputerPairingCode)); OnPropertyChanged(nameof(HasComputerLink));
         OnPropertyChanged(nameof(ShowComputerLinkForm)); OnPropertyChanged(nameof(CanChangeComputerLink));
+        OnPropertyChanged(nameof(ShowUnlinkComputer));
     });
 
     private void OnCoordinatorStateChanged(PresenceState state)

@@ -155,6 +155,10 @@ public final class PresenceCoordinator: ObservableObject {
         foregroundDetector.start()
         sessionObserver.start()
         computers.start(linked: settings.followComputers)
+        if computers.hasSavedLink && !settings.followComputers {
+            settings.followComputers = true
+            settingsService.saveSettings(settings)
+        }
         computerTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self = self, self.started, self.settings.followComputers else { return }

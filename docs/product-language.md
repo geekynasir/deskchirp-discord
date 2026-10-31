@@ -12,6 +12,8 @@ The review covered both native settings implementations, their public status mes
 
 ## Voice
 
+The linked-computer extension uses **Follow me**, **Linking address**, **Computer name**, **Linking code**, **Link this computer**, **Link another computer**, and **Unlink this computer** (with native button capitalization). Use **Selected computer: this computer** or **Selected computer: {name}**, not a claim that a remote Discord profile has already updated. **Switching computers…**, **Waiting for a connection**, and **No computer is sharing** describe the other states. Explain that switching waits for the previous computer, hides after five minutes without input, and that Pause affects this computer only. The Computers area discloses the computer names and recent-use timing sent to the private linking service. Device names never appear on the Discord card.
+
 - Plain, calm, short. Lead with the state the user is in, then add the next step only if there is one.
 - Errors say what failed and how to fix it. Never show an exception message, error code, socket path, or protocol name as the main text. Write those to the log.
 - Don't promise what the app can't know. Don't say "needs attention" or "finished", don't show a zero count, and don't claim a cause the app didn't observe.

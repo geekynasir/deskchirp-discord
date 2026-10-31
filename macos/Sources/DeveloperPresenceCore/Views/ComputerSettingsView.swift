@@ -5,7 +5,7 @@ struct ComputerSettingsView: View {
     @ObservedObject var coordinator: PresenceCoordinator
     @ObservedObject var computers: ComputerLinkService
     @State private var address = ""
-    @State private var name = Host.current().localizedName ?? "My Mac"
+    @State private var name = String((Host.current().localizedName ?? "My Mac").prefix(48))
     @State private var code = ""
     @State private var expanded = true
 
@@ -16,9 +16,11 @@ struct ComputerSettingsView: View {
                     Text("Share from the computer you most recently used. Other linked computers wait. Switching waits briefly for the previous computer to stop. Activity hides after five minutes without input.")
                     Text(computers.status)
                         .accessibilityAddTraits(.updatesFrequently)
+                    Link("How to Link Your Computers", destination: URL(string: "https://github.com/geekynasir/developer-presence/blob/d3f61e6e863ba798f6f3e75f500aadf4ff33770b/docs/computers.md")!)
                     if !computers.hasSavedLink {
                         TextField("Linking address", text: $address, prompt: Text("Paste your linking address"))
                         TextField("Computer name", text: $name)
+                            .onChange(of: name) { value in name = String(value.prefix(48)) }
                         SecureField("Linking code", text: $code)
                         Text("Use a new code from a linked computer. For your first computer, get a code from your linking service. Use the same Discord account on every computer.")
                             .font(.caption).foregroundStyle(.secondary)
@@ -33,8 +35,12 @@ struct ComputerSettingsView: View {
                     }
                     if !computers.pairingCode.isEmpty {
                         Text(computers.pairingCode).textSelection(.enabled)
+                        Text("Use once within five minutes. Keep this code private.")
+                            .font(.caption).foregroundStyle(.secondary)
                     }
-                    Button("Unlink This Computer") { coordinator.unlinkComputer() }
+                    if coordinator.settings.followComputers {
+                        Button("Unlink This Computer") { coordinator.unlinkComputer() }
+                    }
                     Text("Your linking service sees computer names and recent-use timing. Your app activity stays on your computers. Pause sharing affects this computer only. Unlinking turns sharing off here.")
                         .font(.caption).foregroundStyle(.secondary)
                 }

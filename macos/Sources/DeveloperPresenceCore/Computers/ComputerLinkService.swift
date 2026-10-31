@@ -119,6 +119,8 @@ public final class ComputerLinkService: ObservableObject {
                 credential = value
             }
         } catch { status = "Couldn’t read your saved computer link. Try linking again." }
+        self.linked = linked || credential != nil
+        permission.configure(linked: self.linked, account: nil)
         guard worker == nil else { return }
         worker = Task { [weak self] in
             while !Task.isCancelled {

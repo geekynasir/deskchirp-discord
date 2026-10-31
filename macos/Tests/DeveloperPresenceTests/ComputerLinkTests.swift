@@ -40,6 +40,21 @@ final class ComputerLinkTests: XCTestCase {
     }
 
     @MainActor
+    func testSavedCredentialCannotRestoreIndependentPermission() throws {
+        let keychain = MockKeychain()
+        let value = ComputerCredential(server: "https://link.example", deviceId: "test_device_123456",
+                                       groupId: "test_group_123456", token: "test_token_123456789012")
+        let data = try JSONEncoder().encode(value)
+        try keychain.saveCredential(T3StoredCredential(accessToken: String(decoding: data, as: UTF8.self)),
+                                    forService: "com.developerpresence.computers", account: "device")
+        let service = ComputerLinkService(keychain: keychain, transport: MockHTTPTransport(), inputAge: { 0 })
+        service.start(linked: false)
+        XCTAssertTrue(service.hasSavedLink)
+        XCTAssertFalse(service.permission.allows(account: nil))
+        service.stop()
+    }
+
+    @MainActor
     func testLinkHeartbeatAndSecureUnlink() async throws {
         let transport = MockHTTPTransport { request in
             let path = request.url!.path
