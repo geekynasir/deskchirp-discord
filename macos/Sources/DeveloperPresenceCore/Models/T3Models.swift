@@ -175,7 +175,7 @@ public struct T3ActivitySnapshot: Equatable, Sendable {
 
     /// Snapshot TTL is 45 seconds per specification.
     public func isFresh(maxAgeSeconds: TimeInterval = 45.0, now: Date = Date()) -> Bool {
-        now.timeIntervalSince(observedAt) <= maxAgeSeconds
+        now.timeIntervalSince(observedAt) >= 0 && now.timeIntervalSince(observedAt) <= maxAgeSeconds
     }
 }
 

@@ -155,20 +155,20 @@ final class T3ActivityFormatterTests: XCTestCase {
 
         // When showAppIcons is true
         let fClaude = T3ActivityFormatter.format(snapshot: snapClaude, winningTool: "Claude Code", showAppIcons: true, now: now)
-        XCTAssertEqual(fClaude.assets?.largeImage, "t3_code")
-        XCTAssertEqual(fClaude.assets?.smallImage, "harness_claude")
+        XCTAssertEqual(fClaude.assets?.large_image, "t3_code")
+        XCTAssertEqual(fClaude.assets?.small_image, "harness_claude")
 
         let fAG = T3ActivityFormatter.format(snapshot: snapAG, winningTool: "Antigravity", showAppIcons: true, now: now)
-        XCTAssertEqual(fAG.assets?.largeImage, "t3_code")
-        XCTAssertEqual(fAG.assets?.smallImage, "harness_antigravity")
+        XCTAssertEqual(fAG.assets?.large_image, "t3_code")
+        XCTAssertEqual(fAG.assets?.small_image, "harness_antigravity")
 
         let fCodex = T3ActivityFormatter.format(snapshot: snapCodex, winningTool: "Codex", showAppIcons: true, now: now)
-        XCTAssertEqual(fCodex.assets?.largeImage, "t3_code")
-        XCTAssertEqual(fCodex.assets?.smallImage, "harness_codex")
+        XCTAssertEqual(fCodex.assets?.large_image, "t3_code")
+        XCTAssertEqual(fCodex.assets?.small_image, "harness_codex")
 
         let fOther = T3ActivityFormatter.format(snapshot: snapOther, winningTool: "Other tools", showAppIcons: true, now: now)
-        XCTAssertEqual(fOther.assets?.largeImage, "t3_code")
-        XCTAssertNil(fOther.assets?.smallImage)
+        XCTAssertEqual(fOther.assets?.large_image, "t3_code")
+        XCTAssertNil(fOther.assets?.small_image)
 
         // When showAppIcons is false
         let fClaudeNoIcons = T3ActivityFormatter.format(snapshot: snapClaude, winningTool: "Claude Code", showAppIcons: false, now: now)

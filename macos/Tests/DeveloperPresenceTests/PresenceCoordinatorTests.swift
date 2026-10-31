@@ -464,7 +464,7 @@ final class PresenceCoordinatorTests: XCTestCase {
                 """
                 return (json.data(using: .utf8)!, HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!)
             } else if path == "/oauth/mcp/register" {
-                return ("{"client_id":"c1"}".data(using: .utf8)!, HTTPURLResponse(url: req.url!, statusCode: 201, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!)
+                return (#"{"client_id":"c1"}"#.data(using: .utf8)!, HTTPURLResponse(url: req.url!, statusCode: 201, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!)
             } else if path == "/oauth/mcp/token" {
                 let tokenJson = """
                 {

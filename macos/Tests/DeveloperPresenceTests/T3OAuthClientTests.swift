@@ -225,7 +225,7 @@ final class T3OAuthClientTests: XCTestCase {
                     let json = """
                     {
                       "issuer": "http://localhost:3773",
-                  "code_challenge_methods_supported": ["S256"],
+                      "code_challenge_methods_supported": ["S256"],
                       "authorization_endpoint": "http://localhost:3773/oauth/mcp/authorize",
                       "token_endpoint": "http://localhost:3773/oauth/mcp/token",
                       "registration_endpoint": "http://localhost:3773/oauth/mcp/register"
