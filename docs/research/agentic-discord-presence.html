@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Developer Presence · Discord card concept</title>
+<style>
+/* Product-specific tokens. color-scheme is set from the host's actual background (see script), never from prefers-color-scheme alone. */
+#dp {
+  --dp-fg: light-dark(#1d1d1f, #ececee);
+  --dp-muted: light-dark(#585a60, #a6a8ae);
+  --dp-panel: light-dark(#ffffff, #161618);
+  --dp-field: light-dark(#f3f3f5, #222327);
+  --dp-line: light-dark(#dcdde1, #303136);
+  --dp-seg-on: light-dark(#ffffff, #3a3b41);
+  --dp-ring: light-dark(#3b5bdb, #8ea2ff);
+  --dp-warn: light-dark(#8a4b00, #f0b232);
+  --dp-dot: light-dark(rgba(0,0,0,.13), rgba(255,255,255,.09));
+  --dp-tag: light-dark(#eceef1, #2a2b30);
+  --dc-card: light-dark(#ffffff, #1c1d21);
+  --dc-border: light-dark(#e1e2e6, #2e2f35);
+  --dc-text: light-dark(#060607, #f2f3f5);
+  --dc-sub: light-dark(#2e3035, #dbdee1);
+  --dc-muted: light-dark(#5c5e66, #949ba4);
+  --dc-green: light-dark(#1a7f45, #23a55a);
+  --dc-btn: light-dark(#e3e4e8, #393a40);
+  --dc-btn-text: light-dark(#2e3035, #f2f3f5);
+  --dc-online: #23a55a;
+  color: var(--dp-fg);
+  font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+  width: 100%;
+}
+#dp * { box-sizing: border-box; }
+#dp [hidden] { display: none !important; }
+#dp h2 { margin: 0; font-size: 15px; font-weight: 600; }
+#dp p { margin: 0; }
+#dp .dp-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-bottom: 12px; }
+#dp .dp-chip { font-size: 12px; color: var(--dp-muted); background: var(--dp-tag); border-radius: 999px; padding: 2px 9px; }
+#dp .dp-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 340px); gap: 18px; align-items: start; }
+
+/* Companion settings (native-settings feel) */
+#dp .dp-config { background: var(--dp-panel); border: 1px solid var(--dp-line); border-radius: 12px; padding: 4px 14px; margin: 0; }
+#dp .dp-group { border: 0; margin: 0; padding: 12px 0; min-width: 0; }
+#dp .dp-group + .dp-group { border-top: 1px solid var(--dp-line); }
+#dp legend, #dp .dp-label { padding: 0; font-size: 12px; font-weight: 600; color: var(--dp-muted); margin-bottom: 6px; display: block; }
+#dp legend { float: left; width: 100%; }
+#dp legend + * { clear: both; }
+#dp .dp-hint { font-size: 12px; color: var(--dp-muted); margin-top: 6px; }
+#dp .dp-seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--dp-field); border-radius: 8px; padding: 2px; gap: 2px; }
+#dp .dp-seg label { position: relative; display: block; }
+#dp .dp-seg input { position: absolute; inset: 0; opacity: 0; margin: 0; width: 100%; height: 100%; }
+#dp .dp-seg span { display: block; text-align: center; padding: 5px 4px; border-radius: 6px; font-size: 13px; white-space: nowrap; }
+#dp .dp-seg input:checked + span { background: var(--dp-seg-on); box-shadow: 0 1px 2px rgba(0,0,0,.18); font-weight: 600; }
+#dp .dp-seg input:focus-visible + span { outline: 2px solid var(--dp-ring); outline-offset: 1px; }
+#dp .dp-seg input:disabled + span { color: var(--dp-muted); opacity: .6; }
+#dp .dp-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+#dp select { width: 100%; font: inherit; font-size: 13px; color: var(--dp-fg); background: var(--dp-field); border: 1px solid var(--dp-line); border-radius: 7px; padding: 6px 8px; min-height: 32px; }
+#dp .dp-checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 4px 12px; }
+#dp .dp-check { display: flex; align-items: center; gap: 8px; min-height: 28px; font-size: 13px; }
+#dp .dp-check input { width: 16px; height: 16px; margin: 0; accent-color: var(--dp-ring); flex: none; }
+#dp .dp-check small { color: var(--dp-muted); font-size: 12px; }
+
+/* Preview */
+#dp .dp-preview { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+#dp .dp-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+#dp .dp-bar label { font-size: 12px; font-weight: 600; color: var(--dp-muted); white-space: nowrap; }
+#dp .dp-bar select { width: auto; max-width: 62%; }
+#dp .dp-stage { border-radius: 12px; padding: 18px 12px; display: flex; flex-direction: column; align-items: center; gap: 10px;
+  background-image: radial-gradient(var(--dp-dot) 1px, transparent 1.2px); background-size: 14px 14px; }
+
+/* Discord activity card (mock, matches profile "Playing" card) */
+#dp .dc { font-family: "gg sans", "Noto Sans", "Helvetica Neue", Helvetica, Arial, sans-serif; color: var(--dc-text); }
+#dp .dc-card { width: min(100%, 316px); background: var(--dc-card); border: 1px solid var(--dc-border); border-radius: 10px; padding: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.12); }
+#dp .dc-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+#dp .dc-type { font-size: 12px; font-weight: 600; color: var(--dc-sub); }
+#dp .dc-more { color: var(--dc-muted); letter-spacing: 1px; font-weight: 700; line-height: 1; }
+#dp .dc-act { display: flex; gap: 12px; align-items: center; }
+#dp .dc-art { position: relative; flex: none; width: 64px; height: 64px; }
+#dp .dc-large { width: 64px; height: 64px; border-radius: 12px; display: block; object-fit: contain; }
+#dp .dc-large.is-claude { background: #f4ede4; padding: 11px; }
+#dp .dc-large.is-codex { background: #0d0d0d; padding: 11px; }
+#dp .dc-small { position: absolute; right: -5px; bottom: -5px; width: 26px; height: 26px; border-radius: 50%; border: 3px solid var(--dc-card); display: grid; place-items: center; overflow: hidden; }
+#dp .dc-small img { width: 100%; height: 100%; object-fit: contain; display: block; }
+#dp .dc-small.b-claude { background: #f4ede4; padding: 3px; }
+#dp .dc-small.b-working { background: #23a55a; }
+#dp .dc-small.b-attention { background: #f0b232; }
+#dp .dc-small.b-idle { background: #80848e; }
+#dp .dc-small svg { width: 14px; height: 14px; display: block; }
+#dp .dc-text { min-width: 0; flex: 1; }
+#dp .dc-name { font-size: 15px; font-weight: 700; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#dp .dc-line { font-size: 13px; line-height: 1.35; color: var(--dc-sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#dp .dc-line.is-cut { text-decoration: underline wavy var(--dp-warn); text-underline-offset: 3px; }
+#dp .dc-time { display: flex; align-items: center; gap: 5px; margin-top: 2px; font-size: 13px; font-weight: 600; color: var(--dc-green); font-variant-numeric: tabular-nums; }
+#dp .dc-time svg { width: 16px; height: 16px; flex: none; }
+#dp .dc-btns { display: grid; gap: 8px; margin-top: 12px; }
+#dp .dc-btns:empty { display: none; }
+#dp .dc-btn { display: block; text-align: center; font-size: 14px; font-weight: 500; padding: 7px 10px; border-radius: 8px; background: var(--dc-btn); color: var(--dc-btn-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#dp .dc-member { width: min(100%, 316px); display: flex; align-items: center; gap: 10px; background: var(--dc-card); border: 1px solid var(--dc-border); border-radius: 8px; padding: 7px 10px; }
+#dp .dc-avatar { position: relative; flex: none; width: 32px; height: 32px; border-radius: 50%; background: #5865f2; color: #fff; display: grid; place-items: center; font-size: 13px; font-weight: 700; }
+#dp .dc-avatar::after { content: ""; position: absolute; right: -2px; bottom: -2px; width: 12px; height: 12px; border-radius: 50%; background: var(--dc-online); border: 3px solid var(--dc-card); }
+#dp .dc-mtext { min-width: 0; font-size: 12px; color: var(--dc-muted); line-height: 1.3; }
+#dp .dc-mtext b { color: var(--dc-sub); font-weight: 600; }
+#dp .dc-mname { font-size: 14px; font-weight: 600; color: var(--dc-text); }
+
+#dp .dp-fit { font-size: 12px; color: var(--dp-warn); }
+#dp .dp-legend { font-size: 12px; color: var(--dp-muted); }
+#dp .dp-legend b { color: var(--dp-fg); font-weight: 600; }
+#dp details { border: 1px solid var(--dp-line); border-radius: 10px; background: var(--dp-panel); }
+#dp summary { padding: 8px 12px; font-size: 13px; font-weight: 600; }
+#dp dl { margin: 0; padding: 0 12px 10px; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 10px; font-size: 12px; }
+#dp dt { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--dp-muted); padding-top: 1px; }
+#dp dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+#dp .tag { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 4px; font-size: 11px; background: var(--dp-tag); color: var(--dp-muted); white-space: nowrap; }
+#dp .tag.shipped { color: var(--dc-green); }
+#dp .tag.adapter { color: var(--dp-warn); }
+
+@media (max-width: 640px) {
+  #dp .dp-layout { grid-template-columns: minmax(0, 1fr); }
+  #dp .dp-preview { order: -1; }
+}
+@media (max-width: 380px) { #dp .dp-pair { grid-template-columns: 1fr; } #dp .dp-stage { padding: 14px 8px; } }
+@media (pointer: coarse) { #dp select { min-height: 44px; font-size: 16px; } #dp .dp-check { min-height: 44px; } #dp .dp-seg span { padding: 11px 4px; } }
+</style>
+</head>
+<body>
+<div id="dp">
+  <div class="dp-head">
+    <h2>Discord card for Developer Presence</h2>
+    <span class="dp-chip">Proposal · fictional sample data · not in current builds</span>
+  </div>
+
+  <div class="dp-layout">
+    <form class="dp-config" id="dp-form" aria-label="Presence settings (proposal)">
+      <fieldset class="dp-group">
+        <legend>Desktop app</legend>
+        <div class="dp-seg">
+          <label><input type="radio" name="dp-app" value="t3" checked><span>T3 Code</span></label>
+          <label><input type="radio" name="dp-app" value="claude"><span>Claude</span></label>
+          <label><input type="radio" name="dp-app" value="codex"><span>Codex</span></label>
+        </div>
+        <p class="dp-hint" id="dp-app-hint"></p>
+      </fieldset>
+
+      <fieldset class="dp-group">
+        <legend>Card shows</legend>
+        <div class="dp-seg">
+          <label><input type="radio" name="dp-preset" value="focus"><span>App only</span></label>
+          <label><input type="radio" name="dp-preset" value="workload" checked><span>Workload</span></label>
+          <label><input type="radio" name="dp-preset" value="usage"><span>Usage</span></label>
+        </div>
+      </fieldset>
+
+      <div class="dp-group" id="dp-usage-group">
+        <div class="dp-pair">
+          <div><label class="dp-label" for="dp-metric">Metric</label>
+            <select id="dp-metric">
+              <option value="tokens">Cumulative tokens</option>
+              <option value="context">Context window</option>
+            </select></div>
+          <div><label class="dp-label" for="dp-scope">Scope</label>
+            <select id="dp-scope">
+              <option value="session">Observed app session</option>
+              <option value="thread">Pinned thread</option>
+              <option value="today">Provider today</option>
+            </select></div>
+        </div>
+        <p class="dp-hint" id="dp-scope-hint"></p>
+      </div>
+
+      <div class="dp-group" id="dp-badge-group">
+        <label class="dp-label" for="dp-badge">Small badge (one slot)</label>
+        <select id="dp-badge">
+          <option value="status">Status: working, waiting, idle</option>
+          <option value="provider">Provider of the pinned thread</option>
+          <option value="none">None</option>
+        </select>
+      </div>
+
+      <fieldset class="dp-group">
+        <legend>Share</legend>
+        <div class="dp-checks">
+          <label class="dp-check" id="dp-row-project"><input type="checkbox" id="dp-project"><span>Project alias</span></label>
+          <label class="dp-check" id="dp-row-model"><input type="checkbox" id="dp-model"><span>Model</span></label>
+          <label class="dp-check" id="dp-row-cost"><input type="checkbox" id="dp-cost"><span>Est. API cost</span></label>
+          <label class="dp-check"><input type="checkbox" id="dp-timer" checked><span>Elapsed timer</span></label>
+          <label class="dp-check" id="dp-row-playful"><input type="checkbox" id="dp-playful"><span>Playful wording</span></label>
+        </div>
+      </fieldset>
+
+      <div class="dp-group">
+        <label class="dp-label" for="dp-buttons">Buttons (max 2)</label>
+        <select id="dp-buttons">
+          <option value="none">None</option>
+          <option value="companion">Get Developer Presence</option>
+          <option value="both">Companion + public repo</option>
+        </select>
+      </div>
+    </form>
+
+    <section class="dp-preview" aria-label="Discord preview">
+      <div class="dp-bar" id="dp-bar">
+        <label for="dp-sample">Sample state</label>
+        <select id="dp-sample">
+          <option value="attention">2 running, 1 waiting</option>
+          <option value="working">3 running</option>
+          <option value="idle">Idle</option>
+        </select>
+      </div>
+      <div class="dp-stage">
+        <div class="dc dc-card" aria-label="Mock Discord activity card">
+          <div class="dc-top"><span class="dc-type">Playing</span><span class="dc-more" aria-hidden="true">···</span></div>
+          <div class="dc-act">
+            <div class="dc-art">
+              <img id="dp-large" class="dc-large" alt="">
+              <span id="dp-small" class="dc-small" hidden></span>
+            </div>
+            <div class="dc-text">
+              <div class="dc-name">Developer Presence</div>
+              <div id="dp-details" class="dc-line" aria-live="polite"></div>
+              <div id="dp-state" class="dc-line" aria-live="polite"></div>
+              <div id="dp-time" class="dc-time">
+                <span aria-hidden="true">◷</span>
+                <span id="dp-time-text">24:18</span>
+              </div>
+            </div>
+          </div>
+          <div id="dp-btns" class="dc-btns"></div>
+        </div>
+        <div class="dc dc-member" aria-label="Mock Discord member list row">
+          <span class="dc-avatar" aria-hidden="true">S</span>
+          <div class="dc-mtext"><div class="dc-mname">sample_dev</div>Playing <b>Developer Presence</b></div>
+        </div>
+      </div>
+      <p id="dp-fit" class="dp-fit" role="status" hidden></p>
+      <p id="dp-legend" class="dp-legend"></p>
+      <details>
+        <summary id="dp-payload-sum">Outgoing fields</summary>
+        <dl id="dp-payload"></dl>
+      </details>
+    </section>
+  </div>
+</div>
+<script>
+(() => {
+  const root = document.getElementById('dp');
+  const $ = id => document.getElementById('dp-' + id);
+  const radio = name => root.querySelector(`input[name="dp-${name}"]:checked`).value;
+
+  /* Follow the host's real background, not prefers-color-scheme: hosts may force a dark page while the OS reports light. */
+  const probe = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+  function toRGBA(css) {
+    probe.clearRect(0, 0, 1, 1); probe.fillStyle = '#000'; probe.fillStyle = css; probe.fillRect(0, 0, 1, 1);
+    const [r, g, b, a] = probe.getImageData(0, 0, 1, 1).data; return { r, g, b, a: a / 255 };
+  }
+  function hostScheme() {
+    for (let node = root.parentElement; node; node = node.parentElement) {
+      const c = toRGBA(getComputedStyle(node).backgroundColor);
+      if (c.a > 0.5) {
+        const lin = v => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+        return 0.2126 * lin(c.r) + 0.7152 * lin(c.g) + 0.0722 * lin(c.b) < 0.2 ? 'dark' : 'light';
+      }
+    }
+    const declared = getComputedStyle(document.documentElement).colorScheme.trim();
+    if (declared === 'dark' || declared === 'light') return declared;
+    return matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  let schemeQueued = false;
+  function applyScheme() {
+    schemeQueued = false;
+    const s = hostScheme();
+    if (root.style.colorScheme !== s) root.style.colorScheme = s;
+  }
+  const queueScheme = () => { if (!schemeQueued) { schemeQueued = true; requestAnimationFrame(applyScheme); } };
+  applyScheme();
+  new MutationObserver(queueScheme).observe(document.documentElement, { attributes: true, childList: true, subtree: true, attributeFilter: ['class', 'style', 'data-theme', 'data-appearance'] });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', queueScheme);
+
+  /* Logos: existing repo assets, inlined. Codex uses the OpenAI mark illustratively. */
+  const logo = {
+    t3: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTI4IiBoZWlnaHQ9IjEyOCIgdmlld0JveD0iMCAwIDEyOCAxMjgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIGQ9Ik0wIDEwQzAgNC40NzcxNSA0LjQ3NzE1IDAgMTAgMEgxMThDMTIzLjUyMyAwIDEyOCA0LjQ3NzE1IDEyOCAxMFYxMThDMTI4IDEyMy41MjMgMTIzLjUyMyAxMjggMTE4IDEyOEgxMEM0LjQ3NzE1IDEyOCAwIDEyMy41MjMgMCAxMThWMTBaIiBmaWxsPSJibGFjayIvPgo8cGF0aCBkPSJNMzMuNDUwOSA5M1Y0Ny41NkgxNS41MzA5VjM3SDY0LjMzMDlWNDcuNTZINDYuNDEwOVY5M0gzMy40NTA5Wk04Ni43MjUzIDkzLjk2QzgyLjgzMiA5My45NiA3OC45NjUzIDkzLjQ1MzMgNzUuMTI1MyA5Mi40NEM3MS4yODUzIDkxLjM3MzMgNjguMDMyIDg5Ljg4IDY1LjM2NTMgODcuOTZMNzAuNDA1MyA3OC4wNEM3Mi41Mzg2IDc5LjU4NjcgNzUuMDE4NiA4MC44MTMzIDc3Ljg0NTMgODEuNzJDODAuNjcyIDgyLjYyNjcgODMuNTI1MyA4My4wOCA4Ni40MDUzIDgzLjA4Qzg5LjY1ODYgODMuMDggOTIuMjE4NiA4Mi40NCA5NC4wODUzIDgxLjE2Qzk1Ljk1MiA3OS44OCA5Ni44ODUzIDc4LjEyIDk2Ljg4NTMgNzUuODhDOTYuODg1MyA3My43NDY3IDk2LjA1ODYgNzIuMDY2NyA5NC40MDUzIDcwLjg0QzkyLjc1MiA2OS42MTMzIDkwLjA4NTMgNjkgODYuNDA1MyA2OUg4MC40ODUzVjYwLjQ0TDk2LjA4NTMgNDIuNzZMOTcuNTI1MyA0Ny40SDY4LjE2NTNWMzdIMTA3LjM2NVY0NS40TDkxLjg0NTMgNjMuMDhMODUuMjg1MyA1OS4zMkg4OS4wNDUzQzk1LjkyNTMgNTkuMzIgMTAxLjEyNSA2MC44NjY3IDEwNC42NDUgNjMuOTZDMTA4LjE2NSA2Ny4wNTMzIDEwOS45MjUgNzEuMDI2NyAxMDkuOTI1IDc1Ljg4QzEwOS45MjUgNzkuMDI2NyAxMDkuMDk5IDgxLjk4NjcgMTA3LjQ0NSA4NC43NkMxMDUuNzkyIDg3LjQ4IDEwMy4yNTkgODkuNjkzMyA5OS44NDUzIDkxLjRDOTYuNDMyIDkzLjEwNjcgOTIuMDU4NiA5My45NiA4Ni43MjUzIDkzLjk2WiIgZmlsbD0id2hpdGUiLz4KPC9zdmc+Cg==',
+    claude: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNTYiIGhlaWdodD0iMjU3IiBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSJ4TWlkWU1pZCIgdmlld0JveD0iMCAwIDI1NiAyNTciPjxwYXRoIGZpbGw9IiNEOTc3NTciIGQ9Im01MC4yMjggMTcwLjMyMSA1MC4zNTctMjguMjU3Ljg0My0yLjQ2My0uODQzLTEuMzYxaC0yLjQ2MmwtOC40MjYtLjUxOC0yOC43NzUtLjc3OC0yNC45NTItMS4wMzctMjQuMTc1LTEuMjk2LTYuMDkyLTEuMjk3TDAgMTI1Ljc5NmwuNTgzLTMuNzU5IDUuMTItMy40MzQgNy4zMjQuNjQ4IDE2LjIwMiAxLjEwMSAyNC4zMDQgMS42ODUgMTcuNjI5IDEuMDM3IDI2LjExOCAyLjcyMmg0LjE0OGwuNTgzLTEuNjg1LTEuNDI2LTEuMDM3LTEuMTAxLTEuMDM3LTI1LjE0Ny0xNy4wNDUtMjcuMjItMTguMDE3LTE0LjI1OC0xMC4zNy03LjcxMy01LjI1LTMuODg4LTQuOTI1LTEuNjg1LTEwLjc1OCA3LTcuNzEzIDkuMzk3LjY0OSAyLjM5OC42NDggOS41MjcgNy4zMjMgMjAuMzUgMTUuNzVMOTQuODE3IDkxLjlsMy44ODkgMy4yNCAxLjU1NS0xLjEwMi4xOTUtLjc3Ny0xLjc1LTIuOTE3LTE0LjQ1My0yNi4xMTgtMTUuNDI1LTI2LjU3Mi02Ljg3LTExLjAxOC0xLjgxNC02LjYxYy0uNjQ4LTIuNzIzLTEuMTAyLTQuOTkxLTEuMTAyLTcuNzc4bDcuOTcyLTEwLjgyM0w3MS40MiAwIDgyLjA1IDEuNDI2bDQuNDcyIDMuODg4IDYuNjEgMTUuMTAxIDEwLjY5NCAyMy43ODYgMTYuNTkxIDMyLjM0IDQuODYxIDkuNTkyIDIuNTkyIDguODc5Ljk3MyAyLjcyMmgxLjY4NXYtMS41NTZsMS4zNi0xOC4yMTEgMi41MjgtMjIuMzYgMi40NjMtMjguNzc2Ljg0My04LjEgNC4wMTgtOS43MjIgNy45NzEtNS4yNSA2LjIyMiAyLjk4MSA1LjEyIDcuMzI0LS43MTMgNC43My0zLjA0NiAxOS43NjgtNS45NjIgMzAuOTgtMy44ODkgMjAuNzM5aDIuMjY4bDIuNTkzLTIuNTkzIDEwLjQ5OS0xMy45MzQgMTcuNjI4LTIyLjAzNiA3Ljc3OC04Ljc0OSA5LjA3My05LjY1NyA1LjgzMy00LjYwMWgxMS4wMThsOC4xIDEyLjA1NS0zLjYyOCAxMi40NDMtMTEuMzQyIDE0LjM4OC05LjM5OCAxMi4xODQtMTMuNDggMTguMTQ3LTguNDI2IDE0LjUxOC43NzggMS4xNjYgMi4wMS0uMTk0IDMwLjQ2LTYuNDgxIDE2LjQ2Mi0yLjk4MiAxOS42MzctMy4zNyA4Ljg4IDQuMTQ4Ljk3MSA0LjIxMy0zLjUgOC42Mi0yMC45OTggNS4xODQtMjQuNjI4IDQuOTI2LTM2LjY4MiA4LjY4NS0uNDU0LjMyNC41MTkuNjQ4IDE2LjUyNiAxLjU1NSA3LjA2NS4zODloMTcuMzA0bDMyLjIxIDIuMzk4IDguNDI2IDUuNTc0IDUuMDU1IDYuODA1LS44NDMgNS4xODQtMTIuOTYyIDYuNjExLTE3LjQ5OC00LjE0OC00MC44My05LjcyMS0xNC0zLjVoLTEuOTQ0djEuMTY3bDExLjY2NiAxMS40MDYgMjEuMzg3IDE5LjMxNCAyNi43NjcgMjQuODg3IDEuMzYgNi4xNTctMy40MzQgNC44Ni0zLjYzLS41MTgtMjMuNTI2LTE3LjY5My05LjA3My03Ljk3Mi0yMC41NDUtMTcuMzA0aC0xLjM2djEuODE0bDQuNzMgNi45MzUgMjUuMDE3IDM3LjU5IDEuMjk2IDExLjUzNi0xLjgxNCAzLjc2LTYuNDgxIDIuMjY4LTcuMTMtMS4yOTctMTQuNjQ3LTIwLjU0NC0xNS4xLTIzLjEzOC0xMi4xODUtMjAuNzM5LTEuNDkuODQzLTcuMTk0IDc3LjQ0OC0zLjM3IDMuOTUzLTcuNzc4IDIuOTgxLTYuNDgtNC45MjUtMy40MzYtNy45NzIgMy40MzUtMTUuNzQ5IDQuMTQ4LTIwLjU0NCAzLjM3LTE2LjMzMyAzLjA0Ni0yMC4yODUgMS44MTUtNi43NC0uMTMtLjQ1NC0xLjQ5LjE5NC0xNS4yOTUgMjAuOTk5LTIzLjI2NyAzMS40MzMtMTguNDA2IDE5LjcwMi00LjQwNyAxLjc1LTcuNjQ4LTMuOTU0LjcxMy03LjA2NCA0LjI3Ny02LjI4NiAyNS40Ny0zMi40MDUgMTUuMzYtMjAuMDkyIDkuOTE3LTExLjYtLjA2NS0xLjY4NmgtLjU4M0w0NC4wNyAxOTguMTI1bC0xMi4wNTUgMS41NTUtNS4xODUtNC44Ni42NDgtNy45NzIgMi40NjMtMi41OTMgMjAuMzUtMTMuOTk5LS4wNjQuMDY1WiI+PC9wYXRoPjwvc3ZnPg==',
+    codex: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNTYiIGhlaWdodD0iMjU2IiBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSJ4TWlkWU1pZCIgdmlld0JveD0iMTAwIDEwMCA0MTEgNDExIj4KICA8cGF0aCBmaWxsPSIjZmZmIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiIGNsaXAtcnVsZT0iZXZlbm9kZCIgZD0iTTI1Mi43OTQgMTA4LjgwMkMyODkuMTkxIDk5LjA0ODQgMzI2LjI2NSAxMTAuMzA1IDM1MS4xNDggMTM1LjEzNUMzODUuMTEzIDEyNi4wNzIgNDIyLjg1IDEzNC44NjIgNDQ5LjQ5MiAxNjEuNTA1QzQ3Ni4xMzYgMTg4LjE0OSA0ODQuOTI1IDIyNS44ODggNDc1Ljg2MiAyNTkuODVWMjU5Ljg1NEM1MDAuNjk2IDI4NC43MzUgNTExLjk1IDMyMS44MSA1MDIuMTk4IDM1OC4yMDdDNDkyLjQ0NyAzOTQuNjAyIDQ2NC4xNjEgNDIxLjA4NCA0MzAuMjE1IDQzMC4yMTdDNDIxLjA4MyA0NjQuMTYyIDM5NC42MDMgNDkyLjQ0OCAzNTguMjA2IDUwMi4xOTlDMzIxLjgxMiA1MTEuOTUxIDI4NC43MzQgNTAwLjY5MyAyNTkuODUyIDQ3NS44NjRDMjI1Ljg4NyA0ODQuOTI3IDE4OC4xNSA0NzYuMTM3IDE2MS41MDcgNDQ5LjQ5NUMxMzQuODY0IDQyMi44NTEgMTI2LjA3MyAzODUuMTExIDEzNS4xMzYgMzUxLjE0OUMxMTAuMzA0IDMyNi4yNjYgOTkuMDQ5NiAyODkuMTkyIDEwOC44MDEgMjUyLjc5NUMxMTguNTUyIDIxNi40IDE0Ni44NCAxODkuOTE4IDE4MC43ODQgMTgwLjc4NUMxODkuOTE3IDE0Ni44NDEgMjE2LjM5NiAxMTguNTUzIDI1Mi43OTQgMTA4LjgwMlpNMzc0LjI5MiA0MDcuMTQ1QzM3NC4yOTIgNDExLjI3MSAzNzIuMDkyIDQxNS4wODYgMzY4LjUxNyA0MTcuMTQ4TDI4My43MjMgNDY2LjEwMkMzMDIuNDg3IDQ4MC41ODUgMzI3LjU1NSA0ODYuNDU5IDM1Mi4yMTcgNDc5Ljg1MkMzODYuOTk3IDQ3MC41MzIgNDEwLjA2OCA0MzkuMzEyIDQxMC41NTUgNDA1LjAwNlYzMTcuNzE3QzQxMC41NTUgMzE1LjA4IDQwOS4xMjUgMzEyLjYyMSA0MDYuODQzIDMxMS4zMDNMMzc0LjI5MiAyOTIuNTA5VjQwNy4xNDVaTTI1MS44NjggNDE1Ljg5N0MyNDguMjk2IDQxNy45NTkgMjQzLjg5MyA0MTcuOTU5IDI0MC4zMTcgNDE1Ljg5N0wxNTUuNTI2IDM2Ni45NDJDMTUyLjM2NiAzOTAuNDM2IDE1OS44MTEgNDE1LjA4IDE3Ny44NjYgNDMzLjEzNkgxNzcuODYzQzIwMy4zMjUgNDU4LjU5NCAyNDEuODk2IDQ2Mi45NjIgMjcxLjg1IDQ0Ni4yMzJMMzQ3LjQ0OSA0MDIuNTg2QzM0OS43MzUgNDAxLjI2OCAzNTEuMTQ4IDM5OC44IDM1MS4xNDggMzk2LjE2M1YzNTguNTc5TDI1MS44NjggNDE1Ljg5N1pNMzY4LjYwMiAyMjAuNjI4QzM2Ni4zMTkgMjE5LjMwOSAzNjMuNDc0IDIxOS4zMTggMzYxLjE5MSAyMjAuNjM3TDMyOC42NDEgMjM5LjQzMUw0MjcuOTIxIDI5Ni43NDlDNDMxLjQ5NiAyOTguODExIDQzMy42OTcgMzAyLjYyNyA0MzMuNjk3IDMwNi43NTJWNDA0LjY2MUM0NTUuNjIyIDM5NS42NTQgNDczLjI0NCAzNzYuODgxIDQ3OS44NTEgMzUyLjIxOEM0ODkuMTY5IDMxNy40NDIgNDczLjY2OCAyODEuODUgNDQ0LjIwMSAyNjQuMjc0TDM2OC42MDIgMjIwLjYyOFpNMTc3LjMwMyAyMDYuMzRDMTU1LjM3NyAyMTUuMzQ4IDEzNy43NTYgMjM0LjEyMiAxMzEuMTQ4IDI1OC43ODNDMTIxLjgzMiAyOTMuNTYxIDEzNy4zMzEgMzI5LjE1MyAxNjYuNzk5IDM0Ni43MjdMMjQyLjM5OCAzOTAuMzczQzI0NC42OCAzOTEuNjkyIDI0Ny41MjUgMzkxLjY4NCAyNDkuODA3IDM5MC4zNjZMMjgyLjM1NyAzNzEuNTcyTDE4My4wNzggMzE0LjI1M0MxNzkuNTA0IDMxMi4xODkgMTc3LjMwMyAzMDguMzc1IDE3Ny4zMDMgMzA0LjI1MVYyMDYuMzRaTTI1OS44NDkgMjc5LjE0NVYzMzEuODU4TDMwNS41IDM1OC4yMTNMMzUxLjE1IDMzMS44NThWMjc5LjE0NUwzMDUuNSAyNTIuNzg5TDI1OS44NDkgMjc5LjE0NVpNMzI3LjI3NiAxNDQuOUMzMDguNTEyIDEzMC40MTggMjgzLjQ0NSAxMjQuNTQzIDI1OC43ODIgMTMxLjE1QzIyNC4wMDIgMTQwLjQ3MSAyMDAuOTMxIDE3MS42OTEgMjAwLjQ0NSAyMDUuOTk1VjI5My4yODZDMjAwLjQ0NSAyOTUuOTIzIDIwMS44NzUgMjk4LjM4MSAyMDQuMTU4IDI5OS43TDIzNi43MDcgMzE4LjQ5M1YyMDMuODU2QzIzNi43MDcgMTk5LjczMSAyMzguOTA5IDE5NS45MTYgMjQyLjQ4MyAxOTMuODUzTDMyNy4yNzYgMTQ0LjlaTTQzMy4xMzcgMTc3Ljg2N0M0MDcuNjc1IDE1Mi40MDcgMzY5LjEwMyAxNDguMDM4IDMzOS4xNDkgMTY0Ljc2OUwyNjMuNTUgMjA4LjQxNUMyNjEuMjY1IDIwOS43MzQgMjU5Ljg1MiAyMTIuMjAyIDI1OS44NTIgMjE0LjgzOFYyNTIuNDIzTDM1OS4xMzIgMTk1LjEwNUMzNjIuNzAzIDE5My4wNDEgMzY3LjEwOCAxOTMuMDQxIDM3MC42ODIgMTk1LjEwNUw0NTUuNDczIDI0NC4wNkM0NTguNjM1IDIyMC41NjcgNDUxLjE4OSAxOTUuOTIyIDQzMy4xMzUgMTc3Ljg2N0g0MzMuMTM3WiIgLz4KPC9zdmc+Cg=='
+  };
+  const apps = {
+    t3: { label: 'T3 Code', key: 't3_code', rich: true, hint: 'Proposed T3 adapters: workload via metadata; provider totals via usage RPC. Exact thread/session usage needs further validation.' },
+    claude: { label: 'Claude', key: 'claude_desktop', rich: false, hint: 'Claude Desktop is focus only. Model, tasks and usage need a desktop observer that is not verified yet.' },
+    codex: { label: 'Codex', key: 'codex_desktop', rich: false, hint: 'Codex Desktop is focus only. Model, tasks and usage need a desktop observer that is not verified yet. OpenAI mark shown illustratively.' }
+  };
+  /* Fictional sample values only. */
+  const sample = {
+    alias: 'Orbit Notes', model: 'Opus 5.5', provider: 'Claude',
+    states: { attention: { run: 2, wait: 1 }, working: { run: 3, wait: 0 }, idle: { run: 0, wait: 0 } },
+    usage: { thread: { tok: '312K', cost: '0.66' }, session: { tok: '842K', cost: '1.84' }, today: { tok: '1.4M', cost: '3.10' } },
+    context: { pct: 62 },
+    elapsed: 24 * 60 + 18
+  };
+  const scopeWords = { thread: 'in thread', session: 'this session', today: 'provider today' };
+  const scopeLong = { thread: 'the pinned thread', session: 'this observed T3 session', today: 'the selected provider today, which can include activity outside T3' };
+  const glyph = {
+    working: '<span aria-hidden="true" style="color:white;font-weight:700">···</span>',
+    attention: '<span aria-hidden="true" style="color:#1c1d21;font-weight:700">!</span>',
+    idle: '<span aria-hidden="true" style="color:white;font-weight:700">Ⅱ</span>'
+  };
+  const pref = { preset: 'workload' };
+
+  function statusText(s, playful) {
+    if (!s.run && !s.wait) return playful ? 'Agents napping' : 'Idle';
+    const parts = [];
+    if (s.run) parts.push(playful ? `Herding ${s.run} agent${s.run > 1 ? 's' : ''}` : `${s.run} running`);
+    if (s.wait) parts.push(playful ? `${s.wait} wants you` : `${s.wait} needs you`);
+    return parts.join(' · ');
+  }
+
+  function render() {
+    const appKey = radio('app'), app = apps[appKey];
+    const presetRadios = root.querySelectorAll('input[name="dp-preset"]');
+    presetRadios.forEach(r => { r.disabled = !app.rich && r.value !== 'focus'; r.checked = (app.rich ? pref.preset : 'focus') === r.value; });
+    const preset = radio('preset');
+    const rich = app.rich && preset !== 'focus';
+    const usage = rich && preset === 'usage';
+    const metric = $('metric').value;
+    const context = usage && metric === 'context';
+    const scopeSel = $('scope');
+    if (context) scopeSel.value = 'thread';
+    scopeSel.disabled = context;
+    const scope = scopeSel.value;
+
+    $('app-hint').textContent = app.hint;
+    $('usage-group').hidden = !usage;
+    $('badge-group').hidden = !rich;
+    $('row-project').hidden = !rich;
+    $('row-model').hidden = !rich;
+    $('row-playful').hidden = !rich;
+    $('row-cost').hidden = !usage || context;
+    $('scope-hint').textContent = context ? 'Context occupancy belongs to one thread, so scope is fixed.' : 'Thread/session totals need a narrower adapter. Today uses provider totals and may include activity outside T3.';
+
+    const project = rich && $('project').checked, model = rich && $('model').checked;
+    const cost = usage && !context && $('cost').checked, playful = rich && $('playful').checked;
+    const timer = $('timer').checked, badge = rich ? $('badge').value : 'none';
+    const st = sample.states[$('sample').value];
+    $('bar').hidden = !(rich && (preset === 'workload' || badge === 'status'));
+    root.querySelector('option[value="both"]').disabled = !project;
+    if ($('buttons').value === 'both' && !project) $('buttons').value = 'companion';
+
+    let details = `Using ${app.label}`, state = '', largeText = app.label, legend = [];
+    if (rich) {
+      const head = ['T3 Code'];
+      if (project) head.push(sample.alias);
+      if (usage && model) head.push(sample.model);
+      details = head.length > 1 ? head.join(' · ') : 'Using T3 Code';
+      if (usage && context) {
+        state = playful ? `Context tank ${sample.context.pct}% full` : `${sample.context.pct}% of context used`;
+        largeText = 'T3 Code · current context occupancy, pinned thread';
+        legend.push('<b>Context</b> is how full the pinned thread\'s window is right now. It is not cumulative usage.');
+      } else if (usage) {
+        const u = sample.usage[scope];
+        state = (playful ? `Crunched ${u.tok} tokens` : `${u.tok} tokens`) + ` ${scopeWords[scope]}` + (cost ? ` · ~$${u.cost} API` : '');
+        largeText = `T3 Code · cumulative tokens, ${scopeWords[scope]}` + (cost ? ' · ~$ = API-equivalent estimate' : '');
+        legend.push(`<b>Tokens</b> are cumulative processed tokens for ${scopeLong[scope]}. Cached input is counted once.`);
+        if (cost) legend.push('<b>~$</b> is an API-equivalent estimate, not what a subscription charges.');
+      } else {
+        state = (model ? `${sample.model} · ` : '') + statusText(st, playful);
+        legend.push('<b>Counts</b> are top-level threads. Delegated helpers are excluded.');
+      }
+    } else if (!app.rich) {
+      legend.push('Workload and usage are unavailable for this app. Missing data is omitted, never shown as zero.');
+    }
+    if (timer) legend.unshift(rich ? '<b>Timer</b> shows the observed app session.' : '<b>Timer</b> shows how long the app has been in front.');
+
+    const large = $('large');
+    large.src = logo[appKey];
+    large.alt = appKey === 'codex' ? 'OpenAI mark (illustrative Codex art)' : `${app.label} logo`;
+    large.className = 'dc-large is-' + appKey;
+    large.title = largeText;
+
+    const small = $('small');
+    let smallKey = '', smallText = '';
+    small.hidden = badge === 'none';
+    small.className = 'dc-small';
+    if (badge === 'provider') {
+      smallKey = 'provider_claude'; smallText = model ? `${sample.provider} ${sample.model}` : sample.provider;
+      small.classList.add('b-claude');
+      small.innerHTML = `<img src="${logo.claude}" alt="">`;
+    } else if (badge === 'status') {
+      const k = st.wait ? 'attention' : st.run ? 'working' : 'idle';
+      smallKey = 'status_' + k; smallText = { attention: 'Needs you', working: 'Working', idle: 'Idle' }[k];
+      small.classList.add('b-' + k);
+      small.innerHTML = glyph[k];
+    }
+    small.title = smallText;
+    small.setAttribute('aria-label', smallText ? 'Badge: ' + smallText : '');
+    small.setAttribute('role', smallText ? 'img' : 'presentation');
+
+    $('details').textContent = details;
+    $('state').textContent = state;
+    $('state').hidden = !state;
+    $('time').hidden = !timer;
+
+    const btns = [];
+    if ($('buttons').value !== 'none') btns.push('Get Developer Presence');
+    if ($('buttons').value === 'both') btns.push(`View ${sample.alias} on GitHub`);
+    $('btns').innerHTML = btns.map(b => `<span class="dc-btn">${b}</span>`).join('');
+
+    $('legend').innerHTML = legend.join(' ');
+
+    const shipped = details === `Using ${app.label}`;
+    const rows = [
+      ['name', 'Developer Presence', 'Registered app name', ''],
+      ['details', details, shipped ? 'Shipped' : 'Needs T3 adapter', shipped ? 'shipped' : 'adapter'],
+      state && ['state', state, 'Needs T3 adapter', 'adapter'],
+      ['large_image', `${apps[appKey].key} · “${largeText}”`, 'Companion asset', ''],
+      smallKey && ['small_image', `${smallKey} · “${smallText}”`, 'Needs T3 adapter', 'adapter'],
+      timer && ['timestamps.start', 'session start (sample)', 'Companion only', ''],
+      btns.length && ['buttons', btns.join(' | '), 'Companion only', '']
+    ].filter(Boolean);
+    $('payload').innerHTML = rows.map(([k, v, src, cls]) => `<dt>${k}</dt><dd>${v.replace(/</g, '&lt;')}<span class="tag ${cls}">${src}</span></dd>`).join('');
+    $('payload-sum').textContent = `Outgoing fields · ${rows.length - 1} sent, nothing else`;
+
+    requestAnimationFrame(checkFit);
+  }
+
+  function checkFit() {
+    const cut = [['Details', $('details')], ['State', $('state')]].filter(([, n]) => !n.hidden && n.scrollWidth > n.clientWidth + 1);
+    [$('details'), $('state')].forEach(n => n.classList.toggle('is-cut', cut.some(([, c]) => c === n)));
+    $('fit').hidden = !cut.length;
+    $('fit').textContent = cut.length ? `${cut.map(c => c[0]).join(' and ')} line is cut off at this sample card width. Turn off a detail or shorten the alias.` : '';
+  }
+
+  const start = Date.now() - sample.elapsed * 1000;
+  function tick() {
+    const s = Math.floor((Date.now() - start) / 1000), h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, sec = String(s % 60).padStart(2, '0');
+    $('time-text').textContent = h ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`;
+  }
+
+  $('form').addEventListener('submit', e => e.preventDefault());
+  root.addEventListener('change', e => {
+    if (e.target.name === 'dp-preset') pref.preset = e.target.value;
+    render();
+  });
+  new ResizeObserver(() => requestAnimationFrame(checkFit)).observe(root.querySelector('.dc-card'));
+  render(); tick(); setInterval(tick, 1000);
+  console.log('Developer Presence card concept ready (fictional sample data). scheme=' + root.style.colorScheme);
+})();
+</script>
+</body>
+</html>
