@@ -1,5 +1,11 @@
 > Development review: findings below describe the intermediate implementation inspected during development. See [verification status](../validation.md) for the final build and test results.
 
+## Implementation follow-up
+
+The native clients now initialize once per endpoint/sign-in, omit session headers on initialize, send both accepted response types on every POST, negotiate `2025-06-18`, and discard failed sessions. Both require a matching callback issuer. Windows emits string request IDs and validates their exact matches; numeric IDs cannot satisfy those requests. Mac requests use numeric IDs and validate those matches.
+
+Both transports bound response bytes while receiving them and finish matching SSE replies without waiting for the stream to close. Malformed, incomplete, capped, failed, or expired data falls back to app-only presence. Regression tests cover these cases, late sign-in after disconnect, slow Windows polling without blocking focus changes, and actual Mac loopback callbacks. See [verification status](../validation.md) for the exact tested source and remaining real-machine checks. This is source/protocol validation against the upstream contract; no live user conversations were read.
+
 # T3 Activity Interoperability Review: Native Developer Presence vs. Upstream T3 Code
 
 **Document Version:** 1.0  

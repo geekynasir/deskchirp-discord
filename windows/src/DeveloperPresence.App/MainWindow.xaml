@@ -107,7 +107,7 @@
             </StackPanel>
 
             <HyperlinkButton Content="How to add the icons"
-                NavigateUri="https://github.com/geekynasir/developer-presence/blob/main/docs/connect-t3.md#add-logos" Padding="0" />
+                NavigateUri="https://github.com/geekynasir/developer-presence/blob/b9580eb6e4dfc32cb828b904350fb39ce83e8062/docs/connect-t3.md#add-logos" Padding="0" />
 
             <!-- App Detection Section -->
             <Expander Header="App detection" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">

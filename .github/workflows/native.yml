@@ -50,13 +50,11 @@ jobs:
       - name: Capture native settings for review
         continue-on-error: true
         run: |
-          defaults delete -g AppleInterfaceStyle 2>/dev/null || true
-          open -n macos/dist/DeveloperPresence.app --args --show-settings
+          open -n macos/dist/DeveloperPresence.app --args --show-settings --light-appearance
           sleep 4
           screencapture -x macos/dist/settings-light.png
           pkill -x DeveloperPresence || true
-          defaults write -g AppleInterfaceStyle -string Dark
-          open -n macos/dist/DeveloperPresence.app --args --show-settings
+          open -n macos/dist/DeveloperPresence.app --args --show-settings --dark-appearance
           sleep 4
           screencapture -x macos/dist/settings-dark.png
       - uses: actions/upload-artifact@v4

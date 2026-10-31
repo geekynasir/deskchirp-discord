@@ -11,6 +11,12 @@ private enum AppModel {
 private final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        // Explicit review appearances leave the user's system preference untouched.
+        if CommandLine.arguments.contains("--dark-appearance") {
+            NSApp.appearance = NSAppearance(named: .darkAqua)
+        } else if CommandLine.arguments.contains("--light-appearance") {
+            NSApp.appearance = NSAppearance(named: .aqua)
+        }
         AppModel.coordinator.start()
 
         // Support --show-settings launch argument for CI native screenshots
