@@ -30,6 +30,7 @@ public sealed class PresenceState
     public DateTimeOffset? LastUpdate { get; set; }
     public string StatusMessage { get; set; } = "Ready";
     public string? LastError { get; set; }
+    public string ComputerStatus { get; set; } = "Not linked";
 
     public T3ConnectionStatus T3ConnectionStatus { get; set; } = T3ConnectionStatus.NotConnected;
     public string T3StatusDetail { get; set; } = "Paste the T3 address, then connect.";
@@ -47,6 +48,7 @@ public sealed class PresenceState
         LastUpdate = LastUpdate,
         StatusMessage = StatusMessage,
         LastError = LastError,
+        ComputerStatus = ComputerStatus,
         T3ConnectionStatus = T3ConnectionStatus,
         T3StatusDetail = T3StatusDetail
     };

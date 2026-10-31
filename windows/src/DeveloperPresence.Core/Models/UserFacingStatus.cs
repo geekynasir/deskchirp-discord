@@ -11,6 +11,8 @@ public static class UserFacingStatus
         if (isLocked || isSuspended) return ("Hidden while your PC is locked or asleep", null);
         if (string.IsNullOrEmpty(settings.DiscordClientId)) return ("Add your Discord application ID to start sharing", null);
         if (!settings.IsValidDiscordClientId()) return ("Check your Discord application ID", "Application IDs are 15 to 20 digits.");
+        if (settings.FollowComputers && state.ComputerStatus != "Selected computer: this computer")
+            return (state.ComputerStatus, null);
         if (state.ForegroundApp == SupportedApp.None)
             return ("Not sharing while another app is active", "Shares when T3 Code, Claude, or Codex is the active app.");
         if (state.ConnectionStatus == PresenceConnectionStatus.Connecting) return ("Connecting to Discord…", null);

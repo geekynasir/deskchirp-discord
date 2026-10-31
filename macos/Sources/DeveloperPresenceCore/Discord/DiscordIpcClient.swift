@@ -53,6 +53,14 @@ public final class DiscordIpcClient: @unchecked Sendable {
     private var requestVersion: Int = 0
     private var requestAllowed = false
     private var candidateAttempt: Int = 0
+    private var accountId: String?
+    public var publishAllowed: (@Sendable (String?) -> Bool)?
+    public var onAccountChanged: (@Sendable (String?) -> Void)?
+
+    public var currentUserId: String? {
+        lock.lock(); defer { lock.unlock() }
+        return accountId
+    }
 
     // State owned strictly by `queue`
     private var isConnected: Bool = false
@@ -112,6 +120,14 @@ public final class DiscordIpcClient: @unchecked Sendable {
         return requestAllowed
     }
 
+    private func setAccount(_ id: String?) {
+        lock.lock()
+        let changed = accountId != id
+        accountId = id
+        lock.unlock()
+        if changed { onAccountChanged?(id) }
+    }
+
     private func incrementGeneration() -> Int {
         lock.lock()
         defer { lock.unlock() }
@@ -140,6 +156,21 @@ public final class DiscordIpcClient: @unchecked Sendable {
     }
 
     // MARK: - Public API
+
+    /// Read the account from READY without sending an activity on a standby computer.
+    public func observeAccount(clientId: String) {
+        let id = clientId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard isValidClientId(id) else { return }
+        lock.lock(); requestAllowed = true; lock.unlock()
+        queue.async { [weak self] in
+            guard let self = self, self.hasEligibleRequest() else { return }
+            if self.currentClientId != id || self.desiredActivity != nil {
+                self.clearAndCloseImmediatelyInternal()
+                self.currentClientId = id
+            }
+            if !self.isConnected && !self.isConnecting && self.retryWorkItem == nil { self.initiateConnection() }
+        }
+    }
 
     /// Requests activity publication or clearing.
     /// If activity is nil, presence is cleared and connection is cleanly closed immediately.
@@ -227,6 +258,7 @@ public final class DiscordIpcClient: @unchecked Sendable {
         inFlightNonce = nil
         attemptsInCurrentRound = 0
         parser.reset()
+        setAccount(nil)
 
         if wasReady {
             let clearGeneration = currentGeneration()
@@ -410,12 +442,15 @@ public final class DiscordIpcClient: @unchecked Sendable {
 
         // Handle READY event from handshake
         if cmd == "DISPATCH" && evt == "READY" {
-            guard isConnecting, isConnected, desiredActivity != nil else { return }
+            guard isConnecting, isConnected, hasEligibleRequest() else { return }
             handshakeTimeoutWorkItem?.cancel()
             handshakeTimeoutWorkItem = nil
             isConnecting = false
             isConnected = true
             isReady = true
+            let data = jsonObject["data"] as? [String: Any]
+            let user = data?["user"] as? [String: Any]
+            setAccount(user?["id"] as? String)
             onStatusChanged?(.connected, "Connected to Discord")
 
             // Dispatch pending activity once READY
@@ -501,6 +536,7 @@ public final class DiscordIpcClient: @unchecked Sendable {
 
     private func dispatchSetActivity(_ activity: DiscordActivity) {
         guard hasEligibleRequest(), isConnected, isReady, desiredActivity != nil, inFlightNonce == nil else { return }
+        guard publishAllowed?(currentUserId) != false else { return }
 
         let nonce = UUID().uuidString
         let pid = ProcessInfo.processInfo.processIdentifier
@@ -572,6 +608,7 @@ public final class DiscordIpcClient: @unchecked Sendable {
         isReady = false
         isConnecting = false
         parser.reset()
+        setAccount(nil)
 
         // Reset duplicate-suppression and publish state so reconnection restores activity
         inFlightActivity = nil
@@ -587,17 +624,17 @@ public final class DiscordIpcClient: @unchecked Sendable {
         }
 
         // If an eligible activity remains desired, schedule reconnection retry
-        if desiredActivity != nil {
+        if hasEligibleRequest() {
             scheduleReconnectionRetry()
         }
     }
 
     private func scheduleReconnectionRetry() {
-        guard retryWorkItem == nil, desiredActivity != nil else { return }
+        guard retryWorkItem == nil, hasEligibleRequest() else { return }
 
         let currentGen = currentGeneration()
         let retryItem = DispatchWorkItem { [weak self] in
-            guard let self = self, self.currentGeneration() == currentGen, self.desiredActivity != nil else { return }
+            guard let self = self, self.currentGeneration() == currentGen, self.hasEligibleRequest() else { return }
             self.retryWorkItem = nil
             self.initiateConnection()
         }

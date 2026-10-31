@@ -12,6 +12,7 @@ public class MockDiscordClient : IDiscordIpcClient
     public event Action<DiscordIpcFrame>? FrameReceived;
 
     public bool IsConnected { get; set; } = false;
+    public string? CurrentUserId { get; set; } = "123456789012345678";
     public int SendActivityCallCount { get; set; }
     public int ClearActivityCallCount { get; set; }
     public int ConnectCallCount { get; set; }

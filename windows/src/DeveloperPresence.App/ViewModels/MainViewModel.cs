@@ -6,6 +6,7 @@ using DeveloperPresence.Core.Models;
 using DeveloperPresence.Core.Privacy;
 using DeveloperPresence.Core.Services;
 using DeveloperPresence.Core.T3;
+using DeveloperPresence.Core.Computers;
 
 namespace DeveloperPresence.App.ViewModels;
 
@@ -57,6 +58,22 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private readonly PresenceCoordinator _coordinator;
     private readonly IT3ActivityService? _t3ActivityService;
     private readonly Action<Action>? _uiDispatcher;
+    private readonly IComputerLinkService? _computers;
+    private bool _computerBusy;
+    private string _linkingAddress = "";
+    private string _linkingCode = "";
+    public string ComputerName { get; set; } = Environment.MachineName;
+    public string LinkingAddress { get => _linkingAddress; set { _linkingAddress = value; OnPropertyChanged(); } }
+    public string LinkingCode { get => _linkingCode; set => _linkingCode = value; }
+    public string ComputerStatus => _computers?.Status ?? "Not linked";
+    public string ComputerPairingCode => _computers?.PairingCode ?? "";
+    public bool HasComputerPairingCode => !string.IsNullOrEmpty(ComputerPairingCode);
+    public bool HasComputerLink => _computers?.HasSavedLink == true;
+    public bool ShowComputerLinkForm => !HasComputerLink;
+    public bool CanChangeComputerLink => !_computerBusy;
+    public ICommand LinkComputerCommand { get; }
+    public ICommand CreateComputerCodeCommand { get; }
+    public ICommand UnlinkComputerCommand { get; }
 
     private bool _enableSharing;
     private bool _isPaused;
@@ -328,12 +345,25 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         ISettingsService settingsService,
         PresenceCoordinator coordinator,
         Action<Action>? uiDispatcher = null,
-        IT3ActivityService? t3ActivityService = null)
+        IT3ActivityService? t3ActivityService = null,
+        IComputerLinkService? computers = null)
     {
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
         _coordinator = coordinator ?? throw new ArgumentNullException(nameof(coordinator));
         _uiDispatcher = uiDispatcher;
         _t3ActivityService = t3ActivityService;
+        _computers = computers;
+        LinkComputerCommand = new RelayCommand(() => _ = RunComputerActionAsync(async () => {
+            if (_computers != null) await _computers.LinkAsync(LinkingAddress, LinkingCode, ComputerName);
+            LinkingCode = "";
+        }));
+        CreateComputerCodeCommand = new RelayCommand(() => _ = RunComputerActionAsync(async () => {
+            if (_computers != null) await _computers.CreateCodeAsync();
+        }));
+        UnlinkComputerCommand = new RelayCommand(() => _ = RunComputerActionAsync(async () => {
+            if (_computers != null) await _computers.UnlinkAsync();
+        }));
+        if (_computers != null) _computers.Changed += OnComputerChanged;
 
         TogglePauseCommand = new RelayCommand(() => { if (IsPauseEnabled) IsPaused = !IsPaused; });
         ConnectT3Command = new RelayCommand(OnConnectT3Clicked);
@@ -361,6 +391,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         _showT3Activity = s.ShowT3Activity;
         _t3Address = s.T3Address;
         _showAppIcons = s.ShowAppIcons;
+        if (string.IsNullOrEmpty(_linkingAddress)) LinkingAddress = s.ComputerLinkAddress;
 
         OnPropertyChanged(nameof(EnableSharing));
         OnPropertyChanged(nameof(IsPauseEnabled));
@@ -406,6 +437,21 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         string trimmed = _discordClientId.Trim();
         IsClientIdValid = trimmed.Length >= 15 && trimmed.Length <= 20 && trimmed.All(c => c >= '0' && c <= '9');
     }
+
+    private async Task RunComputerActionAsync(Func<Task> action)
+    {
+        if (_computerBusy) return;
+        _computerBusy = true; OnPropertyChanged(nameof(CanChangeComputerLink));
+        try { await action(); }
+        catch { StatusMessage = "Couldn’t update your computer link. Check the connection and try again."; }
+        finally { _computerBusy = false; OnComputerChanged(); }
+    }
+
+    private void OnComputerChanged() => Dispatch(() => {
+        OnPropertyChanged(nameof(ComputerStatus)); OnPropertyChanged(nameof(ComputerPairingCode));
+        OnPropertyChanged(nameof(HasComputerPairingCode)); OnPropertyChanged(nameof(HasComputerLink));
+        OnPropertyChanged(nameof(ShowComputerLinkForm)); OnPropertyChanged(nameof(CanChangeComputerLink));
+    });
 
     private void OnCoordinatorStateChanged(PresenceState state)
     {
@@ -592,6 +638,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     {
         _coordinator.StateChanged -= OnCoordinatorStateChanged;
         _settingsService.SettingsChanged -= OnSettingsChanged;
+        if (_computers != null) _computers.Changed -= OnComputerChanged;
 
         if (_t3ActivityService != null)
         {

@@ -15,3 +15,5 @@ dist/
 *.msix
 *.msixbundle
 *.cer
+__pycache__/
+*.pyc

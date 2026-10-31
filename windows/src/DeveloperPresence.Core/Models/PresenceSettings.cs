@@ -51,6 +51,9 @@ public sealed class PresenceSettings
     /// </summary>
     public bool ShowAppIcons { get; set; } = false;
 
+    public bool FollowComputers { get; set; } = false;
+    public string ComputerLinkAddress { get; set; } = string.Empty;
+
     /// <summary>
     /// Validates that Discord Client ID consists purely of ASCII numeric digits (15-20 chars).
     /// Does not permit whitespace or Unicode digits to avoid wire mismatch.

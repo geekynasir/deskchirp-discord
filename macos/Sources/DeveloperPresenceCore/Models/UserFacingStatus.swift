@@ -19,6 +19,9 @@ public enum UserFacingStatus {
         if !settings.isValidDiscordClientId {
             return Message("Check your Discord application ID", "Application IDs are 15 to 20 digits.")
         }
+        if settings.followComputers && state.computerStatus != "Selected computer: this computer" {
+            return Message(state.computerStatus)
+        }
         if state.foregroundApp == .none {
             return Message("Not sharing while another app is active", "Shares when T3 Code, Claude, or Codex is the active app.")
         }

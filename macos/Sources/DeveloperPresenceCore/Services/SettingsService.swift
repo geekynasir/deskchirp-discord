@@ -26,6 +26,8 @@ public final class SettingsService: SettingsServicing, @unchecked Sendable {
         public static let showT3Activity = "developer_presence_show_t3_activity"
         public static let t3Address = "developer_presence_t3_address"
         public static let showAppIcons = "developer_presence_show_app_icons"
+        public static let followComputers = "developer_presence_follow_computers"
+        public static let computerLinkAddress = "developer_presence_computer_link_address"
     }
 
     public init(userDefaults: UserDefaults = .standard) {
@@ -58,7 +60,9 @@ public final class SettingsService: SettingsServicing, @unchecked Sendable {
                 bundleMappings: bundleMappings,
                 showT3Activity: showT3Activity,
                 t3Address: t3Address,
-                showAppIcons: showAppIcons
+                showAppIcons: showAppIcons,
+                followComputers: userDefaults.bool(forKey: Keys.followComputers),
+                computerLinkAddress: userDefaults.string(forKey: Keys.computerLinkAddress) ?? ""
             )
         }
     }
@@ -77,6 +81,8 @@ public final class SettingsService: SettingsServicing, @unchecked Sendable {
             userDefaults.set(settings.showT3Activity, forKey: Keys.showT3Activity)
             userDefaults.set(settings.t3Address, forKey: Keys.t3Address)
             userDefaults.set(settings.showAppIcons, forKey: Keys.showAppIcons)
+            userDefaults.set(settings.followComputers, forKey: Keys.followComputers)
+            userDefaults.set(settings.computerLinkAddress, forKey: Keys.computerLinkAddress)
         }
     }
 }

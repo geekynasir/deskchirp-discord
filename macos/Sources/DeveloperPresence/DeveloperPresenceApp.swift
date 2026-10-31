@@ -9,7 +9,9 @@ private enum AppModel {
 
 @MainActor
 private final class AppDelegate: NSObject, NSApplicationDelegate {
+    private let instanceLock = SingleInstanceLock()
     func applicationDidFinishLaunching(_ notification: Notification) {
+        guard instanceLock.acquire() else { NSApp.terminate(nil); return }
         NSApp.setActivationPolicy(.accessory)
         // Explicit review appearances leave the user's system preference untouched.
         if CommandLine.arguments.contains("--dark-appearance") {

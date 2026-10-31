@@ -5,18 +5,26 @@ public struct SettingsView: View {
     @ObservedObject public var coordinator: PresenceCoordinator
     @State private var newBundleId = ""
     @State private var selectedApp: SupportedApp = .t3Code
+    @State private var selectedTab = CommandLine.arguments.contains("--show-computers") ? 1 : 0
 
     public init(coordinator: PresenceCoordinator) {
         self.coordinator = coordinator
     }
 
     public var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             generalTab
                 .tabItem { Label("General", systemImage: "gearshape") }
+                .tag(0)
+
+            Form { ComputerSettingsView(coordinator: coordinator, computers: coordinator.computers) }
+                .formStyle(.grouped)
+                .tabItem { Label("Computers", systemImage: "desktopcomputer") }
+                .tag(1)
 
             appDetectionTab
                 .tabItem { Label("App Detection", systemImage: "app.badge") }
+                .tag(2)
         }
         .frame(minWidth: 540, minHeight: 560)
     }

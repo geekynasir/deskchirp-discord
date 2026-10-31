@@ -32,6 +32,8 @@ WinUI 3 is the desktop UI framework in Windows App SDK. The app is an unpackaged
 
 Both apps connect to Discord running on the same computer. T3 may run remotely on the VPS; the optional adapter connects to that environment over an authorized secure endpoint. The VPS itself cannot publish to Discord on the user's Mac or PC.
 
+Independent computers act separately. The new development implementation of [the multiple-computer contract](../spec/multiple-computers.md) adds explicit device linking, OS last-input observation, and one selected publisher. A dependency-free Python service serializes fifteen-second grants; clients stop using them three seconds early and do not fall back to independent publishing when the service is unavailable. Device credentials use native secure storage. Account fingerprints derived from Discord READY bind a private group to one account. The service coordinates publishing rights only, while activity text and T3 credentials remain on each computer. No service has been deployed, and real multi-computer Discord acceptance is pending.
+
 ## Distribution and cost
 
 Two native applications mean two build systems, release pipelines, accessibility reviews, and lifecycle implementations. Platform build/test jobs and shared behavior fixtures are necessary. Native binaries remove Chromium's baseline runtime, but no memory or battery targets have been measured yet.

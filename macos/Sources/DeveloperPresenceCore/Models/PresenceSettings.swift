@@ -28,6 +28,8 @@ public struct PresenceSettings: Codable, Equatable, Sendable {
 
     /// Toggle to show Discord app icons (t3_code, harness_*). OFF by default.
     public var showAppIcons: Bool
+    public var followComputers: Bool
+    public var computerLinkAddress: String
 
     public init(
         enableSharing: Bool = false,
@@ -37,7 +39,9 @@ public struct PresenceSettings: Codable, Equatable, Sendable {
         bundleMappings: [String: SupportedApp] = Self.defaultBundleMappings,
         showT3Activity: Bool = false,
         t3Address: String = "",
-        showAppIcons: Bool = false
+        showAppIcons: Bool = false,
+        followComputers: Bool = false,
+        computerLinkAddress: String = ""
     ) {
         self.enableSharing = enableSharing
         self.isPaused = isPaused
@@ -47,6 +51,8 @@ public struct PresenceSettings: Codable, Equatable, Sendable {
         self.showT3Activity = showT3Activity
         self.t3Address = t3Address
         self.showAppIcons = showAppIcons
+        self.followComputers = followComputers
+        self.computerLinkAddress = computerLinkAddress
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -58,6 +64,7 @@ public struct PresenceSettings: Codable, Equatable, Sendable {
         case showT3Activity
         case t3Address
         case showAppIcons
+        case followComputers, computerLinkAddress
     }
 
     public init(from decoder: Decoder) throws {
@@ -70,6 +77,8 @@ public struct PresenceSettings: Codable, Equatable, Sendable {
         self.showT3Activity = try container.decodeIfPresent(Bool.self, forKey: .showT3Activity) ?? false
         self.t3Address = try container.decodeIfPresent(String.self, forKey: .t3Address) ?? ""
         self.showAppIcons = try container.decodeIfPresent(Bool.self, forKey: .showAppIcons) ?? false
+        self.followComputers = try container.decodeIfPresent(Bool.self, forKey: .followComputers) ?? false
+        self.computerLinkAddress = try container.decodeIfPresent(String.self, forKey: .computerLinkAddress) ?? ""
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -82,6 +91,8 @@ public struct PresenceSettings: Codable, Equatable, Sendable {
         try container.encode(showT3Activity, forKey: .showT3Activity)
         try container.encode(t3Address, forKey: .t3Address)
         try container.encode(showAppIcons, forKey: .showAppIcons)
+        try container.encode(followComputers, forKey: .followComputers)
+        try container.encode(computerLinkAddress, forKey: .computerLinkAddress)
     }
 
     /// Default verified bundle ID mappings.

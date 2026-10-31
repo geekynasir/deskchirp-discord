@@ -24,6 +24,9 @@ public sealed class DiscordIpcClient : IDiscordIpcClient
     public event Action<PresenceConnectionStatus, string?>? StatusChanged;
     public event Action<DiscordIpcFrame>? FrameReceived;
 
+    public string? CurrentUserId => IsConnected ? _currentSession?.UserId : null;
+    public Func<bool>? PublishAllowed { get; set; }
+
     public bool IsConnected
     {
         get
@@ -259,7 +262,7 @@ public sealed class DiscordIpcClient : IDiscordIpcClient
 
         try
         {
-            await WriteRawFrameAsync(session, frame, ct).ConfigureAwait(false);
+            await WriteRawFrameAsync(session, frame, ct, activity != null ? PublishAllowed : null).ConfigureAwait(false);
 
             // Bounded wait for command ack (5 seconds)
             using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -287,7 +290,7 @@ public sealed class DiscordIpcClient : IDiscordIpcClient
         }
     }
 
-    private static async Task WriteRawFrameAsync(ConnectionSession session, byte[] frame, CancellationToken ct)
+    private static async Task WriteRawFrameAsync(ConnectionSession session, byte[] frame, CancellationToken ct, Func<bool>? allowed = null)
     {
         if (session.IsDisposed || !session.Stream.CanWrite)
         {
@@ -305,6 +308,7 @@ public sealed class DiscordIpcClient : IDiscordIpcClient
             }
 
             ct.ThrowIfCancellationRequested();
+            if (allowed != null && !allowed()) throw new OperationCanceledException("This computer is not selected.", ct);
             await session.Stream.WriteAsync(frame, ct).ConfigureAwait(false);
             await session.Stream.FlushAsync(ct).ConfigureAwait(false);
         }
@@ -443,6 +447,9 @@ public sealed class DiscordIpcClient : IDiscordIpcClient
 
             if (cmd == "DISPATCH" && evt == "READY")
             {
+                if (root.TryGetProperty("data", out var ready) && ready.TryGetProperty("user", out var user) &&
+                    user.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.String)
+                    session.UserId = id.GetString();
                 session.ReadyTcs.TrySetResult(true);
                 return;
             }
@@ -550,6 +557,7 @@ public sealed class DiscordIpcClient : IDiscordIpcClient
         public SemaphoreSlim WriteLock { get; } = new(1, 1);
         public Task? ReadLoopTask { get; set; }
         public bool IsReady { get; set; }
+        public string? UserId { get; set; }
 
         private int _disposed;
         public bool IsDisposed => Volatile.Read(ref _disposed) == 1;

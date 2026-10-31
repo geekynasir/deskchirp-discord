@@ -50,6 +50,35 @@
                 </StackPanel>
             </Border>
 
+            <!-- Linked computers -->
+            <Expander Header="Computers" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                <StackPanel Spacing="12" IsEnabled="{x:Bind ViewModel.CanChangeComputerLink, Mode=OneWay}">
+                    <TextBlock Text="Follow me" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                    <TextBlock Text="Share from the computer you most recently used. Other linked computers wait. Switching waits briefly for the previous computer to stop. Activity hides after five minutes without input."
+                        TextWrapping="Wrap" />
+                    <TextBlock Text="{x:Bind ViewModel.ComputerStatus, Mode=OneWay}" TextWrapping="Wrap"
+                        AutomationProperties.LiveSetting="Polite" />
+                    <StackPanel Spacing="8" Visibility="{x:Bind BoolToVisibility(ViewModel.ShowComputerLinkForm), Mode=OneWay}">
+                        <TextBox Header="Linking address" AutomationProperties.Name="Linking address"
+                            Text="{x:Bind ViewModel.LinkingAddress, Mode=TwoWay}" PlaceholderText="Paste your linking address" />
+                        <TextBox Header="Computer name" AutomationProperties.Name="Computer name"
+                            Text="{x:Bind ViewModel.ComputerName, Mode=TwoWay}" MaxLength="48" />
+                        <PasswordBox Header="Linking code" AutomationProperties.Name="Linking code" MaxLength="32"
+                            PasswordChanged="OnLinkingCodeChanged" />
+                        <TextBlock Text="Use a new code from a linked computer. For your first computer, get a code from your linking service. Use the same Discord account on every computer."
+                            TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <Button Content="Link this computer" Command="{x:Bind ViewModel.LinkComputerCommand}" />
+                    </StackPanel>
+                    <Button Content="Link another computer" Command="{x:Bind ViewModel.CreateComputerCodeCommand}"
+                        Visibility="{x:Bind BoolToVisibility(ViewModel.HasComputerLink), Mode=OneWay}" />
+                    <TextBlock Text="{x:Bind ViewModel.ComputerPairingCode, Mode=OneWay}" IsTextSelectionEnabled="True"
+                        Visibility="{x:Bind BoolToVisibility(ViewModel.HasComputerPairingCode), Mode=OneWay}" />
+                    <Button Content="Unlink this computer" Command="{x:Bind ViewModel.UnlinkComputerCommand}" />
+                    <TextBlock Text="Your linking service sees computer names and recent-use timing. Your app activity stays on your computers. Pause sharing affects this computer only. Unlinking turns sharing off here."
+                        TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+            </Expander>
+
             <!-- T3 Code Section -->
             <StackPanel Spacing="16">
                 <TextBlock Text="T3 Code" Style="{StaticResource BodyStrongTextBlockStyle}" />

@@ -46,3 +46,7 @@ Record OS version, CPU architecture, Discord channel/version, and companion comm
 - Read the app at larger text sizes and with a screen reader. Helper text wraps, the full two-line Discord preview is available, and normal status messages contain no protocol names or raw errors.
 
 Record which helpers T3 exposes as child threads. Helpers that exist only inside a provider's own run are not inferred or included in these counts.
+
+## Multiple computers: required before advertising automatic switching
+
+Follow [the multiple-computer contract and acceptance cases](../spec/multiple-computers.md#release-acceptance) for the new development implementation. It requires mixed Mac/Windows tests, account/channel verification, network partitions, ownership expiry, and delayed clear/update ordering observed from a second Discord account. Automated grant tests are not proof of visible Discord precedence. Earlier builds and independent installations should enable sharing on only one computer.

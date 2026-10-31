@@ -31,6 +31,10 @@ An unsupported foreground application clears presence. Opening the companion's s
 
 Turning sharing off or pausing must invalidate pending work immediately. A delayed connect, throttled update, timer, or stale callback must never restore an earlier activity. Changing the application ID closes the old connection before using the new identity. Shutdown clears presence best-effort, closes the connection, and does not wait indefinitely.
 
+## Multiple computers
+
+Independent mode applies these gates separately on each computer and provides no cross-computer precedence. Linked mode additionally requires a current publishing grant from the private coordination service. It selects the computer with the most recent observed OS input, including when that computer's active app is unsupported. The required selection, safe handoff, failure behavior, and release checks are defined in [Sharing from multiple computers](multiple-computers.md). This is a development extension; real multi-computer Discord acceptance is pending.
+
 ## Discord transport
 
 - Transport is local: UNIX domain socket on macOS, named pipe on Windows. Try IPC indices 0 through 9.

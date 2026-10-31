@@ -17,6 +17,9 @@ public final class PresenceCoordinator: ObservableObject {
     private let sessionObserver: SessionStateObserving
     private let discordClient: DiscordIpcClient
     public let t3Service: T3ActivityService
+    public let computers: ComputerLinkService
+    private var computerTimer: Timer?
+    private var discordUserId: String?
 
     private var started = false
 
@@ -25,7 +28,8 @@ public final class PresenceCoordinator: ObservableObject {
         foregroundDetector: ForegroundDetecting? = nil,
         sessionObserver: SessionStateObserving? = nil,
         discordClient: DiscordIpcClient? = nil,
-        t3Service: T3ActivityService = T3ActivityService()
+        t3Service: T3ActivityService = T3ActivityService(),
+        computers: ComputerLinkService? = nil
     ) {
         self.settingsService = settingsService
         let initialSettings = settingsService.loadSettings()
@@ -33,6 +37,7 @@ public final class PresenceCoordinator: ObservableObject {
         self.sessionObserver = sessionObserver ?? WorkspaceSessionObserver()
         self.discordClient = discordClient ?? DiscordIpcClient()
         self.t3Service = t3Service
+        self.computers = computers ?? ComputerLinkService()
 
         self.settings = initialSettings
         self.state = PresenceState()
@@ -47,6 +52,20 @@ public final class PresenceCoordinator: ObservableObject {
     }
 
     private func setupBindings() {
+        let permission = computers.permission
+        discordClient.publishAllowed = { account in permission.allows(account: account) }
+        discordClient.onAccountChanged = { [weak self] account in
+            Task { @MainActor [weak self] in
+                guard let self = self, self.started else { return }
+                self.discordUserId = account
+                self.evaluatePresence()
+            }
+        }
+        computers.onChanged = { [weak self] in
+            guard let self = self, self.started else { return }
+            self.state.computerStatus = self.computers.status
+            self.evaluatePresence()
+        }
         foregroundDetector.onForegroundAppChanged = { [weak self] app, bundleId in
             Task { @MainActor [weak self] in
                 guard let self = self, self.started else { return }
@@ -61,6 +80,7 @@ public final class PresenceCoordinator: ObservableObject {
                 guard let self = self, self.started else { return }
                 self.state.isSessionSuspended = isSuspended
                 if isSuspended {
+                    self.computers.updateContext(linked: self.settings.followComputers, available: false, discordUserId: nil)
                     // Privacy rule: immediate clear on sleep or lock
                     self.t3Service.updateEligibility(isEligibleToPoll: false)
                     self.discordClient.clearAndCloseImmediately()
@@ -105,7 +125,7 @@ public final class PresenceCoordinator: ObservableObject {
                 guard let self = self, self.started else { return }
                 let eligible = self.settings.enableSharing && !self.settings.isPaused &&
                     !self.state.isSessionSuspended && self.settings.isValidDiscordClientId &&
-                    self.state.foregroundApp != .none
+                    self.state.foregroundApp != .none && self.computers.permission.allows(account: self.discordUserId)
                 self.state.connectionStatus = eligible ? status : .disconnected
                 if eligible, let message = message {
                     self.state.statusMessage = message
@@ -122,6 +142,7 @@ public final class PresenceCoordinator: ObservableObject {
                 guard let self = self, self.started else { return }
                 guard self.settings.enableSharing, !self.settings.isPaused,
                       !self.state.isSessionSuspended, self.settings.isValidDiscordClientId else { return }
+                guard self.computers.permission.allows(account: self.discordUserId) else { return }
                 self.state.lastUpdate = Date()
                 self.updateIcon()
             }
@@ -133,6 +154,13 @@ public final class PresenceCoordinator: ObservableObject {
         started = true
         foregroundDetector.start()
         sessionObserver.start()
+        computers.start(linked: settings.followComputers)
+        computerTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self = self, self.started, self.settings.followComputers else { return }
+                self.evaluatePresence()
+            }
+        }
 
         let (app, bundleId) = foregroundDetector.currentForegroundApp()
         self.state.foregroundApp = app
@@ -143,6 +171,8 @@ public final class PresenceCoordinator: ObservableObject {
 
     public func stop() {
         started = false
+        computerTimer?.invalidate(); computerTimer = nil
+        computers.stop()
         foregroundDetector.stop()
         sessionObserver.stop()
         t3Service.updateEligibility(isEligibleToPoll: false)
@@ -154,10 +184,15 @@ public final class PresenceCoordinator: ObservableObject {
     public func evaluatePresence(immediate: Bool = false) {
         guard started else { return }
 
-        let isEligible = settings.enableSharing &&
+        let localEligible = settings.enableSharing &&
                          !settings.isPaused &&
                          !state.isSessionSuspended &&
                          settings.isValidDiscordClientId
+
+        computers.updateContext(linked: settings.followComputers, available: localEligible,
+                                discordUserId: discordUserId)
+        let isEligible = localEligible && computers.permission.allows(account: discordUserId)
+        state.computerStatus = computers.status
 
         // Update T3 polling eligibility: poll only when sharing is active, awake, T3 activity enabled, and T3 Code focused
         let isEligibleToPoll = isEligible &&
@@ -176,7 +211,7 @@ public final class PresenceCoordinator: ObservableObject {
 
         let activity = ActivityFormatter.formatActivity(
             app: state.foregroundApp,
-            enableSharing: settings.enableSharing,
+            enableSharing: isEligible,
             isPaused: settings.isPaused,
             isSuspended: state.isSessionSuspended,
             isValidClientId: settings.isValidDiscordClientId,
@@ -223,11 +258,11 @@ public final class PresenceCoordinator: ObservableObject {
             }
         }
 
-        discordClient.updateActivity(
-            activity,
-            clientId: settings.discordClientId,
-            immediate: immediate
-        )
+        if settings.followComputers && localEligible && (activity == nil || !isEligible) {
+            discordClient.observeAccount(clientId: settings.discordClientId)
+        } else {
+            discordClient.updateActivity(activity, clientId: settings.discordClientId, immediate: immediate)
+        }
 
         updateIcon()
     }
@@ -256,6 +291,31 @@ public final class PresenceCoordinator: ObservableObject {
     }
 
     // MARK: - UI Actions
+
+    public func linkComputer(address: String, code: String, name: String) {
+        guard !computers.isBusy else { return }
+        settings.followComputers = true
+        settings.computerLinkAddress = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        settingsService.saveSettings(settings)
+        computers.updateContext(linked: true, available: false, discordUserId: nil)
+        discordClient.clearAndCloseImmediately()
+        Task { _ = await computers.link(address: address, code: code, name: name); evaluatePresence() }
+    }
+
+    public func unlinkComputer() {
+        guard !computers.isBusy else { return }
+        settings.enableSharing = false
+        settingsService.saveSettings(settings)
+        computers.updateContext(linked: settings.followComputers, available: false, discordUserId: nil)
+        discordClient.clearAndCloseImmediately()
+        Task {
+            if await computers.unlink() {
+                settings.followComputers = false
+                settingsService.saveSettings(settings)
+            }
+            evaluatePresence()
+        }
+    }
 
     public func toggleSharing() {
         settings.enableSharing.toggle()

@@ -3,6 +3,7 @@ using DeveloperPresence.Core.Foreground;
 using DeveloperPresence.Core.Models;
 using DeveloperPresence.Core.Privacy;
 using DeveloperPresence.Core.T3;
+using DeveloperPresence.Core.Computers;
 
 namespace DeveloperPresence.Core.Services;
 
@@ -17,6 +18,7 @@ public sealed class PresenceCoordinator : IAsyncDisposable
     private readonly IDiscordIpcClient _discordClient;
     private readonly IForegroundDetector _foregroundDetector;
     private readonly IT3ActivityService? _t3ActivityService;
+    private readonly IComputerLinkService? _computers;
 
     private readonly SemaphoreSlim _evalLock = new(1, 1);
     private readonly SemaphoreSlim _triggerSignal = new(0, 1);
@@ -75,12 +77,16 @@ public sealed class PresenceCoordinator : IAsyncDisposable
         ISettingsService settingsService,
         IDiscordIpcClient discordClient,
         IForegroundDetector foregroundDetector,
-        IT3ActivityService? t3ActivityService)
+        IT3ActivityService? t3ActivityService,
+        IComputerLinkService? computers = null)
     {
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
         _discordClient = discordClient ?? throw new ArgumentNullException(nameof(discordClient));
         _foregroundDetector = foregroundDetector ?? throw new ArgumentNullException(nameof(foregroundDetector));
         _t3ActivityService = t3ActivityService;
+        _computers = computers;
+        _discordClient.PublishAllowed = () => !_settingsService.Settings.FollowComputers || _computers?.CanPublish == true;
+        if (_computers != null) _computers.Changed += OnComputerChanged;
 
         _discordClient.StatusChanged += OnDiscordStatusChanged;
         _settingsService.SettingsChanged += OnSettingsChanged;
@@ -101,6 +107,8 @@ public sealed class PresenceCoordinator : IAsyncDisposable
         // Strict requirement: load saved privacy settings BEFORE any sends or connections
         await _settingsService.LoadSettingsAsync().ConfigureAwait(false);
 
+        if (_computers != null) await _computers.InitializeAsync(ct).ConfigureAwait(false);
+
         if (_t3ActivityService != null)
         {
             await _t3ActivityService.InitializeAsync(ct).ConfigureAwait(false);
@@ -120,6 +128,7 @@ public sealed class PresenceCoordinator : IAsyncDisposable
     public async Task StopAsync()
     {
         _isStarted = false;
+        _computers?.UpdateContext(false, null);
         InvalidateOperation();
         if (_wasT3Eligible)
         {
@@ -155,6 +164,7 @@ public sealed class PresenceCoordinator : IAsyncDisposable
 
         _loopCts?.Dispose();
         _loopCts = null;
+        if (_computers != null) await _computers.StopAsync().ConfigureAwait(false);
     }
 
     /// <summary>
@@ -164,6 +174,7 @@ public sealed class PresenceCoordinator : IAsyncDisposable
     public void OnSessionLock()
     {
         _isSessionLocked = true;
+        _computers?.UpdateContext(false, null);
         InvalidateOperation();
         if (_wasT3Eligible)
         {
@@ -201,6 +212,7 @@ public sealed class PresenceCoordinator : IAsyncDisposable
     public void OnSystemSuspend()
     {
         _isSystemSuspended = true;
+        _computers?.UpdateContext(false, null);
         InvalidateOperation();
         if (_wasT3Eligible)
         {
@@ -305,6 +317,7 @@ public sealed class PresenceCoordinator : IAsyncDisposable
 
             if (!isSharingAllowed)
             {
+                _computers?.UpdateContext(false, null);
                 Interlocked.Increment(ref _currentGeneration);
                 if (_wasT3Eligible)
                 {
@@ -348,6 +361,32 @@ public sealed class PresenceCoordinator : IAsyncDisposable
             // Detect current foreground application from exact process identity
             SupportedApp focusedApp = _foregroundDetector.DetectForegroundApp(settings.ProcessMappings);
 
+            if (settings.FollowComputers)
+            {
+                // A standby connection reads READY account identity but sends no activity.
+                if (!_discordClient.IsConnected)
+                {
+                    if (!await _discordClient.ConnectAsync(settings.DiscordClientId, token).ConfigureAwait(false))
+                    { _computers?.UpdateContext(false, null); return; }
+                    _connectedClientId = settings.DiscordClientId;
+                    _connectionNeedsPublish = true;
+                }
+                _computers?.UpdateContext(true, _discordClient.CurrentUserId);
+                if (_computers?.CanPublish != true)
+                {
+                    if (_wasT3Eligible) { _wasT3Eligible = false; CancelT3Poll(); _t3ActivityService?.Invalidate(); }
+                    if (_lastSentActivity != null || _lastSentApp != SupportedApp.None)
+                        await ClearAndDropConnectionAsync().ConfigureAwait(false);
+                    _lastSentApp = SupportedApp.None; _lastSentActivity = null;
+                    UpdateState(s => {
+                        s.ForegroundApp = focusedApp; s.OutgoingHeadline = ActivityFormatter.HeadlineNone;
+                        s.OutgoingState = null; s.ActivityNote = null;
+                        s.ComputerStatus = _computers?.Status ?? "Waiting for a connection";
+                    });
+                    return;
+                }
+            }
+
             bool isT3Eligible = isSharingAllowed && focusedApp == SupportedApp.T3Code && settings.ShowT3Activity;
             if (_wasT3Eligible && !isT3Eligible)
             {
@@ -362,7 +401,10 @@ public sealed class PresenceCoordinator : IAsyncDisposable
 
             if (focusedApp == SupportedApp.None)
             {
-                await ClearAndDropConnectionAsync().ConfigureAwait(false);
+                // Keep a linked standby connection for account identity. Unsupported apps
+                // still select this computer, but never publish developer activity.
+                if (!settings.FollowComputers || _lastSentActivity != null || _lastSentApp != SupportedApp.None)
+                    await ClearAndDropConnectionAsync().ConfigureAwait(false);
                 _lastSentApp = SupportedApp.None;
                 _lastSentActivity = null;
                 _connectedClientId = null;
@@ -476,7 +518,8 @@ public sealed class PresenceCoordinator : IAsyncDisposable
                                     !_isSessionLocked &&
                                     !_isSystemSuspended &&
                                     freshSettings.IsValidDiscordClientId() &&
-                                    genBeforeConnect == Interlocked.Read(ref _currentGeneration);
+                                    genBeforeConnect == Interlocked.Read(ref _currentGeneration) &&
+                                    (!freshSettings.FollowComputers || _computers?.CanPublish == true);
 
                 if (!stillAllowed)
                 {
@@ -520,6 +563,7 @@ public sealed class PresenceCoordinator : IAsyncDisposable
             {
                 // Rate limit satisfied or fresh connection: send immediately
                 token.ThrowIfCancellationRequested();
+                if (settings.FollowComputers && _computers?.CanPublish != true) return;
 
                 if (activity != null)
                 {
@@ -561,6 +605,7 @@ public sealed class PresenceCoordinator : IAsyncDisposable
 
     private void OnDiscordStatusChanged(PresenceConnectionStatus status, string? message)
     {
+        if (status != PresenceConnectionStatus.Connected) _computers?.UpdateContext(false, null);
         UpdateState(s =>
         {
             s.ConnectionStatus = status;
@@ -622,11 +667,27 @@ public sealed class PresenceCoordinator : IAsyncDisposable
     private void OnSettingsChanged(PresenceSettings settings)
     {
         if (!_isStarted) return;
+        _computers?.UpdateContext(false, null);
         InvalidateOperation();
         CancelT3Poll();
         _t3ActivityService?.Invalidate();
         // Capture and close the old socket now, before a worker can create its replacement.
         _ = ClearAndDropConnectionAsync();
+        TriggerImmediateEvaluation();
+    }
+
+    private void OnComputerChanged()
+    {
+        if (!_isStarted) return;
+        UpdateState(s => s.ComputerStatus = _computers?.Status ?? "Waiting for a connection");
+        if (_settingsService.Settings.FollowComputers && _computers?.CanPublish != true)
+        {
+            if (_lastSentActivity != null || _lastSentApp != SupportedApp.None)
+            {
+                InvalidateOperation();
+                _ = ClearAndDropConnectionAsync();
+            }
+        }
         TriggerImmediateEvaluation();
     }
 
@@ -672,6 +733,7 @@ public sealed class PresenceCoordinator : IAsyncDisposable
         _isDisposed = true;
         _discordClient.StatusChanged -= OnDiscordStatusChanged;
         _settingsService.SettingsChanged -= OnSettingsChanged;
+        if (_computers != null) _computers.Changed -= OnComputerChanged;
 
         if (_t3ActivityService != null)
         {

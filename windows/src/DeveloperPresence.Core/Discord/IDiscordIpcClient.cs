@@ -22,6 +22,9 @@ public interface IDiscordIpcClient : IAsyncDisposable
     /// </summary>
     bool IsConnected { get; }
 
+    string? CurrentUserId => null;
+    Func<bool>? PublishAllowed { get => null; set { } }
+
     /// <summary>
     /// Attempts to locate and connect to a running Discord instance via named pipes 0..9.
     /// Sends Opcode 0 Handshake upon successful stream connection.

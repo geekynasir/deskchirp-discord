@@ -13,6 +13,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  computer-coordination:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test device selection and private HTTP protocol
+        run: python3 -m unittest discover -s coordination/tests -v
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DeveloperPresence-private-linking-service
+          path: |
+            coordination/service.py
+            coordination/README.md
+          retention-days: 14
+
   macos:
     name: macOS (${{ matrix.arch }})
     strategy:
@@ -46,6 +61,7 @@ jobs:
           cp docs/trying-builds.md macos/dist/READ-ME.md
           ditto -c -k --sequesterRsrc --keepParent macos/dist/DeveloperPresence.app macos/dist/DeveloperPresence-macos-${{ matrix.arch }}.zip
           cp docs/connect-t3.md macos/dist/CONNECT-T3.md
+          cp docs/computers.md macos/dist/COMPUTERS.md
           cp -R assets/discord macos/dist/Discord-artwork
       - name: Capture native settings for review
         continue-on-error: true
@@ -57,6 +73,10 @@ jobs:
           open -n macos/dist/DeveloperPresence.app --args --show-settings --dark-appearance
           sleep 4
           screencapture -x macos/dist/settings-dark.png
+          pkill -x DeveloperPresence || true
+          open -n macos/dist/DeveloperPresence.app --args --show-settings --show-computers --light-appearance
+          sleep 4
+          screencapture -x macos/dist/settings-computers.png
       - uses: actions/upload-artifact@v4
         with:
           name: DeveloperPresence-macos-${{ matrix.arch }}
@@ -64,6 +84,7 @@ jobs:
             macos/dist/DeveloperPresence-macos-${{ matrix.arch }}.zip
             macos/dist/READ-ME.md
             macos/dist/CONNECT-T3.md
+            macos/dist/COMPUTERS.md
             macos/dist/Discord-artwork/
             macos/dist/settings-*.png
           if-no-files-found: error
@@ -103,6 +124,7 @@ jobs:
           if (!(Test-Path dist/windows-x64/DeveloperPresence.App.exe)) { throw 'Application executable missing' }
           Copy-Item docs/trying-builds.md dist/windows-x64/READ-ME.md
           Copy-Item docs/connect-t3.md dist/windows-x64/CONNECT-T3.md
+          Copy-Item docs/computers.md dist/windows-x64/COMPUTERS.md
           Copy-Item -Recurse assets/discord dist/windows-x64/Discord-artwork
       - name: Capture native settings for review
         continue-on-error: true

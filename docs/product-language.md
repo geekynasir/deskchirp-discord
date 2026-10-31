@@ -4,7 +4,11 @@ The words Developer Presence uses in its macOS and Windows settings, menus, stat
 
 This guide doesn't change any approved behavior. Sharing stays off by default. T3 access is read-only. Only the active app is in scope. When T3 activity is unavailable, the app shows the app name only. Thread titles, models, projects, prompts, paths, private URLs, and credentials are never published.
 
-Method: Impeccable 4.8.0 `clarify`, Operate mode, and the craft floor (`/data/ubuntu/tools/presence-skills/impeccable`). The project context launcher didn't run, and there is no PRODUCT.md or DESIGN.md, so this guide uses only the existing source and `spec/t3-activity.md`. The second skill the user asked for ("Unstop" from Stack Cursor) wasn't found and wasn't applied.
+Method: [Impeccable](https://github.com/pbakaus/impeccable) 4.8.0 `clarify`, Operate mode, and the craft floor (`/data/ubuntu/tools/presence-skills/impeccable`). The project context launcher didn't run, and there is no PRODUCT.md or DESIGN.md, so this guide uses only the existing source and `spec/t3-activity.md`.
+
+Follow-up review on 2026-10-31: the user confirmed **Unslop** as the intended name. Applied the audit guidance from [Unslop by Damir Sokolovsky (@heydamir)](https://github.com/heydamir/unslop/blob/main/skills/unslop/SKILL.md), licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). This review note adapts that guidance. The earlier “Stack Cursor” attribution remains unverified.
+
+The review covered both native settings implementations, their public status messages, the task/helper formatters, the connection guide, and existing build screenshots: macOS light/dark and Windows light. No decorative gradients, emoji labels, hype copy, or unnecessary animation were found in those surfaces. The settings explain helpers, keep connection terminology out of normal status messages, and show a concrete next step when setup fails. Discord uses short tool names and task/helper counts, with waiting and starting work labeled explicitly. Retained the native controls and existing wording; this pass changed documentation only. The screenshots cover only the captured portion of settings, and do not establish accessibility, scaling, live sign-in, or real Discord rendering. Those checks remain in `docs/acceptance.md`.
 
 ## Voice
 

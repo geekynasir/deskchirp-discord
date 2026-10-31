@@ -8,6 +8,7 @@ using DeveloperPresence.Core.Models;
 using DeveloperPresence.Core.Privacy;
 using DeveloperPresence.Core.Services;
 using DeveloperPresence.Core.T3;
+using DeveloperPresence.Core.Computers;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
@@ -22,6 +23,7 @@ public sealed partial class MainWindow : Window
     private readonly IDiscordIpcClient _discordClient;
     private readonly IForegroundDetector _foregroundDetector;
     private readonly PresenceCoordinator _coordinator;
+    private readonly IComputerLinkService _computers;
 
     private readonly Win32.WndProcDelegate _wndProcDelegate;
     private readonly IntPtr _oldWndProc;
@@ -46,13 +48,14 @@ public sealed partial class MainWindow : Window
         _t3ActivityService = new T3ActivityService(_settingsService, _credentialStore);
         _discordClient = new DiscordIpcClient();
         _foregroundDetector = new ForegroundDetector();
-        _coordinator = new PresenceCoordinator(_settingsService, _discordClient, _foregroundDetector, _t3ActivityService);
+        _computers = new ComputerLinkService(_settingsService, _credentialStore);
+        _coordinator = new PresenceCoordinator(_settingsService, _discordClient, _foregroundDetector, _t3ActivityService, _computers);
 
         // Instantiate ViewModel with UI thread dispatcher
         ViewModel = new MainViewModel(_settingsService, _coordinator, action =>
         {
             DispatcherQueue.TryEnqueue(() => action());
-        }, _t3ActivityService);
+        }, _t3ActivityService, _computers);
 
         // Initialize Native Tray Icon
         _trayIcon = new TrayIcon(
@@ -192,6 +195,11 @@ public sealed partial class MainWindow : Window
         {
             ViewModel.RemoveMappingCommand.Execute(item);
         }
+    }
+
+    private void OnLinkingCodeChanged(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel != null && sender is PasswordBox box) ViewModel.LinkingCode = box.Password;
     }
 
     private async void OnWindowClosed(object sender, WindowEventArgs args)

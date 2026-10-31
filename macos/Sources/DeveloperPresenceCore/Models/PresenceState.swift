@@ -17,6 +17,7 @@ public struct PresenceState: Equatable, Sendable {
     public var lastUpdate: Date?
     public var statusMessage: String
     public var lastError: String?
+    public var computerStatus: String = "Not linked"
 
     // T3-specific state
     public var t3ConnectionStatus: T3ConnectionStatus

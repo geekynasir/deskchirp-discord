@@ -38,8 +38,24 @@ public class DiscordIpcClientTests
         bool connected = await connectTask;
         Assert.True(connected);
         Assert.True(client.IsConnected);
+        Assert.Equal("42", client.CurrentUserId);
 
         await client.CloseAsync();
+        Assert.Null(client.CurrentUserId);
+    }
+
+    [Fact]
+    public async Task ExpiredComputerPermissionIsCheckedAtTheFinalWrite()
+    {
+        var (stream, server) = TestIpcDuplexStream.CreatePair();
+        await using var serverCleanup = server;
+        await using var client = new DiscordIpcClient((_, _) => Task.FromResult<Stream?>(stream));
+        var connecting = client.ConnectAsync(ValidClientId);
+        await server.ReadNextFrameAsync(); await server.SendReadyAsync();
+        Assert.True(await connecting);
+        client.PublishAllowed = () => false;
+        await Assert.ThrowsAnyAsync<Exception>(() => client.SendActivityAsync(new DiscordActivity { Details = "Using T3 Code" }));
+        Assert.False(client.IsConnected);
     }
 
     [Fact]

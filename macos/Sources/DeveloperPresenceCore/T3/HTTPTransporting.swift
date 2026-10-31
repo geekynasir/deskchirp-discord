@@ -33,11 +33,13 @@ public final class URLSessionHTTPTransport: HTTPTransporting, @unchecked Sendabl
     public init(
         configuration: URLSessionConfiguration = .ephemeral,
         maxResponseBytes: Int = 1_048_576,
-        maxMetadataBytes: Int = 65_536
+        maxMetadataBytes: Int = 65_536,
+        requestTimeout: TimeInterval = 15,
+        resourceTimeout: TimeInterval = 30
     ) {
         let settings = configuration.copy() as! URLSessionConfiguration
-        settings.timeoutIntervalForRequest = 15
-        settings.timeoutIntervalForResource = 30
+        settings.timeoutIntervalForRequest = requestTimeout
+        settings.timeoutIntervalForResource = resourceTimeout
         settings.requestCachePolicy = .reloadIgnoringLocalCacheData
         settings.urlCache = nil
         settings.httpCookieStorage = nil
