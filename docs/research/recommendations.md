@@ -29,6 +29,8 @@ Suggested playful copy includes `Herding 3 agents`, `1 needs you`, and `Crunched
 
 Offer two explicit selection modes: **Follow active app** and **Keep background work visible**. The latter needs trustworthy workload adapters and a user-selected app/project priority. Aggregate top-level tasks separately from helpers, and deduplicate the same sessions seen through multiple adapters. Do not reset the elapsed clock merely because an agent moves from thinking to waiting.
 
+For T3, add a **harness-aware workload** preset: feature Claude Code, Codex, Antigravity, or another harness based on confirmed active workers, with separate task/subagent counts. Use each child's actual harness, not its parent's or its model name. See [counting, selection policies, and native-child coverage limits](harness-workload.md).
+
 ## What mature VS Code extensions teach us
 
 [Discord Presence](https://github.com/iCrawl/discord-vscode) and [VSCord](https://github.com/leonardssh/vscord) show language artwork, editor badges, editing/debugging/idle states, workspace/file labels, configurable templates, elapsed time, and Git/repository links. VSCord adds detailed exclusion rules, privacy mode, image overrides, and two configurable buttons. Their configuration schemas are the primary evidence; see [the comparison](vscode-presence.md).

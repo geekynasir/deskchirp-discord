@@ -262,7 +262,7 @@ A small metadata-only MCP wrapper could expose these existing aggregates if main
 ### 6.4 Thread Counting: Top-Level vs. Subagents
 * **Identification:**
   * Subagents are identified by `thread.lineage.relationshipToParent === "subagent"`; a parent ID alone is insufficient because ordinary forks also have parents.
-  * In `OrchestratorMcpThreadListInput`, `includeSubagents: false` by default.
+  * Pass `includeSubagents: true` explicitly when counting helpers. The inspected service includes subagents unless this option is explicitly false.
 * **PR #18346 Filter Logic:**
   * In `DiscordPresenceCoordinator.tsx`:
     ```typescript
