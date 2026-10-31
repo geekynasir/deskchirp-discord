@@ -44,7 +44,7 @@ public sealed class T3LeaderTracker
                 }
 
                 // A challenger has strictly more running workers than current winner
-                var candidate = topCandidates[0];
+                var candidate = topCandidates.OrderBy(w => w.HarnessName, StringComparer.Ordinal).First();
                 if (!string.Equals(candidate.HarnessName, _challengerName, StringComparison.OrdinalIgnoreCase))
                 {
                     // New challenger begins sustained lead challenge
@@ -72,7 +72,7 @@ public sealed class T3LeaderTracker
             else
             {
                 // Current winner has no running work (or no prior winner): take over immediately
-                var candidate = topCandidates[0];
+                var candidate = topCandidates.OrderBy(w => w.HarnessName, StringComparer.Ordinal).First();
                 _currentLeaderName = candidate.HarnessName;
                 _challengerName = null;
                 _challengerLeadStartedAt = null;
@@ -80,7 +80,8 @@ public sealed class T3LeaderTracker
             }
         }
 
-        // No running work in any harness
+        // Preserve the prior winner for waiting/starting ties.
+        var priorLeader = _currentLeaderName;
         _currentLeaderName = null;
         _challengerName = null;
         _challengerLeadStartedAt = null;
@@ -90,7 +91,10 @@ public sealed class T3LeaderTracker
         if (waitingWorkloads.Count > 0)
         {
             int maxWaiting = waitingWorkloads.Max(w => w.TotalWaiting);
-            return waitingWorkloads.First(w => w.TotalWaiting == maxWaiting);
+            var selected = waitingWorkloads.FirstOrDefault(w => w.TotalWaiting == maxWaiting && w.HarnessName == priorLeader)
+                ?? waitingWorkloads.Where(w => w.TotalWaiting == maxWaiting).OrderBy(w => w.HarnessName, StringComparer.Ordinal).First();
+            _currentLeaderName = selected.HarnessName;
+            return selected;
         }
 
         // Check starting/queued work
@@ -98,7 +102,10 @@ public sealed class T3LeaderTracker
         if (startingWorkloads.Count > 0)
         {
             int maxStarting = startingWorkloads.Max(w => w.TotalStarting);
-            return startingWorkloads.First(w => w.TotalStarting == maxStarting);
+            var selected = startingWorkloads.FirstOrDefault(w => w.TotalStarting == maxStarting && w.HarnessName == priorLeader)
+                ?? startingWorkloads.Where(w => w.TotalStarting == maxStarting).OrderBy(w => w.HarnessName, StringComparer.Ordinal).First();
+            _currentLeaderName = selected.HarnessName;
+            return selected;
         }
 
         // No active work at all

@@ -238,7 +238,13 @@ public sealed class T3ActivityService : IT3ActivityService
         await _authLock.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            await _credentialStore.DeleteCredentialAsync(CredentialTarget, CredentialUsername, ct).ConfigureAwait(false);
+            try { await _credentialStore.DeleteCredentialAsync(CredentialTarget, CredentialUsername, ct).ConfigureAwait(false); }
+            catch
+            {
+                SetStatus(_storedToken is { IsExpired: false } ? T3ConnectionStatus.Connected : T3ConnectionStatus.NotConnected,
+                    "Couldn’t remove your saved sign-in. Try disconnecting again.");
+                return;
+            }
             _storedToken = null;
             ClearSnapshot();
             _leaderTracker.Reset();

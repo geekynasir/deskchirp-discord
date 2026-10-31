@@ -57,6 +57,7 @@ public enum UserFacingStatus {
             "Sign-in didn’t finish. Your existing connection wasn’t changed.",
             "Sign-in timed out. Try connecting again.",
             "Couldn’t save your sign-in to Keychain. Try connecting again.",
+            "Couldn’t remove your saved sign-in. Try disconnecting again.",
             "To revoke access in T3 too, open T3 Code Settings → Sharing & access."
         ]
         if let message = message, safeMessages.contains(message) { return message }

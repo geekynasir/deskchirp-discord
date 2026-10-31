@@ -204,7 +204,19 @@ public final class T3ActivityService: @unchecked Sendable {
         oauthClient.cancel()
 
         if let origin = currentEndpoint?.origin {
-            try? keychain.deleteCredential(forService: KeychainService.defaultService, account: origin)
+            do {
+                try keychain.deleteCredential(forService: KeychainService.defaultService, account: origin)
+            } catch {
+                currentSnapshot = nil
+                winningTool = nil
+                winnerSelector.reset()
+                connectionStatus = .connected
+                lastErrorMessage = "Couldn’t remove your saved sign-in. Try disconnecting again."
+                lock.unlock()
+                notifyStatusChanged(.connected, message: "Couldn’t remove your saved sign-in. Try disconnecting again.")
+                notifyActivityUpdated(nil, winner: nil)
+                return
+            }
         }
 
         mcpClient.resetSession()
@@ -347,6 +359,12 @@ public final class T3ActivityService: @unchecked Sendable {
 
     public func pollOnce() {
         lock.lock()
+        if let snapshot = currentSnapshot, !snapshot.isFresh(maxAgeSeconds: snapshotTTLSeconds) {
+            currentSnapshot = nil
+            winningTool = nil
+            winnerSelector.reset()
+            notifyActivityUpdated(nil, winner: nil)
+        }
         guard isEligibleToPoll, (connectionStatus == .connected || connectionStatus == .couldNotReach), let endpoint = currentEndpoint else {
             lock.unlock()
             return
