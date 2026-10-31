@@ -50,9 +50,15 @@ jobs:
       - name: Capture native settings for review
         continue-on-error: true
         run: |
+          defaults delete -g AppleInterfaceStyle 2>/dev/null || true
           open -n macos/dist/DeveloperPresence.app --args --show-settings
-          sleep 5
-          screencapture -x macos/dist/settings.png
+          sleep 4
+          screencapture -x macos/dist/settings-light.png
+          pkill -x DeveloperPresence || true
+          defaults write -g AppleInterfaceStyle -string Dark
+          open -n macos/dist/DeveloperPresence.app --args --show-settings
+          sleep 4
+          screencapture -x macos/dist/settings-dark.png
       - uses: actions/upload-artifact@v4
         with:
           name: DeveloperPresence-macos-${{ matrix.arch }}
@@ -61,7 +67,7 @@ jobs:
             macos/dist/READ-ME.md
             macos/dist/CONNECT-T3.md
             macos/dist/Discord-artwork/
-            macos/dist/settings.png
+            macos/dist/settings-*.png
           if-no-files-found: error
           retention-days: 14
 
