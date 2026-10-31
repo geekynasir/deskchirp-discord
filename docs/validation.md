@@ -1,32 +1,41 @@
 # Verification status
 
-Updated on 2026-10-31. The Ubuntu ARM64 VPS controls GitHub-hosted native builds; source, downloaded artifacts, SDK, package caches, and scratch on the VPS remain on the mounted `/data` volume.
+Updated 2026-10-31. T3 activity is implemented in both native companions. The tested application source is `1c4e4c1591972c64bbc20ed8915b617f147733ef`; later documentation changes do not change those binaries.
 
-Successful native CI: [run 41190337628](https://github.com/geekynasir/developer-presence/actions/runs/41190337628), source commit `69a4d6572dce4f4cf198ca0c13e67cd61eedafbf`. The companion repository is private in `geekynasir`'s account.
+Native builds: [run 41198285124](https://github.com/geekynasir/developer-presence/actions/runs/41198285124). The repository and artifacts are private; sign in with an account that has access. Artifacts are kept for 14 days.
 
-## Executed successfully
+## Automated checks
 
-- Portable C# core suite: **75 passed, 0 failed** with .NET SDK 8.0.427.
-- Windows settings-presentation suite: **2 passed, 0 failed**. This also compiles the platform's view-model and Win32 helper sources without invoking native Windows APIs.
-- The same **77 C# tests passed in CI** on an Ubuntu runner.
-- **30 Swift tests passed on each of Apple Silicon and Intel macOS runners**, including scripted Discord protocol tests, shared fixtures, formatter/settings checks, and coordinator checks.
-- Release-mode macOS `.app` bundles compiled for arm64 and x86_64; plist validation and ad-hoc codesign verification passed. Both bundles are archived as downloadable artifacts.
-- Windows x64 WinUI/XAML compilation and self-contained publication succeeded on `windows-2022`; the artifact includes .NET and Windows App SDK runtimes. The SDK BuildTools dependency now matches the Windows App SDK's minimum requirement.
-- All three artifacts were downloaded to `/data` and passed archive CRC checks. Both Mac binaries have the expected Mach-O CPU architecture; the Windows executable is an x64 PE, with the app's XAML resources, .NET runtime, and WinUI runtime present in its 507-file folder. Local SHA-256 checksums are stored alongside the downloaded archives.
-- Project XML and XAML XML parsing, app plist inspection, shared Swift fixture-copy equality, source whitespace checks, and macOS packaging-script shell syntax.
+- **71 Swift tests on each Mac architecture**, Apple Silicon and Intel. These cover the existing Discord protocol/privacy checks, settings migration, task/helper grouping, tool selection, TTL fallback, MCP sessions, bounded streaming responses, browser sign-in, and real local callback requests (including rejection of a missing issuer).
+- **122 C# core tests and 3 Windows settings tests**, locally and on the portable CI runner. These include shared activity cases, session/stream handling, late sign-in after Disconnect, late polls after invalidation, endpoint changes, and slow polling without blocking active-app detection.
+- Release macOS app bundles, plist checks, and ad-hoc signature verification for arm64 and x86_64.
+- Windows x64 WinUI/XAML compilation and self-contained publication, including .NET and Windows App SDK runtimes.
+- JSON, project/XAML XML, plist, shared fixture equality, packaging shell syntax, and source whitespace checks.
 
-Protocol tests use an in-memory duplex transport. They exercise READY gating, command nonces, acknowledgment/error handling, malformed input, frame bounds, ping/pong, EOF, reconnect, and cancellation. Shared fixtures cover the static presence payloads. These are useful source checks, not evidence of a real Discord profile displaying the activity.
+The shared synthetic fixtures contain mixed agent tools, helpers that use a different tool from their parent, forks, repeated IDs, waiting/completed work, and private-name bait. Unknown driver labels never become public names. Transport tests use controlled responses, not a user's live conversations. The actual Mac callback tests run only against ephemeral local test listeners.
 
-The first native builds caught a Swift overload ambiguity, an outdated Windows SDK dependency, and test replies racing the connection handshake. These were corrected before the successful run. The Swift package uses Swift 5 language mode; concurrency warnings remain for captured test state and the serialized clear completion flag, so Swift 6 strict concurrency migration remains separate work.
+Swift 5 language mode is used. Concurrency warnings remain, including lock calls from asynchronous functions and captured test variables; Swift 6 strict-concurrency migration is separate work. Passing these tests does not establish that every race or platform behavior is covered.
 
-## Not yet verified
+## Downloaded builds and visual checks
 
-- Launching the packaged macOS and Windows apps on real user machines.
-- Real foreground detection, Discord display, lock/sleep, menu/tray behavior, accessibility, and clean-machine installation on either platform.
-- Release signing, notarization and installer distribution.
+The previous successful build of the same activity implementation, [run 41198069787](https://github.com/geekynasir/developer-presence/actions/runs/41198069787), passed all four jobs. Native artifacts are downloaded under `/data/ubuntu/tmp/developer-presence/`; the final run includes stable setup links and explicit appearance selection for Mac screenshot capture.
 
-The Linux environment has no Swift/Xcode or Windows desktop tooling; the native builds ran remotely on the appropriate GitHub runners. Downloaded artifacts are development builds, not signed or distribution-ready releases. Follow [acceptance.md](acceptance.md) on target machines before a release. In particular, validate initial Mac lock state and the distributed lock notification behavior described in the [macOS README](../macos/README.md).
+The Mac settings window was launched and its light and dark screenshots inspected: native controls, wrapping helper text, clear setup and privacy choices, and the off-by-default state render correctly in the captured view. A Windows light-mode settings screenshot was also inspected; the app launches and its sharing controls and Discord preview render correctly. Longer settings remain scrollable. This does not cover every state, tab, scaling setting, or screen reader.
 
-## Product scope
+Both downloaded Mac archives passed CRC checks and contain the expected Mach-O CPU architecture. The Windows folder contains an x64 PE executable, XAML resources, .NET/WinUI runtimes, setup notes, and artwork. Local checksums accompany the downloads. Hosted-runner launch captures do not replace clean-machine installation checks.
 
-The source provides a native foreground-presence foundation. T3 read-only metadata/OAuth pairing, working/waiting counts, verified session deduplication, richer Claude/Codex telemetry, artwork and playful templates are not implemented. The companion does not modify T3 Code and has no upstream PR.
+## Checks still needed on real machines
+
+- T3 browser approval against a real local/remote environment, secure-store persistence, expiry, and revocation.
+- A real Discord profile displaying the card and uploaded artwork, including reconnect after Discord restarts.
+- Exact app identities, active-app transitions, menu/tray behavior, lock/sleep, and quitting during pending operations.
+- Screen readers, high contrast, larger text/scaling, multiple monitors, and clean-machine installation.
+- Release signing, Mac notarization, and installers.
+
+The Linux VPS has no local Xcode or Windows desktop. Native builds and screenshots run on the matching GitHub hosts. These are development builds, not distribution-ready releases. Follow [acceptance.md](acceptance.md) before release.
+
+## Scope
+
+The optional T3 connection reads only capabilities and thread lists from one explicitly connected environment. It shows the busiest public agent tool and separate task/helper counts, with waiting/starting work labeled. Failed, incomplete, expired, or unavailable activity falls back to `Using T3 Code`. Only helpers that T3 exposes as child threads are counted; internal provider helpers are not inferred.
+
+Claude Desktop and Codex Desktop remain app-name-only. Conversations, projects, thread titles, model names, private provider labels, and file paths are excluded from the Discord card. Tokens and cost are outside this feature. The companion does not modify upstream T3 Code. See [the setup guide](connect-t3.md) and [the companion PR](https://github.com/geekynasir/developer-presence/pull/1).

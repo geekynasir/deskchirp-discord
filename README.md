@@ -17,9 +17,9 @@ Optional **T3 activity** connects to one T3 environment with read-only access. I
 
 App detection alone does not establish agent activity. T3 counts come from fresh metadata, and unavailable data falls back to the app name. Claude Desktop and Codex Desktop remain app-name-only. Conversations, window titles, projects, model names, code, and file paths are not published.
 
-Native development builds are available for Apple Silicon Macs, Intel Macs, and Windows x64 from the [successful GitHub Actions run](https://github.com/geekynasir/developer-presence/actions/runs/41190337628). Sign in to the repository account to download its artifacts; see [trying a build](docs/trying-builds.md). These are development bundles, not signed releases or installers.
+Native development builds are available for Apple Silicon Macs, Intel Macs, and Windows x64 from the [successful GitHub Actions run](https://github.com/geekynasir/developer-presence/actions/runs/41198285124). Sign in to the repository account to download its artifacts; see [trying a build](docs/trying-builds.md). These are development bundles, not signed releases or installers.
 
-CI passed **30 Swift tests on each Mac architecture** and **77 portable C# tests** (75 core, 2 settings presentation), built both macOS app bundles, and published the Windows app with its runtimes. Actual Discord display, application detection, and desktop lifecycle behavior still require validation on real machines. See [verification status](docs/validation.md).
+CI passed **71 Swift tests on each Mac architecture** and **125 portable C# tests** (122 core, 3 settings presentation), built both macOS app bundles, and published the Windows app with its runtimes. Actual Discord display, application detection, and desktop lifecycle behavior still require validation on real machines. See [verification status](docs/validation.md).
 
 ## Development
 

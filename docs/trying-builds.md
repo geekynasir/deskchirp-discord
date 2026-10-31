@@ -2,7 +2,7 @@
 
 These are unsigned development builds, not signed releases or installers. CI compilation and automated tests do not verify real Discord display, desktop focus, lock/sleep behavior, or clean-machine installation. Sharing is off by default. macOS lock-state handling still needs native validation; pause or quit the companion before leaving it unattended.
 
-Download the artifact from the successful **Native apps** GitHub Actions run while signed in to the repository account. Artifacts expire after 14 days.
+Download the artifact from the successful [**Native apps** GitHub Actions run](https://github.com/geekynasir/developer-presence/actions/runs/41198285124) while signed in to the repository account. Artifacts expire after 14 days.
 
 ## macOS 13 or newer
 
