@@ -97,7 +97,7 @@ final class PresenceCoordinatorTests: XCTestCase {
         // Initial state guarantees
         XCTAssertFalse(coordinator.settings.enableSharing)
         XCTAssertFalse(coordinator.settings.isPaused)
-        XCTAssertEqual(coordinator.settings.discordClientId, "")
+        XCTAssertEqual(coordinator.settings.discordClientId, PresenceSettings.defaultDiscordApplicationId)
         XCTAssertEqual(coordinator.state.outgoingHeadline, "None / Cleared")
         XCTAssertEqual(coordinator.state.statusMessage, "Disabled")
     }

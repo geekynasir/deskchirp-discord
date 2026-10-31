@@ -7,16 +7,35 @@ namespace DeveloperPresence.Tests;
 public class SettingsServiceTests
 {
     [Fact]
-    public void DefaultSettings_HaveSharingDisabledAndEmptyIdByDefault()
+    public void DefaultSettings_HaveSharingDisabledAndPublisherApplicationId()
     {
         var settings = new PresenceSettings();
 
         // Master sharing must be OFF by default
         Assert.False(settings.EnableSharing);
         Assert.False(settings.IsPaused);
-        Assert.Equal(string.Empty, settings.DiscordClientId);
-        Assert.False(settings.IsValidDiscordClientId());
+        Assert.Equal(PresenceSettings.DefaultDiscordApplicationId, settings.DiscordClientId);
+        Assert.True(settings.IsValidDiscordClientId());
         Assert.Equal(5, settings.UpdateIntervalSeconds);
+    }
+
+    [Theory]
+    [InlineData("", PresenceSettings.DefaultDiscordApplicationId)]
+    [InlineData("123456789012345678", "123456789012345678")]
+    public async Task ExistingSettingsUpgradeBlankIdAndPreserveSharingChoices(string savedId, string expected)
+    {
+        string path = Path.GetTempFileName();
+        try
+        {
+            await File.WriteAllTextAsync(path, System.Text.Json.JsonSerializer.Serialize(new PresenceSettings
+                { DiscordClientId = savedId, EnableSharing = false, IsPaused = true }));
+            var service = new SettingsService(path);
+            await service.LoadSettingsAsync();
+            Assert.Equal(expected, service.Settings.DiscordClientId);
+            Assert.False(service.Settings.EnableSharing);
+            Assert.True(service.Settings.IsPaused);
+        }
+        finally { File.Delete(path); }
     }
 
     [Theory]

@@ -3,6 +3,7 @@ import Foundation
 /// User privacy and configuration settings.
 /// Contains NO tokens, secrets, or sensitive credentials.
 public struct PresenceSettings: Codable, Equatable, Sendable {
+    public static let defaultDiscordApplicationId = "1566210608569782373"
     /// Master presence sharing toggle. OFF by default for privacy.
     public var enableSharing: Bool
 
@@ -10,7 +11,7 @@ public struct PresenceSettings: Codable, Equatable, Sendable {
     public var isPaused: Bool
 
     /// Public numeric Discord Application ID.
-    /// Must default to EMPTY string (never an invented or synthetic ID).
+    /// Publisher-owned public application; no user Developer Portal setup needed.
     public var discordClientId: String
 
     /// Minimum interval between Discord updates in seconds. Default 5 seconds per spec.
@@ -34,7 +35,7 @@ public struct PresenceSettings: Codable, Equatable, Sendable {
     public init(
         enableSharing: Bool = false,
         isPaused: Bool = false,
-        discordClientId: String = "",
+        discordClientId: String = Self.defaultDiscordApplicationId,
         updateIntervalSeconds: Int = 5,
         bundleMappings: [String: SupportedApp] = Self.defaultBundleMappings,
         showT3Activity: Bool = false,
@@ -71,7 +72,7 @@ public struct PresenceSettings: Codable, Equatable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.enableSharing = try container.decodeIfPresent(Bool.self, forKey: .enableSharing) ?? false
         self.isPaused = try container.decodeIfPresent(Bool.self, forKey: .isPaused) ?? false
-        self.discordClientId = try container.decodeIfPresent(String.self, forKey: .discordClientId) ?? ""
+        self.discordClientId = try container.decodeIfPresent(String.self, forKey: .discordClientId) ?? Self.defaultDiscordApplicationId
         self.updateIntervalSeconds = try container.decodeIfPresent(Int.self, forKey: .updateIntervalSeconds) ?? 5
         self.bundleMappings = try container.decodeIfPresent([String: SupportedApp].self, forKey: .bundleMappings) ?? Self.defaultBundleMappings
         self.showT3Activity = try container.decodeIfPresent(Bool.self, forKey: .showT3Activity) ?? false

@@ -9,7 +9,7 @@ public protocol SettingsServicing: AnyObject, Sendable {
 /// Guarantees:
 /// - Sharing is disabled (OFF) by default.
 /// - Show T3 Activity is disabled (OFF) by default.
-/// - Discord Client ID is EMPTY ("") by default.
+/// - Discord uses Deskchirp’s publisher-owned public application ID by default.
 /// - Contains NO secrets, passwords, tokens, or credentials.
 public final class SettingsService: SettingsServicing, @unchecked Sendable {
     public static let shared = SettingsService()
@@ -38,7 +38,8 @@ public final class SettingsService: SettingsServicing, @unchecked Sendable {
         queue.sync {
             let enableSharing = userDefaults.bool(forKey: Keys.enableSharing)
             let isPaused = userDefaults.bool(forKey: Keys.isPaused)
-            let discordClientId = userDefaults.string(forKey: Keys.discordClientId) ?? ""
+            let savedId = userDefaults.string(forKey: Keys.discordClientId) ?? ""
+            let discordClientId = savedId.isEmpty ? PresenceSettings.defaultDiscordApplicationId : savedId
             let interval = userDefaults.integer(forKey: Keys.updateIntervalSeconds)
             let updateIntervalSeconds = interval > 0 ? interval : 5
 

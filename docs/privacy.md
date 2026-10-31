@@ -23,3 +23,9 @@ Membership, device-token hashes, account fingerprints, and revocation flags rema
 Settings retain your sharing choices, public Discord application ID, app mappings, and optional service addresses. Credentials use native secure storage. Troubleshooting may show local error details; review and redact them before sharing. Screenshots and reports you post on GitHub are public unless you use private vulnerability reporting.
 
 Unlinking turns sharing off on that computer and removes its service credential after revocation succeeds. Other computers keep their own settings. Pause sharing is local to the computer where you choose it.
+
+## Automatic setup
+
+Deskchirp includes its publisher’s public Discord application ID. It discovers Discord’s local connection without asking for a Discord password or token. Sharing still starts only when you enable it.
+
+When you choose **Allow T3 activity** without entering an address, Deskchirp reads only T3’s small public runtime-address file and checks local read-only connection metadata. It does not read the encrypted environment catalog, T3 sign-in tokens, logs or conversations. T3 still asks you to approve read-only access in your browser. Remote environments and ambiguous local installations use an address override under Advanced.

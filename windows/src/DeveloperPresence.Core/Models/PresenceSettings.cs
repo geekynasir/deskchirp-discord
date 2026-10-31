@@ -8,6 +8,7 @@ namespace DeveloperPresence.Core.Models;
 /// </summary>
 public sealed class PresenceSettings
 {
+    public const string DefaultDiscordApplicationId = "1566210608569782373";
     /// <summary>
     /// Master presence sharing toggle. OFF by default for privacy.
     /// </summary>
@@ -19,9 +20,9 @@ public sealed class PresenceSettings
     public bool IsPaused { get; set; } = false;
 
     /// <summary>
-    /// Public numeric Discord Application ID. EMPTY by default.
+    /// Publisher-owned public Discord application ID.
     /// </summary>
-    public string DiscordClientId { get; set; } = string.Empty;
+    public string DiscordClientId { get; set; } = DefaultDiscordApplicationId;
 
     /// <summary>
     /// Minimum interval between Discord updates in seconds. Default 5 seconds to respect rate limits.

@@ -27,9 +27,9 @@ final class SettingsServiceTests: XCTestCase {
         // Must NOT be paused by default
         XCTAssertFalse(settings.isPaused, "Paused should be false by default")
 
-        // Discord Client ID must be EMPTY by default (never an invented or synthetic ID)
-        XCTAssertEqual(settings.discordClientId, "", "Discord Client ID must be EMPTY by default")
-        XCTAssertFalse(settings.isValidDiscordClientId, "Empty Client ID must not be valid")
+        // Publisher-owned public application removes per-user registration.
+        XCTAssertEqual(settings.discordClientId, PresenceSettings.defaultDiscordApplicationId)
+        XCTAssertTrue(settings.isValidDiscordClientId)
 
         // 5 seconds default throttle
         XCTAssertEqual(settings.updateIntervalSeconds, 5)
@@ -37,6 +37,16 @@ final class SettingsServiceTests: XCTestCase {
         // Default bundle mappings must include T3 Code and Claude Desktop
         XCTAssertEqual(settings.bundleMappings["com.t3tools.t3code"], .t3Code)
         XCTAssertEqual(settings.bundleMappings["com.anthropic.claudefordesktop"], .claude)
+    }
+
+    func testBlankIdUpgradePreservesPrivacyChoices() {
+        testDefaults.set("", forKey: SettingsService.Keys.discordClientId)
+        testDefaults.set(false, forKey: SettingsService.Keys.enableSharing)
+        testDefaults.set(true, forKey: SettingsService.Keys.isPaused)
+        let settings = SettingsService(userDefaults: testDefaults).loadSettings()
+        XCTAssertEqual(settings.discordClientId, PresenceSettings.defaultDiscordApplicationId)
+        XCTAssertFalse(settings.enableSharing)
+        XCTAssertTrue(settings.isPaused)
     }
 
     func testSaveAndLoadSettings() {

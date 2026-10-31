@@ -18,7 +18,7 @@ GitHub-hosted macOS runners have passed all 71 Swift tests on Apple Silicon and 
 
 ## First run
 
-Open Settings from the menu-bar item. Enter your own public application ID from the [Discord Developer Portal](https://discord.com/developers/applications), start Discord desktop locally, and explicitly enable sharing. No bot token, client secret, or AI calls are required.
+Open Settings from the menu-bar item. Start Discord desktop locally and turn on **Share on Discord**. Deskchirp’s public application ID is included; no Developer Portal setup is needed. No bot token, client secret, or AI calls are required.
 
 Sharing is off by default. Basic sharing shows `Using T3 Code`, `Using Claude`, or `Using Codex`. Optionally [connect T3 Code](../docs/connect-t3.md) and enable **Show T3 activity** to show its busiest agent tool with task and helper counts. Conversations, project names, models, and file paths are never published.
 

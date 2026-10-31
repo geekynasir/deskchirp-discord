@@ -62,6 +62,8 @@ public sealed class SettingsService : ISettingsService
                         loaded.ProcessMappings = PresenceSettings.CreateDefaultMappings();
                     }
 
+                    if (string.IsNullOrEmpty(loaded.DiscordClientId))
+                        loaded.DiscordClientId = PresenceSettings.DefaultDiscordApplicationId;
                     _settings = loaded;
                     SettingsChanged?.Invoke(_settings);
                     return;

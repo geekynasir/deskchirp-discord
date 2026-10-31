@@ -19,7 +19,7 @@ The portable C# core/tests can also run on Linux with .NET 8. That does not comp
 
 ## First run
 
-Sharing is off by default. Enter your own public application ID from the [Discord Developer Portal](https://discord.com/developers/applications), run Discord desktop on the same PC, then enable sharing. Do not enter a bot token or client secret. Basic sharing shows the active app name. Optionally [connect T3 Code](../docs/connect-t3.md) and enable **Show T3 activity** to share its busiest agent tool with task and helper counts. Conversations, projects, models, and files are never published. T3 sign-in is stored in Windows Credential Manager.
+Sharing is off by default. Run Discord desktop on the same PC, then enable sharing. Deskchirp’s public application ID is included; no Developer Portal setup is needed. Do not enter a bot token or client secret. Basic sharing shows the active app name. Optionally [connect T3 Code](../docs/connect-t3.md) and enable **Show T3 activity** to share its busiest agent tool with task and helper counts. Conversations, projects, models, and files are never published. T3 sign-in is stored in Windows Credential Manager.
 
 The settings window closes to the notification area when a tray icon is available. The native tray menu provides Open, Pause/Resume sharing, and Exit. If the tray icon cannot be created, closing exits instead of hiding an inaccessible process. Explorer restart recreates the icon.
 

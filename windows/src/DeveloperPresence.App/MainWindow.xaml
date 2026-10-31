@@ -13,7 +13,7 @@
             <!-- Header Section -->
             <StackPanel Spacing="6">
                 <TextBlock Text="Deskchirp for Discord" Style="{StaticResource TitleTextBlockStyle}" />
-                <TextBlock Text="Show your Discord friends which developer app you’re using." TextWrapping="Wrap" />
+                <TextBlock Text="Open Discord and your developer app, then turn on sharing. Deskchirp connects to Discord automatically." TextWrapping="Wrap" />
             </StackPanel>
 
             <!-- Sharing Section -->
@@ -49,6 +49,35 @@
                         Visibility="{x:Bind BoolToVisibility(ViewModel.HasLastUpdate), Mode=OneWay}" />
                 </StackPanel>
             </Border>
+
+            <!-- T3 Code Section -->
+            <StackPanel Spacing="16">
+                <TextBlock Text="T3 Code" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                <StackPanel Spacing="4">
+                    <ToggleSwitch Header="Show T3 activity" AutomationProperties.Name="Show T3 activity"
+                        Visibility="{x:Bind BoolToVisibility(ViewModel.IsT3Connected), Mode=OneWay}"
+                        IsOn="{x:Bind ViewModel.ShowT3Activity, Mode=TwoWay}" />
+                    <TextBlock Text="Show the busiest agent tool and its task and helper counts. A helper is an extra agent working on part of a task. Each T3 thread counts as a task."
+                        TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+                <StackPanel Spacing="8">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="Status:" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        <TextBlock Text="{x:Bind ViewModel.T3StatusText, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                    </StackPanel>
+                    <TextBlock Text="{x:Bind ViewModel.T3StatusDetail, Mode=OneWay}" TextWrapping="Wrap"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <Button Content="{x:Bind ViewModel.T3ConnectButtonText, Mode=OneWay}"
+                        Command="{x:Bind ViewModel.ConnectT3Command}"
+                        AutomationProperties.Name="{x:Bind ViewModel.T3ConnectButtonAutomationName, Mode=OneWay}" />
+                    <TextBlock Text="Opens your browser so you can approve read-only access in T3 Code. Deskchirp only reads which agent tools are working and how many tasks and helpers they have."
+                        TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Visibility="{x:Bind BoolToVisibility(ViewModel.ShowT3Consent), Mode=OneWay}" />
+                    <TextBlock Text="Your sign-in is saved in Windows Credential Manager."
+                        TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Visibility="{x:Bind BoolToVisibility(ViewModel.IsT3Connected), Mode=OneWay}" />
+                </StackPanel>
+            </StackPanel>
 
             <!-- Linked computers -->
             <Expander Header="Computers" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
@@ -86,15 +115,8 @@
                 </StackPanel>
             </Expander>
 
-            <!-- T3 Code Section -->
-            <StackPanel Spacing="16">
-                <TextBlock Text="T3 Code" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                <StackPanel Spacing="4">
-                    <ToggleSwitch Header="Show T3 activity" AutomationProperties.Name="Show T3 activity"
-                        IsOn="{x:Bind ViewModel.ShowT3Activity, Mode=TwoWay}" />
-                    <TextBlock Text="While T3 Code is the active app, also show which agent tool is busiest and how many tasks and helpers it’s running. A helper is an extra agent that a task starts to handle part of its work. Each T3 thread counts as a task."
-                        TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                </StackPanel>
+            <Expander Header="Advanced" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                <StackPanel Spacing="12">
                 <StackPanel Spacing="4">
                     <TextBox Header="T3 address" AutomationProperties.Name="T3 address"
                         Text="{x:Bind ViewModel.T3Address, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
@@ -102,48 +124,22 @@
                     <TextBlock Text="In T3 Code, open Settings → Environments and choose Copy MCP URL."
                         TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                 </StackPanel>
-                <StackPanel Spacing="8">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <TextBlock Text="Status:" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                        <TextBlock Text="{x:Bind ViewModel.T3StatusText, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                    </StackPanel>
-                    <TextBlock Text="{x:Bind ViewModel.T3StatusDetail, Mode=OneWay}" TextWrapping="Wrap"
-                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                    <Button Content="{x:Bind ViewModel.T3ConnectButtonText, Mode=OneWay}"
-                        Command="{x:Bind ViewModel.ConnectT3Command}"
-                        AutomationProperties.Name="{x:Bind ViewModel.T3ConnectButtonAutomationName, Mode=OneWay}" />
-                    <TextBlock Text="Opens your browser so you can approve read-only access in T3 Code. Deskchirp only reads which agent tools are working and how many tasks and helpers they have."
-                        TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                        Visibility="{x:Bind BoolToVisibility(ViewModel.ShowT3Consent), Mode=OneWay}" />
-                    <TextBlock Text="Your sign-in is saved in Windows Credential Manager."
-                        TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                        Visibility="{x:Bind BoolToVisibility(ViewModel.IsT3Connected), Mode=OneWay}" />
-                </StackPanel>
-            </StackPanel>
-
-            <!-- Discord Section -->
-            <StackPanel Spacing="16">
-                <TextBlock Text="Discord" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                <TextBox Header="Discord application ID" AutomationProperties.Name="Discord application ID"
-                    Text="{x:Bind ViewModel.DiscordClientId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                    PlaceholderText="15–20 digits" />
-                <TextBlock Text="Find it under General Information for your app in the Discord Developer Portal. It’s public, not a password or token."
-                    TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                <TextBlock Text="Application IDs are 15 to 20 digits. Check that you copied the whole number."
-                    TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                    Visibility="{x:Bind BoolToVisibility(ViewModel.ShowClientIdError), Mode=OneWay}" />
-                <HyperlinkButton Content="Open the Discord Developer Portal"
-                    NavigateUri="https://discord.com/developers/applications" Padding="0" />
-                <StackPanel Spacing="4">
+                    <TextBlock Text="Leave the T3 address empty to find the local app. Enter an address only for a remote or custom installation."
+                        TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBox Header="Discord application ID" AutomationProperties.Name="Discord application ID"
+                        Text="{x:Bind ViewModel.DiscordClientId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Text="Deskchirp’s application ID is included. Change this only to use your own Discord application."
+                        TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBlock Text="Application IDs are 15 to 20 digits. Check that you copied the whole number."
+                        TextWrapping="Wrap" Visibility="{x:Bind BoolToVisibility(ViewModel.ShowClientIdError), Mode=OneWay}" />
                     <ToggleSwitch Header="Show app icons" AutomationProperties.Name="Show app icons"
                         IsOn="{x:Bind ViewModel.ShowAppIcons, Mode=TwoWay}" />
-                    <TextBlock Text="Adds the T3 Code icon and agent tool icons to your status. Add the icons to your Discord application first, or they won’t appear."
+                    <TextBlock Text="Optional artwork. Keep this off unless the icons have been added to the Discord application."
                         TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <HyperlinkButton Content="How to add the icons" Padding="0"
+                        NavigateUri="https://github.com/geekynasir/deskchirp-discord/blob/main/docs/connect-t3.md#add-logos" />
                 </StackPanel>
-            </StackPanel>
-
-            <HyperlinkButton Content="How to add the icons"
-                NavigateUri="https://github.com/geekynasir/deskchirp-discord/blob/main/docs/connect-t3.md#add-logos" Padding="0" />
+            </Expander>
 
             <!-- App Detection Section -->
             <Expander Header="App detection" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">

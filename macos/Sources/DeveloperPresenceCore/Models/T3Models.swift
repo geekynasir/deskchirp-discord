@@ -12,7 +12,7 @@ public enum T3ConnectionStatus: String, Codable, Equatable, Sendable {
     public var recoveryText: String {
         switch self {
         case .notConnected:
-            return "Paste the T3 address, then connect."
+            return "Deskchirp finds T3 Code on this computer. Allow access once to share task and helper counts."
         case .openingSignIn:
             return "Approve access in your browser, then come back here."
         case .connected:

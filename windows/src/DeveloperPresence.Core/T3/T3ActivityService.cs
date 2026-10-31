@@ -17,7 +17,7 @@ public sealed class T3ActivityService : IT3ActivityService
     private readonly object _stateLock = new();
 
     private T3ConnectionStatus _connectionStatus = T3ConnectionStatus.NotConnected;
-    private string _statusDetail = "Paste the T3 address, then connect.";
+    private string _statusDetail = "Deskchirp finds T3 Code on this computer. Allow access once to share task and helper counts.";
     private T3Snapshot? _currentSnapshot;
     private T3StoredToken? _storedToken;
     private CancellationTokenSource? _signInCts;
@@ -72,7 +72,7 @@ public sealed class T3ActivityService : IT3ActivityService
         bool matches = T3UrlValidator.TryNormalizeT3Address(settings.T3Address, out var selected, out _) &&
                        string.Equals(selected!.AbsoluteUri, saved.McpUri, StringComparison.Ordinal);
         SetStatus(matches && !saved.IsExpired ? T3ConnectionStatus.Connected : T3ConnectionStatus.NotConnected,
-            matches ? "Activity is checked only while T3 Code is the active app." : "Paste the T3 address, then connect.");
+            matches ? "Activity is checked only while T3 Code is the active app." : "Deskchirp finds T3 Code on this computer. Allow access once to share task and helper counts.");
     }
 
     public async Task InitializeAsync(CancellationToken ct = default)
@@ -105,7 +105,7 @@ public sealed class T3ActivityService : IT3ActivityService
             _authLock.Release();
         }
 
-        SetStatus(T3ConnectionStatus.NotConnected, "Paste the T3 address, then connect.");
+        SetStatus(T3ConnectionStatus.NotConnected, "Deskchirp finds T3 Code on this computer. Allow access once to share task and helper counts.");
     }
 
     public async Task<bool> ConnectAsync(string rawAddress, CancellationToken ct = default)

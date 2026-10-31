@@ -76,6 +76,11 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public ICommand CreateComputerCodeCommand { get; }
     public ICommand UnlinkComputerCommand { get; }
 
+    private readonly IT3LocalDiscovery _t3Discovery;
+    private CancellationTokenSource? _discoveryCts;
+    private bool _findingT3;
+    private string? _setupMessage;
+    private bool _disposed;
     private bool _enableSharing;
     private bool _isPaused;
     private string _discordClientId = string.Empty;
@@ -85,7 +90,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private bool _showAppIcons;
 
     private T3ConnectionStatus _t3ConnectionStatus = T3ConnectionStatus.NotConnected;
-    private string _t3StatusDetail = "Paste the T3 address, then connect.";
+    private string _t3StatusDetail = "Deskchirp finds T3 Code on this computer. Allow access once to share task and helper counts.";
 
     private string _connectionStatusText = "Disconnected";
     private string _foregroundAppText = "No supported app";
@@ -183,7 +188,11 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             string normalized = value.Trim();
             if (_t3Address != normalized)
             {
+                _discoveryCts?.Cancel();
+                _findingT3 = false;
+                _setupMessage = null;
                 _t3Address = normalized;
+                NotifyT3Setup();
                 OnPropertyChanged();
                 _ = UpdateSettingAsync(s => s.T3Address = normalized);
             }
@@ -204,7 +213,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
-    public string T3StatusText => _t3ConnectionStatus switch
+    public string T3StatusText => _findingT3 ? "Finding T3 Code…" : _t3ConnectionStatus switch
     {
         T3ConnectionStatus.OpeningSignIn => "Opening sign-in…",
         T3ConnectionStatus.Connected => "Connected",
@@ -215,22 +224,22 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     public string T3StatusDetail
     {
-        get => _t3StatusDetail;
+        get => _setupMessage ?? _t3StatusDetail;
         private set { _t3StatusDetail = value; OnPropertyChanged(); }
     }
 
-    public string T3ConnectButtonText => _t3ConnectionStatus switch
+    public string T3ConnectButtonText => _findingT3 ? "Cancel" : _t3ConnectionStatus switch
     {
         T3ConnectionStatus.OpeningSignIn => "Cancel",
         T3ConnectionStatus.Connected => "Disconnect",
-        _ => "Connect T3 Code"
+        _ => "Allow T3 activity"
     };
 
-    public string T3ConnectButtonAutomationName => _t3ConnectionStatus switch
+    public string T3ConnectButtonAutomationName => _findingT3 ? "Cancel finding T3 Code" : _t3ConnectionStatus switch
     {
         T3ConnectionStatus.OpeningSignIn => "Cancel T3 sign-in",
         T3ConnectionStatus.Connected => "Disconnect T3 Code",
-        _ => "Connect T3 Code"
+        _ => "Allow T3 activity"
     };
 
     public bool ShowT3Consent => !IsT3Connected && !IsT3Connecting;
@@ -239,7 +248,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         ? "Discord sees the app name and, while T3 Code is active, an agent tool name with task and helper counts. Conversations, thread titles, projects, models, and files are never shared. Close this window to keep running in the notification area."
         : "Discord sees only the name of the app you’re using. Conversations, window titles, files, and projects are never shared. Close this window to keep running in the notification area.";
 
-    public bool IsT3Connecting => _t3ConnectionStatus == T3ConnectionStatus.OpeningSignIn;
+    public bool IsT3Connecting => _findingT3 || _t3ConnectionStatus == T3ConnectionStatus.OpeningSignIn;
     public bool IsT3Connected => _t3ConnectionStatus == T3ConnectionStatus.Connected;
 
     public string ConnectionStatusText
@@ -347,9 +356,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         PresenceCoordinator coordinator,
         Action<Action>? uiDispatcher = null,
         IT3ActivityService? t3ActivityService = null,
-        IComputerLinkService? computers = null)
+        IComputerLinkService? computers = null, IT3LocalDiscovery? t3Discovery = null)
     {
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
+        _t3Discovery = t3Discovery ?? new T3LocalDiscovery();
         _coordinator = coordinator ?? throw new ArgumentNullException(nameof(coordinator));
         _uiDispatcher = uiDispatcher;
         _t3ActivityService = t3ActivityService;
@@ -532,7 +542,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     private void OnConnectT3Clicked()
     {
-        if (_t3ConnectionStatus == T3ConnectionStatus.OpeningSignIn)
+        if (IsT3Connecting)
         {
             OnCancelT3Clicked();
             return;
@@ -546,7 +556,56 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
         if (_t3ActivityService != null)
         {
-            _ = _t3ActivityService.ConnectAsync(T3Address);
+            _ = FindAndConnectT3Async();
+        }
+    }
+
+    private void NotifyT3Setup()
+    {
+        foreach (var name in new[] { nameof(T3StatusText), nameof(T3StatusDetail), nameof(T3ConnectButtonText),
+            nameof(T3ConnectButtonAutomationName), nameof(IsT3Connecting), nameof(IsT3AddressEditable), nameof(ShowT3Consent) })
+            OnPropertyChanged(name);
+    }
+
+    private async Task FindAndConnectT3Async()
+    {
+        _discoveryCts?.Cancel();
+        var cts = new CancellationTokenSource();
+        _discoveryCts = cts;
+        _setupMessage = null;
+        _findingT3 = string.IsNullOrEmpty(T3Address);
+        NotifyT3Setup();
+        try
+        {
+            string address = T3Address;
+            if (_findingT3) address = await _t3Discovery.FindAsync(cts.Token);
+            cts.Token.ThrowIfCancellationRequested();
+            if (_disposed) return;
+            _findingT3 = false;
+            NotifyT3Setup();
+            bool connected = await _t3ActivityService!.ConnectAsync(address, cts.Token);
+            cts.Token.ThrowIfCancellationRequested();
+            if (connected && !_disposed) ShowT3Activity = true;
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            if (!cts.IsCancellationRequested && !_disposed)
+            {
+                _setupMessage = ex is InvalidOperationException &&
+                    (ex.Message == T3LocalDiscovery.NotFound || ex.Message == T3LocalDiscovery.Ambiguous)
+                    ? ex.Message : "Couldn’t find T3 Code. Open it and try again.";
+            }
+        }
+        finally
+        {
+            if (ReferenceEquals(_discoveryCts, cts))
+            {
+                _discoveryCts = null;
+                _findingT3 = false;
+                if (!_disposed) NotifyT3Setup();
+            }
+            cts.Dispose();
         }
     }
 
@@ -560,6 +619,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     private void OnCancelT3Clicked()
     {
+        _discoveryCts?.Cancel();
+        _findingT3 = false;
+        _setupMessage = "Connection cancelled. You can try again whenever you’re ready.";
+        NotifyT3Setup();
         if (_t3ActivityService != null)
         {
             _ = _t3ActivityService.CancelSignInAsync();
@@ -638,6 +701,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     public void Dispose()
     {
+        _disposed = true;
+        _discoveryCts?.Cancel();
         _coordinator.StateChanged -= OnCoordinatorStateChanged;
         _settingsService.SettingsChanged -= OnSettingsChanged;
         if (_computers != null) _computers.Changed -= OnComputerChanged;

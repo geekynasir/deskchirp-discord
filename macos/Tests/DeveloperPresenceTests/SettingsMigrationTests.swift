@@ -40,7 +40,7 @@ final class SettingsMigrationTests: XCTestCase {
 
         XCTAssertFalse(settings.enableSharing)
         XCTAssertFalse(settings.isPaused)
-        XCTAssertEqual(settings.discordClientId, "")
+        XCTAssertEqual(settings.discordClientId, PresenceSettings.defaultDiscordApplicationId)
         XCTAssertEqual(settings.updateIntervalSeconds, 5)
         XCTAssertFalse(settings.showT3Activity)
         XCTAssertEqual(settings.t3Address, "")

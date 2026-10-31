@@ -19,9 +19,9 @@ The app lives in the notification area. Closing its settings hides the window wh
 ## Discord setup on either platform
 
 1. Run the Discord desktop client locally on the same computer.
-2. Create an application at https://discord.com/developers/applications and copy its public **Application ID**. Do not enter a bot token or a client secret.
-3. Open the companion's settings, paste the Application ID, and enable sharing.
-4. Focus a supported desktop application and check your Discord activity. Discord's activity-sharing setting must permit it.
+2. Open Deskchirp settings and turn on **Share on Discord**. It connects automatically using Deskchirp’s included public application ID.
+3. Focus a supported desktop application and check your Discord activity. Discord’s activity-sharing setting must permit it.
+4. For task and helper counts, choose **Allow T3 activity** and approve read-only access in your browser. The local T3 address is found automatically. Remote addresses and custom Discord application IDs are under **Advanced**.
 
 By default, sharing shows only `Using T3 Code`, `Using Claude`, or `Using Codex`. Builds with the optional **Show T3 activity** setting can also show agent tool names and task/helper counts after [connecting T3 Code](connect-t3.md). Use the included `CONNECT-T3.md` when trying a downloaded build. Older builds without that setting remain app-name-only. Projects, models, and conversation contents are not published. Codex on macOS may need an entry under App Detection; desktop app variants may also need one.
 
