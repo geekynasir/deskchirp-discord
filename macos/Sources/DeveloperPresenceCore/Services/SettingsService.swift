@@ -51,7 +51,13 @@ public final class SettingsService: SettingsServicing, @unchecked Sendable {
 
             let showT3Activity = userDefaults.bool(forKey: Keys.showT3Activity)
             let t3Address = userDefaults.string(forKey: Keys.t3Address) ?? ""
-            let showAppIcons = userDefaults.bool(forKey: Keys.showAppIcons)
+            let artworkVersionKey = "developer_presence_artwork_defaults_version"
+            let showAppIcons: Bool
+            if userDefaults.integer(forKey: artworkVersionKey) < 1 {
+                showAppIcons = true
+                userDefaults.set(true, forKey: Keys.showAppIcons)
+                userDefaults.set(1, forKey: artworkVersionKey)
+            } else { showAppIcons = userDefaults.bool(forKey: Keys.showAppIcons) }
 
             return PresenceSettings(
                 enableSharing: enableSharing,

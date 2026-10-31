@@ -58,7 +58,7 @@ public enum T3ActivityFormatter {
         let assets: DiscordActivityAssets?
         if showAppIcons {
             let smallImage = assetKeyForTool(winner)
-            assets = DiscordActivityAssets(largeImage: "t3_code", smallImage: smallImage)
+            assets = DiscordActivityAssets(largeImage: "t3_code", largeText: "T3 Code", smallImage: smallImage, smallText: smallImage == nil ? nil : winner)
         } else {
             assets = nil
         }
@@ -118,6 +118,9 @@ public enum T3ActivityFormatter {
             return "harness_codex"
         case "Antigravity":
             return "harness_antigravity"
+        case "Cursor": return "harness_cursor"
+        case "OpenCode": return "harness_opencode"
+        case "Grok": return "harness_grok"
         default:
             return nil
         }

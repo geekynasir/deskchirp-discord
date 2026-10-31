@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 @MainActor
 public struct SettingsView: View {
@@ -59,37 +60,43 @@ public struct SettingsView: View {
 
             // 2. Discord Preview
             Section("Discord preview") {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(previewHeadline)
-                        .font(.headline)
-
-                    if let state = coordinator.state.outgoingState {
-                        Text(state)
-                            .font(.body)
+                HStack(alignment: .top, spacing: 14) {
+                    if let image = previewImage {
+                        Image(nsImage: image).resizable().frame(width: 52, height: 52)
+                            .accessibilityHidden(true)
                     }
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(previewHeadline)
+                            .font(.headline)
 
-                    Text(sharingStatus.title)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        if let state = coordinator.state.outgoingState {
+                            Text(state)
+                                .font(.body)
+                        }
 
-                    if let recovery = sharingStatus.recovery {
-                        Text(recovery)
-                            .font(.caption)
+                        Text(sharingStatus.title)
+                            .font(.subheadline)
                             .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
 
-                    if coordinator.state.foregroundApp == .t3Code, let note = coordinator.state.t3ActivityNote {
-                        Text(note)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+                        if let recovery = sharingStatus.recovery {
+                            Text(recovery)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
 
-                    if let updated = coordinator.state.lastUpdate {
-                        Text("Last updated \(updated.formatted(date: .omitted, time: .shortened))")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        if let note = coordinator.state.t3ActivityNote {
+                            Text(note)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        if let updated = coordinator.state.lastUpdate {
+                            Text("Last updated \(updated.formatted(date: .omitted, time: .shortened))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
                 .accessibilityElement(children: .combine)
@@ -217,7 +224,7 @@ public struct SettingsView: View {
                         }
                     ))
 
-                    Text("Optional artwork. Keep this off unless the icons have been added to the Discord application.")
+                    Text("Included app and agent artwork. No upload is needed.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -310,6 +317,13 @@ public struct SettingsView: View {
 
     // MARK: - Helpers
 
+    private var previewImage: NSImage? {
+        let headline = coordinator.state.outgoingHeadline
+        let key = headline.contains("T3 Code") ? "t3_code" : headline == "Using Claude" ? "harness_claude" : headline == "Using Codex" ? "harness_codex" : "deskchirp"
+        guard let url = Bundle.main.url(forResource: key, withExtension: "png", subdirectory: "Discord-artwork") else { return nil }
+        return NSImage(contentsOf: url)
+    }
+
     private var previewHeadline: String {
         coordinator.state.outgoingHeadline == ActivityFormatter.headlineNone ? "Not shown on Discord" : coordinator.state.outgoingHeadline
     }
@@ -330,7 +344,7 @@ public struct SettingsView: View {
 
     private var privacyFooterText: String {
         if coordinator.settings.showT3Activity {
-            return "Discord sees the app name and, while T3 Code is active, an agent tool name with task and helper counts. Conversations, thread titles, projects, models, and files are never shared."
+            return "Discord sees the app name and T3 agent tool names with task and helper counts, including work running in the background. Conversations, thread titles, projects, models, and files are never shared."
         } else {
             return "Discord sees only the name of the app you’re using. Conversations, window titles, files, and projects are never shared."
         }

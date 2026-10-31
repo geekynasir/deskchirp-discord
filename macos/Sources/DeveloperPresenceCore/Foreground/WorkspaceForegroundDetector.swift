@@ -6,7 +6,7 @@ import AppKit
 /// Detects foreground application using macOS NSWorkspace.
 ///
 /// Privacy & Security Guarantees:
-/// - Reads ONLY `NSWorkspace.shared.frontmostApplication?.bundleIdentifier`.
+/// - Reads ONLY frontmost/running application bundle identifiers from NSWorkspace.
 /// - Never inspects window titles, document URLs, screen pixels, or process arguments.
 /// - Requires NO Screen Recording or Accessibility permissions.
 /// - Fails closed: unmapped or unknown applications return `SupportedApp.none`.
@@ -70,6 +70,22 @@ public final class WorkspaceForegroundDetector: ForegroundDetecting, @unchecked 
             NSWorkspace.shared.notificationCenter.removeObserver(observer)
             notificationObserver = nil
         }
+        #endif
+    }
+
+    public func isAppRunning(_ app: SupportedApp) -> Bool {
+        #if canImport(AppKit)
+        let identifiers: [String]
+        if Thread.isMainThread {
+            identifiers = NSWorkspace.shared.runningApplications.compactMap { $0.bundleIdentifier?.lowercased() }
+        } else {
+            identifiers = DispatchQueue.main.sync { NSWorkspace.shared.runningApplications.compactMap { $0.bundleIdentifier?.lowercased() } }
+        }
+        mappingsLock.lock()
+        defer { mappingsLock.unlock() }
+        return identifiers.contains { bundleMappings[$0] == app }
+        #else
+        return false
         #endif
     }
 

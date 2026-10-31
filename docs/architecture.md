@@ -22,7 +22,7 @@ Logical boundaries on each platform:
 
 The baseline identifies the active desktop app. The optional [T3 activity adapter](../spec/t3-activity.md) adds a browser-approved, read-only connection to one T3 environment. It reads capabilities and paginated thread metadata, groups tasks and helpers by the tool that runs them, and publishes the busiest tool with separate counts. No conversation-reading tools are used. Claude Desktop and Codex Desktop remain app-name-only.
 
-The adapter runs only while T3 Code is active and sharing is allowed. A failed, incomplete, or stale snapshot falls back to the app name. Private provider labels, projects, thread titles, model names, and addresses never enter the Discord card. Tokens and cost remain research topics, outside this adapter's scope. See [verification status](validation.md) for the builds and behavior actually checked.
+The adapter runs while the T3 desktop app is open and sharing is allowed, including when T3 is minimized. A failed, incomplete, or stale snapshot falls back to the app name. Private provider labels, projects, thread titles, model names, and addresses never enter the Discord card. Tokens and cost remain research topics, outside this adapter's scope. See [verification status](validation.md) for the builds and behavior actually checked.
 
 ## Native integrations
 

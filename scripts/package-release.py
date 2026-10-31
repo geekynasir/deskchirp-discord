@@ -87,6 +87,16 @@ def package(artifacts, output, version, commit, run_url):
     shutil.copyfile(installer, published_installer)
     archives.append(published_installer)
     print(published_installer.name, published_installer.stat().st_size, "bytes")
+    artwork = output / f"Deskchirp-{version}-artwork.zip"
+    root = Path(__file__).resolve().parent.parent
+    with zipfile.ZipFile(artwork, "w", compression=zipfile.ZIP_DEFLATED) as pack:
+        for directory in (root / "assets/discord", root / "assets/brand"):
+            for asset in sorted(directory.iterdir()):
+                if asset.is_file(): pack.write(asset, asset.relative_to(root / "assets").as_posix())
+        pack.write(root / "LICENSE", "LICENSE")
+        pack.write(root / "licenses/t3code-MIT.txt", "licenses/t3code-MIT.txt")
+        pack.writestr("BUILD-INFO.json", json.dumps({"version": version, "commit": commit, "platform": "artwork"}, indent=2) + "\n")
+    archives.append(artwork)
     (output / "SHA256SUMS").write_text("".join(
         hashlib.sha256(path.read_bytes()).hexdigest() + "  " + path.name + "\n" for path in archives
     ))

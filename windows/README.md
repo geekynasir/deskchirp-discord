@@ -28,3 +28,9 @@ Preferences are stored at `%LOCALAPPDATA%\DeveloperPresence\settings.json`. Exec
 Lock, suspend, or remote-session disconnect clears sharing. An unlock refreshes foreground state. The initial remote-session behavior is conservative: if reconnect does not emit unlock, sharing can remain cleared until the next unlock or application restart. Validate this against your remote-desktop setup.
 
 The WinUI x64 app has been compiled and published on a GitHub-hosted Windows runner, including .NET and Windows App SDK runtimes. Download the preview from [GitHub Releases](https://github.com/geekynasir/deskchirp-discord/releases/tag/v0.1.0-preview.1) and follow [download instructions](../docs/trying-builds.md) to try it without Visual Studio. This is an unsigned development folder, not an installer. Actual launch, real Discord, scaling/accessibility, power/session messages, clean-machine deployment, and signing remain unverified; see the [acceptance checklist](../docs/acceptance.md).
+
+## Installer
+
+The recommended public download is `Deskchirp-<version>-windows-x64-setup.exe`. It installs per user, includes .NET, Windows App SDK and app-local Visual C++ runtimes, creates a Start shortcut, and registers an uninstaller. It needs no administrator access. A separately labelled portable ZIP remains available.
+
+After publishing to `dist/windows-x64`, run `scripts/build-windows-installer.ps1` from the repository root on Windows with Visual Studio 2022 C++ tools and Inno Setup 6 installed. The hosted Windows runner supplies both. `scripts/test-windows-installer.ps1` is for disposable CI machines: it installs an older-version setup fixture, launches from Start, upgrades and uninstalls. User settings and secure-store sign-ins are intentionally retained. These preview installers are unsigned.

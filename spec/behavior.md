@@ -25,9 +25,9 @@ An activity is eligible only if all of these are true:
 1. Persisted settings have finished loading.
 2. Sharing is enabled, a valid numeric application ID is configured, and the user has not paused.
 3. The session is unlocked and awake.
-4. A current supported foreground application has been observed.
+4. A supported foreground app or the still-running T3 desktop app has been observed.
 
-An unsupported foreground application clears presence. Opening the companion's settings may therefore clear it. No background-work claim is inferred from an app remaining open. After wake/unlock, refresh foreground identity before publishing again. A failed foreground read clears eligibility instead of retaining an old observation indefinitely.
+An unsupported foreground application clears presence unless T3 Code is still running. A running T3 app may be minimized; unfinished T3 work takes priority over another supported foreground app, otherwise the foreground developer app wins. If no supported app is focused, a running T3 app keeps its app-name card. Quitting T3 clears T3 counts. Opening the companion's settings keeps a running T3 card visible. No background-work claim is inferred from an app remaining open. After wake/unlock, refresh foreground identity before publishing again. A failed foreground read clears the foreground observation instead of retaining it indefinitely; independently detected running T3 remains eligible.
 
 Turning sharing off or pausing must invalidate pending work immediately. A delayed connect, throttled update, timer, or stale callback must never restore an earlier activity. Changing the application ID closes the old connection before using the new identity. Shutdown clears presence best-effort, closes the connection, and does not wait indefinitely.
 

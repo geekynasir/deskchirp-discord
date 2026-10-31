@@ -72,7 +72,7 @@ public sealed class T3ActivityService : IT3ActivityService
         bool matches = T3UrlValidator.TryNormalizeT3Address(settings.T3Address, out var selected, out _) &&
                        string.Equals(selected!.AbsoluteUri, saved.McpUri, StringComparison.Ordinal);
         SetStatus(matches && !saved.IsExpired ? T3ConnectionStatus.Connected : T3ConnectionStatus.NotConnected,
-            matches ? "Activity is checked only while T3 Code is the active app." : "Deskchirp finds T3 Code on this computer. Allow access once to share task and helper counts.");
+            matches ? "T3 work stays visible while the app is minimized." : "Deskchirp finds T3 Code on this computer. Allow access once to share task and helper counts.");
     }
 
     public async Task InitializeAsync(CancellationToken ct = default)
@@ -93,7 +93,7 @@ public sealed class T3ActivityService : IT3ActivityService
                     }
                     else
                     {
-                        SetStatus(T3ConnectionStatus.Connected, "Activity is checked only while T3 Code is the active app.");
+                        SetStatus(T3ConnectionStatus.Connected, "T3 work stays visible while the app is minimized.");
                     }
                     return;
                 }
@@ -162,7 +162,7 @@ public sealed class T3ActivityService : IT3ActivityService
                 await _settingsService.UpdateSettingsAsync(s => s.T3Address = normalizedMcpUri!.AbsoluteUri).ConfigureAwait(false);
 
                 _leaderTracker.Reset();
-                SetStatus(T3ConnectionStatus.Connected, "Activity is checked only while T3 Code is the active app.");
+                SetStatus(T3ConnectionStatus.Connected, "T3 work stays visible while the app is minimized.");
                 return true;
             }
             finally

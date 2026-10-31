@@ -240,7 +240,7 @@ public class T3CoordinatorRegressionsTests
         Assert.False(settings.ShowT3Activity);
         // Default T3Address must be empty
         Assert.Equal(string.Empty, settings.T3Address);
-        // Default ShowAppIcons must be false (plain text only)
-        Assert.False(settings.ShowAppIcons);
+        // Fixed bundled artwork is available without publisher uploads.
+        Assert.True(settings.ShowAppIcons);
     }
 }

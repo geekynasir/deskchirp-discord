@@ -50,7 +50,8 @@ public sealed class PresenceSettings
     /// Optional OFF-by-default toggle to show Discord rich presence app artwork/icons.
     /// Requires assets configured on user's registered Discord application.
     /// </summary>
-    public bool ShowAppIcons { get; set; } = false;
+    public bool ShowAppIcons { get; set; } = true;
+    public int ArtworkDefaultsVersion { get; set; } = 0;
 
     public bool FollowComputers { get; set; } = false;
     public string ComputerLinkAddress { get; set; } = string.Empty;

@@ -389,7 +389,8 @@ public sealed class PresenceCoordinator : IAsyncDisposable
                 }
             }
 
-            bool isT3Eligible = isSharingAllowed && focusedApp == SupportedApp.T3Code && settings.ShowT3Activity;
+            bool t3Running = focusedApp == SupportedApp.T3Code || _foregroundDetector.IsAppRunning(SupportedApp.T3Code, settings.ProcessMappings);
+            bool isT3Eligible = isSharingAllowed && t3Running && settings.ShowT3Activity;
             if (_wasT3Eligible && !isT3Eligible)
             {
                 _wasT3Eligible = false;
@@ -401,7 +402,14 @@ public sealed class PresenceCoordinator : IAsyncDisposable
                 _wasT3Eligible = true;
             }
 
-            if (focusedApp == SupportedApp.None)
+            if (isT3Eligible && _t3ActivityService?.ConnectionStatus == T3ConnectionStatus.Connected &&
+                DateTimeOffset.UtcNow - _lastT3PollTimestamp >= TimeSpan.FromSeconds(15))
+            {
+                _lastT3PollTimestamp = DateTimeOffset.UtcNow;
+                BeginT3Poll();
+            }
+            SupportedApp displayedApp = ChooseDisplayedApp(focusedApp, t3Running, settings);
+            if (displayedApp == SupportedApp.None)
             {
                 // Keep a linked standby connection for account identity. Unsupported apps
                 // still select this computer, but never publish developer activity.
@@ -427,7 +435,7 @@ public sealed class PresenceCoordinator : IAsyncDisposable
             string? outgoingState = null;
             string? activityNote = null;
 
-            if (focusedApp == SupportedApp.T3Code)
+            if (displayedApp == SupportedApp.T3Code)
             {
                 if (settings.ShowT3Activity)
                 {
@@ -485,12 +493,13 @@ public sealed class PresenceCoordinator : IAsyncDisposable
             else
             {
                 // Claude / Codex desktop: T3 activity is never published to other apps
-                activity = ActivityFormatter.FormatActivity(focusedApp, true, false);
-                headline = ActivityFormatter.GetHeadline(focusedApp);
+                activity = ActivityFormatter.FormatActivity(displayedApp, true, false);
+                headline = ActivityFormatter.GetHeadline(displayedApp);
                 outgoingState = null;
                 activityNote = null;
             }
 
+            activity = DiscordArtwork.Apply(activity, displayedApp, settings.ShowAppIcons);
             UpdateState(s =>
             {
                 s.ForegroundApp = focusedApp;
@@ -531,7 +540,9 @@ public sealed class PresenceCoordinator : IAsyncDisposable
                     return;
                 }
 
-                SupportedApp freshApp = _foregroundDetector.DetectForegroundApp(freshSettings.ProcessMappings);
+                SupportedApp freshFocus = _foregroundDetector.DetectForegroundApp(freshSettings.ProcessMappings);
+                bool freshT3Running = freshFocus == SupportedApp.T3Code || _foregroundDetector.IsAppRunning(SupportedApp.T3Code, freshSettings.ProcessMappings);
+                SupportedApp freshApp = ChooseDisplayedApp(freshFocus, freshT3Running, freshSettings);
                 if (freshApp == SupportedApp.None)
                 {
                     await ClearAndDropConnectionAsync().ConfigureAwait(false);
@@ -540,7 +551,7 @@ public sealed class PresenceCoordinator : IAsyncDisposable
                     return;
                 }
 
-                if (freshApp != focusedApp)
+                if (freshApp != displayedApp)
                 {
                     // Focus changed during connect; retry evaluation immediately
                     TriggerImmediateEvaluation();
@@ -573,11 +584,11 @@ public sealed class PresenceCoordinator : IAsyncDisposable
                 }
                 else
                 {
-                    await _discordClient.SendActivityAsync(focusedApp, token).ConfigureAwait(false);
+                    await _discordClient.SendActivityAsync(displayedApp, token).ConfigureAwait(false);
                 }
 
                 _lastSentTimestamp = DateTimeOffset.UtcNow;
-                _lastSentApp = focusedApp;
+                _lastSentApp = displayedApp;
                 _lastSentActivity = activity;
                 _connectionNeedsPublish = false;
 
@@ -603,6 +614,16 @@ public sealed class PresenceCoordinator : IAsyncDisposable
             }
             _evalLock.Release();
         }
+    }
+
+    private SupportedApp ChooseDisplayedApp(SupportedApp foreground, bool t3Running, PresenceSettings settings)
+    {
+        var snapshot = _t3ActivityService?.CurrentSnapshot;
+        var age = snapshot == null ? TimeSpan.MaxValue : DateTimeOffset.UtcNow - snapshot.Timestamp;
+        bool hasWork = settings.ShowT3Activity && snapshot?.IsValid == true &&
+            snapshot.WinningHarness?.TotalActive > 0 &&
+            age >= TimeSpan.Zero && age <= T3ActivityService.SnapshotTtl;
+        return t3Running && (hasWork || foreground == SupportedApp.None) ? SupportedApp.T3Code : foreground;
     }
 
     private void OnDiscordStatusChanged(PresenceConnectionStatus status, string? message)

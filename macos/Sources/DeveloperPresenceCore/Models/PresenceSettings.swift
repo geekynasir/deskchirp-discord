@@ -40,7 +40,7 @@ public struct PresenceSettings: Codable, Equatable, Sendable {
         bundleMappings: [String: SupportedApp] = Self.defaultBundleMappings,
         showT3Activity: Bool = false,
         t3Address: String = "",
-        showAppIcons: Bool = false,
+        showAppIcons: Bool = true,
         followComputers: Bool = false,
         computerLinkAddress: String = ""
     ) {
@@ -77,7 +77,7 @@ public struct PresenceSettings: Codable, Equatable, Sendable {
         self.bundleMappings = try container.decodeIfPresent([String: SupportedApp].self, forKey: .bundleMappings) ?? Self.defaultBundleMappings
         self.showT3Activity = try container.decodeIfPresent(Bool.self, forKey: .showT3Activity) ?? false
         self.t3Address = try container.decodeIfPresent(String.self, forKey: .t3Address) ?? ""
-        self.showAppIcons = try container.decodeIfPresent(Bool.self, forKey: .showAppIcons) ?? false
+        self.showAppIcons = try container.decodeIfPresent(Bool.self, forKey: .showAppIcons) ?? true
         self.followComputers = try container.decodeIfPresent(Bool.self, forKey: .followComputers) ?? false
         self.computerLinkAddress = try container.decodeIfPresent(String.self, forKey: .computerLinkAddress) ?? ""
     }

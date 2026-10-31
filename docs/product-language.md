@@ -168,7 +168,7 @@ This replaces `SettingsView.swift:51` and `MainWindow.xaml:79`. The current text
 | Element | Copy |
 |---|---|
 | T3 activity off | Discord sees only the name of the app you’re using. Conversations, window titles, files, and projects are never shared. |
-| T3 activity on | Discord sees the app name and, while T3 Code is active, an agent tool name with task and helper counts. Conversations, thread titles, projects, models, and files are never shared. |
+| T3 activity on | Discord sees the app name and T3 agent tool names with task and helper counts, including work running in the background. Conversations, thread titles, projects, models, and files are never shared. |
 | Windows only, second sentence | Close this window to keep running in the notification area. |
 
 ### App detection (advanced)
