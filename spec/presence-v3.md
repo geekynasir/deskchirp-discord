@@ -122,6 +122,7 @@ Model (`shareModel`): append ` · {model}` to the workload state. Model label = 
 - Small badge `status`: running → `status_working` / `Working`; waiting → `status_attention` / `Waiting`; starting → `status_working` / `Starting`. No fresh work → no badge.
 - Small badge `provider`: the featured tool's `harness_*` key with the tool's public name; tools without artwork → no badge.
 - `showAppIcons = false` removes all assets, as before.
+- Artwork URLs move to the `artwork-v2` tag, which adds `status_working`, `status_attention`, and `status_idle`. The tag is one constant per app.
 
 ### 5.5 Timer
 

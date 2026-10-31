@@ -1,6 +1,6 @@
 # Show your T3 activity on Discord
 
-Deskchirp can show which agent tools are working in T3 Code, along with the number of tasks and helpers. Helpers are extra agents working on your tasks.
+Deskchirp can show which agent tools are working in T3 Code, how many tasks and helpers are running, and optionally token usage. Helpers are extra agents working on your tasks.
 
 ## Connect T3 Code
 
@@ -12,43 +12,74 @@ Deskchirp can show which agent tools are working in T3 Code, along with the numb
 
 The saved connection is restored on later launches. T3 currently grants access for 30 days; Deskchirp asks you to approve again when it expires. It never opens approval repeatedly in the background.
 
-### Remote or custom installations
+## Tasks running on another computer
 
-Local discovery reads only T3’s public `server-runtime.json` address and checks its read-only connection metadata. It also checks the default local port, 3773. It never opens T3’s encrypted connection catalog or reads saved tokens. If more than one environment answers, Deskchirp asks you to choose instead of guessing.
+If your tasks run in a remote T3 environment (for example a server your T3 desktop app connects to), add that environment too:
 
-To select a remote environment, open **Advanced** in Deskchirp. In T3 Code, use **Settings → Environments → Copy MCP URL**, paste it into **T3 address**, and choose **Allow T3 activity**. Use HTTPS for a remote environment. Leave the address empty to discover the local app again. If T3 changes its local port after an update or restart, clear the old address and reconnect.
+1. In T3 Code, open the remote environment’s menu and choose **Copy MCP URL**.
+2. In Deskchirp, open **T3 environments → Add environment** and paste it.
+3. Choose **Allow** next to the new environment and approve access in the browser.
 
-Deskchirp follows the approved environment, which can differ from the environment selected in T3’s desktop window. It does not merge every saved environment. Custom data folders are found when Deskchirp inherits `T3CODE_HOME`; otherwise use the address override.
+Deskchirp follows every environment in the list and combines their counts. One unreachable environment doesn’t hide the others. If an environment is connected but never shows work, Deskchirp says so, which usually means your tasks run somewhere else.
 
-## What friends see
+Local discovery reads only T3’s public `server-runtime.json` address and checks its read-only connection metadata, plus the default local port 3773. It never opens T3’s encrypted connection catalog or reads saved tokens. Remove an environment to delete its saved sign-in.
 
-For example, if Claude Code is doing the most work:
+## Choose what the card shows
 
-```
-T3 Code · Claude Code
-2 tasks · 4 helpers
-```
+**Card shows** has three styles:
 
-The tool doing the most work is picked from current activity. Brief changes do not make the label jump back and forth. Helpers are counted under the tool actually running them, even when their parent task uses a different tool. Finished work does not add to the live count.
+| Style | Example |
+| --- | --- |
+| App only | `Using T3 Code` |
+| Workload | `T3 Code · Claude Code` / `2 tasks · 4 helpers` |
+| Usage | `T3 Code · Claude Code` / `842K tokens today` |
 
-Some tools do not report every internal helper separately. The app can show only the work T3 makes available. It does not guess missing counts, and it does not claim that waiting work needs your approval.
+Other options, all off unless noted:
 
-If T3 cannot be reached or the activity is out of date, Discord falls back to **Using T3 Code**. Claude Desktop and Codex Desktop continue to show their app names; T3 activity is never added to those cards.
+- **Small badge:** status (working / waiting, the default), the busiest tool’s logo, or none.
+- **Project alias:** a name you type for a project, such as `Orbit Notes`. Real project names are never sent.
+- **Model:** for example `claude-opus-5-5`, from the busiest tool’s most recent running task.
+- **Estimated API cost:** for usage today only, shown as `~$1.84 API est.`. This is what the tokens would cost at API prices, not what you paid.
+- **Elapsed timer** (on): how long the current stretch of work has lasted. Switching between running and waiting doesn’t reset it.
+- **Playful wording:** `Herding 3 agents`, `Crunched 1.2M tokens today`, `Context tank 62% full`. Only real numbers are used.
+- **Buttons:** none, a **Get Deskchirp** link, or that link plus a public GitHub repository for the aliased project.
+- **Hide projects:** excluded projects are removed before anything is counted.
+- **Pin a project or task:** counts only that project, or measures that task’s tokens and context.
+- **Which app wins:** keep T3 work visible in the background (the default), or always follow the app you’re using.
 
-## Add logos
+The preview lists every field that will be sent and warns when a line may be cut off on Discord.
 
-App and agent artwork is bundled and on by default. The card uses fixed public image URLs from the versioned [artwork pack](../assets/discord/README.md), which Discord fetches through its media proxy. Users do not need to register or upload anything. **Advanced → Show app icons** can turn it off. Custom application IDs work with the same public images.
+## Token usage
 
-The application's publisher icon is separate from card artwork: it is managed in the Discord Developer Portal by the owner of Deskchirp's application.
+T3’s read-only connection doesn’t include token counts, so token usage needs a second permission for each environment:
+
+1. In Deskchirp, choose **Allow token usage** next to the environment.
+2. On the computer running that environment, run the command Deskchirp shows:
+   `t3 pair --scope orchestration:read --scope diagnostics:read --label Deskchirp`
+3. Paste the code or pairing link it prints into Deskchirp within 5 minutes. Each code works once.
+
+This permission lasts 30 days. It also allows reading diagnostics and task details. Deskchirp uses it only for token counts and never stores or sends conversation content. **Remove token access** deletes it.
+
+Usage options:
+
+- **Today:** tokens counted by that computer’s provider tools today, including use outside T3. Unavailable while any project is hidden, because these totals can’t skip projects.
+- **This session:** tokens from tasks that started during the current stretch of work.
+- **Pinned task:** tokens for one task you choose.
+- **Context:** how full the pinned task’s context window is.
+- **Count:** all tokens, input only, or output only; compact (`842K`) or exact (`842,112`).
+
+Missing, partial, or out-of-date numbers are never shown as zero. The card falls back to task counts instead.
+
+## Logos
+
+App, agent and status artwork is bundled and on by default. The card uses fixed public image URLs from the versioned [artwork pack](../assets/discord/README.md), which Discord fetches through its media proxy. **Advanced → Show app icons** turns it off.
 
 ## Privacy and disconnecting
 
-Task counts and agent tool names are optional. Project names, conversation titles, prompts, code, model names, and file paths are not published. Account names and custom connection labels are not used as public tool names.
+Everything beyond the app name is optional. Project names, conversation titles, prompts, code, file paths, environment names and addresses are never published. Account names and custom connection labels are not used as public tool names.
 
-T3 grants read-only access to thread metadata. The app uses it to read tool names and activity; it does not open conversations or run agents. Sign-in credentials stay in your computer's secure storage.
-
-Pause sharing, turn it off, or quit to clear Discord. **Disconnect** removes this app's saved T3 connection. You can also revoke its access in T3's **Settings → Sharing & access**. If access expires or is revoked, choose **Allow T3 activity** again.
+Sign-in credentials stay in your computer’s secure storage. Pause sharing, turn it off, or quit to clear Discord. You can also revoke access in T3’s **Settings → Sharing & access**.
 
 ## Minimized and background apps
 
-T3 does not need focus. Deskchirp observes whether its desktop app is running using only its exact app identifier or program name. Fresh running, waiting or starting T3 work takes priority over another active developer app. Otherwise the active developer app wins; when no supported developer app has focus, an open T3 app still shows its app-name card. Closing T3 clears its counts. Sharing off, pause, screen lock, sleep and linked-computer selection continue to hide activity.
+T3 does not need focus. Deskchirp observes whether its desktop app is running using only its exact app identifier or program name. With the default setting, fresh T3 work takes priority over another active developer app. Closing T3 clears its counts. Sharing off, pause, screen lock, sleep and linked-computer selection continue to hide activity.
