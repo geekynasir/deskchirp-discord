@@ -145,6 +145,21 @@ jobs:
           Copy-Item docs/connect-t3.md dist/windows-x64/CONNECT-T3.md
           Copy-Item docs/computers.md dist/windows-x64/COMPUTERS.md
           Copy-Item -Recurse assets/discord dist/windows-x64/Discord-artwork
+      - name: Build Windows installer with bundled runtimes
+        shell: pwsh
+        run: ./scripts/build-windows-installer.ps1
+      - name: Capture the setup wizard
+        shell: pwsh
+        run: ./scripts/capture-installer.ps1
+      - name: Verify installed app, shortcuts, upgrade and uninstall
+        shell: pwsh
+        run: ./scripts/test-windows-installer.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Deskchirp-windows-installer
+          path: dist/windows-installer/
+          if-no-files-found: error
+          retention-days: 14
       - name: Capture native settings for review
         continue-on-error: true
         shell: pwsh
