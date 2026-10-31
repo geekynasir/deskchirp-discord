@@ -104,4 +104,26 @@ final class ComputerLinkTests: XCTestCase {
         })
         client.clearAndCloseImmediately()
     }
+
+    func testTransportWaitsForComputerPermissionBeforeWritingActivity() async {
+        let transport = ScriptedMockDiscordTransport()
+        let client = DiscordIpcClient(transport: transport, candidatePathsProvider: { ["/mock"] })
+        let permission = ComputerPermission(inputAge: { 0 })
+        permission.configure(linked: true, account: "123456789012345678")
+        client.publishAllowed = { account in permission.allows(account: account) }
+        let ready = expectation(description: "ready without permission")
+        client.onStatusChanged = { status, _ in if status == .connected { ready.fulfill() } }
+        client.updateActivity(DiscordActivity(details: "Using T3 Code"), clientId: "123456789012345678")
+        transport.simulateReady(userId: "123456789012345678")
+        await fulfillment(of: [ready], timeout: 2)
+        XCTAssertFalse(transport.snapshotSentFrames().contains { frame in
+            guard let object = try? JSONSerialization.jsonObject(with: frame.payload) as? [String: Any] else { return false }
+            return object["cmd"] as? String == "SET_ACTIVITY"
+        })
+        permission.grant(start: .now, seconds: 15)
+        client.updateActivity(DiscordActivity(details: "Using T3 Code"), clientId: "123456789012345678")
+        transport.waitForActivityFrame()
+        permission.invalidate()
+        client.clearAndCloseImmediately()
+    }
 }

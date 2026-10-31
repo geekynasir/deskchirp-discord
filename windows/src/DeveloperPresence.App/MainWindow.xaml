@@ -51,8 +51,9 @@
             </Border>
 
             <!-- Linked computers -->
-            <Expander Header="Computers" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
-                <StackPanel Spacing="12" IsEnabled="{x:Bind ViewModel.CanChangeComputerLink, Mode=OneWay}">
+            <Expander Header="Computers" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                IsEnabled="{x:Bind ViewModel.CanChangeComputerLink, Mode=OneWay}">
+                <StackPanel Spacing="12">
                     <TextBlock Text="Follow me" Style="{StaticResource BodyStrongTextBlockStyle}" />
                     <TextBlock Text="Share from the computer you most recently used. Other linked computers wait. Switching waits briefly for the previous computer to stop. Activity hides after five minutes without input."
                         TextWrapping="Wrap" />

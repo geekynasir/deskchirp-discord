@@ -234,7 +234,11 @@ public sealed class ComputerLinkService : IComputerLinkService
             if (instant > _lastInput + .3) { _lastInput = instant; _inputSequence++; }
             context = _contextVersion; sequence = _inputSequence;
         }
-        if (credential == null) { SetStatus("Not linked. Enter a linking code to continue.", clear: true); return; }
+        if (credential == null)
+        {
+            if (Status == "Not linked") SetStatus("Not linked. Enter a linking code to continue.", clear: true);
+            return;
+        }
         long start = _clock.GetTimestamp();
         var reply = await PostAsync(credential.Server, "/v1/heartbeat", new {
             runtimeId = _runtime, inputSequence = sequence, inputAge = Math.Floor(age), available, accountKey = account

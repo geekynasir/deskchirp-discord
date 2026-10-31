@@ -193,7 +193,10 @@ public final class ComputerLinkService: ObservableObject {
 
     public func pollOnce() async {
         guard linked, !isBusy else { return }
-        guard let value = credential else { status = "Not linked. Enter a linking code to continue."; onChanged?(); return }
+        guard let value = credential else {
+            if status == "Not linked" { status = "Not linked. Enter a linking code to continue."; onChanged?() }
+            return
+        }
         let input = inputAge()
         let age = input.flatMap { $0.isFinite && $0 >= 0 && $0 <= 604800 ? $0 : nil } ?? 604800
         let instant = seconds(epoch.duration(to: .now)) - age

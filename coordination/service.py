@@ -311,6 +311,7 @@ def main():
         if args.first_code_file and not store.db.execute("SELECT 1 FROM devices WHERE revoked=0 LIMIT 1").fetchone():
             code_path = Path(args.first_code_file).expanduser()
             fd = os.open(code_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+            os.fchmod(fd, 0o600)
             with os.fdopen(fd, "w") as code_file:
                 code_file.write(store.create_group()["code"] + "\n")
             print("First-computer code written to the private file; it expires in five minutes.", flush=True)
