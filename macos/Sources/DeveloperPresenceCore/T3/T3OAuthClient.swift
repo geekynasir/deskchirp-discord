@@ -12,7 +12,7 @@ public struct T3AuthMetadata: Sendable {
 /// - Validates issuer and ensures authorization, token, and registration endpoints share the exact same origin.
 /// - Rejects userinfo, queries, and fragments on auth endpoints.
 /// - Prepares ephemeral loopback listener first and uses the exact same redirect URI throughout.
-/// - Performs dynamic client registration as 'Developer Presence' with `token_endpoint_auth_method: none`.
+/// - Performs dynamic client registration as 'Deskchirp' with `token_endpoint_auth_method: none`.
 /// - Requests public OAuth PKCE S256, scope `orchestration:read`, resource exact MCP URL.
 /// - Verifies state, issuer, and callback path, then exchanges one-use code via strict form-encoding.
 /// - Validates Bearer token type, orchestration:read scope, and positive expiration.
@@ -227,7 +227,7 @@ public final class T3OAuthClient: @unchecked Sendable {
         req.setValue("application/json", forHTTPHeaderField: "Accept")
 
         let registrationPayload: [String: Any] = [
-            "client_name": "Developer Presence",
+            "client_name": "Deskchirp",
             "redirect_uris": [redirectUri],
             "grant_types": ["authorization_code"],
             "response_types": ["code"],

@@ -6,19 +6,19 @@ The native clients now initialize once per endpoint/sign-in, omit session header
 
 Both transports bound response bytes while receiving them and finish matching SSE replies without waiting for the stream to close. Malformed, incomplete, capped, failed, or expired data falls back to app-only presence. Regression tests cover these cases, late sign-in after disconnect, slow Windows polling without blocking focus changes, and actual Mac loopback callbacks. See [verification status](../validation.md) for the exact tested source and remaining real-machine checks. This is source/protocol validation against the upstream contract; no live user conversations were read.
 
-# T3 Activity Interoperability Review: Native Developer Presence vs. Upstream T3 Code
+# T3 Activity Interoperability Review: Native Deskchirp vs. Upstream T3 Code
 
-**Document Version:** 1.0  
-**Target Repository:** `/data/ubuntu/projects/developer-presence`  
-**Upstream Repository:** `/data/ubuntu/projects/t3code-discord-presence`  
-**Reviewed Specification:** `spec/t3-activity.md`  
+**Document Version:** 1.0
+**Target Repository:** `the Deskchirp checkout`
+**Upstream Repository:** `the T3 Code checkout`
+**Reviewed Specification:** `spec/t3-activity.md`
 **Review Scope:** OAuth discovery, dynamic registration, callback & PKCE handling, MCP initialization, Streamable HTTP JSON/SSE result shapes, `orchestrator_capabilities` and `driverKind`, `t3_thread_list` pagination, status, and lineage across macOS and Windows native implementations.
 
 ---
 
 ## 1. Executive Summary
 
-This read-only interoperability review compares the native Developer Presence T3 activity specification (`spec/t3-activity.md`) and developing macOS/Windows client implementations against actual upstream schemas and implementations in the T3 Code monorepo (`@t3tools/monorepo`).
+This read-only interoperability review compares the native Deskchirp T3 activity specification (`spec/t3-activity.md`) and developing macOS/Windows client implementations against actual upstream schemas and implementations in the T3 Code monorepo (`@t3tools/monorepo`).
 
 Both native implementations correctly implement the core privacy architecture: zero leakage of titles, paths, account display names, or model strings to Discord Rich Presence, strict loopback URL validation, 8-driver known safe mapping to generic tools, and winner selection with 10-second hysteresis.
 
@@ -99,7 +99,7 @@ However, the review uncovered **three critical blockers** (one in macOS, two in 
   - Output: `AuthMcpTokenResult` (`auth.ts:553-559`): `access_token`, `token_type: "Bearer"`, `expires_in`, `scope: "orchestration:read"`.
 
 #### Spec Evaluation
-`spec/t3-activity.md` requirements align with upstream: public client named `Developer Presence`, loopback callback on an ephemeral port, PKCE S256, verification of `state` and `iss`, and form URL-encoded token exchange.
+`spec/t3-activity.md` requirements align with upstream: public client named `Deskchirp`, loopback callback on an ephemeral port, PKCE S256, verification of `state` and `iss`, and form URL-encoded token exchange.
 
 ---
 

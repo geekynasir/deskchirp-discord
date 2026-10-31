@@ -122,8 +122,8 @@ public final class T3McpClient: @unchecked Sendable {
             "protocolVersion": "2025-06-18",
             "capabilities": [String: Any](),
             "clientInfo": [
-                "name": "Developer Presence",
-                "version": "1.0.0"
+                "name": "Deskchirp",
+                "version": "0.1.0-preview.1"
             ]
         ]
 

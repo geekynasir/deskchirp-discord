@@ -1,11 +1,11 @@
 # Show your T3 activity on Discord
 
-Developer Presence can show which agent tools are working in T3 Code, along with the number of tasks and helpers. Helpers are extra agents working on your tasks.
+Deskchirp can show which agent tools are working in T3 Code, along with the number of tasks and helpers. Helpers are extra agents working on your tasks.
 
 ## Connect T3 Code
 
 1. In T3 Code, open **Settings → Environments**, open your environment's menu, and choose **Copy MCP URL**.
-2. Open Developer Presence settings and paste it into **T3 address**.
+2. Open Deskchirp settings and paste it into **T3 address**.
 3. Choose **Connect T3 Code**. Your browser opens T3's sign-in page.
 4. Approve **Read only** access. If T3 asks for a pairing code, create one in its **Settings → Sharing & access**. Enter that code on T3's page.
 5. Turn on **Show T3 activity** and Discord sharing, then return to T3 Code.

@@ -155,7 +155,7 @@ final class T3OAuthClientTests: XCTestCase {
                 // Verify that registration received the EXACT same ephemeral redirect URI
                 if let bodyData = req.httpBody,
                    let json = try? JSONSerialization.jsonObject(with: bodyData) as? [String: Any] {
-                    XCTAssertEqual(json["client_name"] as? String, "Developer Presence")
+                    XCTAssertEqual(json["client_name"] as? String, "Deskchirp")
                     XCTAssertEqual(json["token_endpoint_auth_method"] as? String, "none")
                     let uris = json["redirect_uris"] as? [String]
                     XCTAssertEqual(uris, [assignedRedirect], "Registration must use the exact ephemeral redirect URI")
@@ -163,7 +163,7 @@ final class T3OAuthClientTests: XCTestCase {
                 let respJson = """
                 {
                   "client_id": "client-test-id",
-                  "client_name": "Developer Presence"
+                  "client_name": "Deskchirp"
                 }
                 """
                 return (respJson.data(using: .utf8)!, HTTPURLResponse(url: req.url!, statusCode: 201, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!)

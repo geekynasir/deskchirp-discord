@@ -156,7 +156,7 @@ public struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else if coordinator.state.t3ConnectionStatus != .openingSignIn {
-                    Text("Opens your browser so you can approve read-only access in T3 Code. Developer Presence only reads which agent tools are working and how many tasks and helpers they have.")
+                    Text("Opens your browser so you can approve read-only access in T3 Code. Deskchirp only reads which agent tools are working and how many tasks and helpers they have.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -201,7 +201,7 @@ public struct SettingsView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                Link("How to Add the Icons", destination: URL(string: "https://github.com/geekynasir/developer-presence/blob/b9580eb6e4dfc32cb828b904350fb39ce83e8062/docs/connect-t3.md#add-logos")!)
+                Link("How to Add the Icons", destination: URL(string: "https://github.com/geekynasir/deskchirp-discord/blob/main/docs/connect-t3.md#add-logos")!)
             }
 
             // 5. Privacy Footer

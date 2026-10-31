@@ -197,7 +197,7 @@ public sealed class T3ActivityService : IT3ActivityService
             if (authGen != Interlocked.Read(ref _authGeneration)) return false;
             string msg = ex.Message.Contains("Check that you copied it with Copy MCP URL", StringComparison.OrdinalIgnoreCase) ||
                          ex.Message.Contains("didn’t respond like T3 Code", StringComparison.OrdinalIgnoreCase) ||
-                         ex.Message.Contains("sent Developer Presence to a different address", StringComparison.OrdinalIgnoreCase)
+                         ex.Message.Contains("sent Deskchirp to a different address", StringComparison.OrdinalIgnoreCase)
                 ? ex.Message
                 : "Check that T3 Code is running and the address is right.";
 

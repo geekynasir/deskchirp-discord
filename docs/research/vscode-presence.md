@@ -1,21 +1,21 @@
-# VS Code Discord Presence Ecosystem Research: Architectural Insights, Primary Source Analysis, and Recommendations for Developer Presence
+# VS Code Discord Presence Ecosystem Research: Architectural Insights, Primary Source Analysis, and Recommendations for Deskchirp
 
 **Date:** 2026-10-31
 **Author:** Research Sub-Agent
-**Target Repository:** `/data/ubuntu/projects/developer-presence`
+**Target Repository:** `the Deskchirp checkout`
 **Context:** Independent native SwiftUI (macOS) and WinUI 3 (Windows) desktop companion. Currently implements foreground application detection (`Using T3 Code`, `Using Claude`, `Using Codex`). Richer metadata, telemetry, and external adapter capabilities are active proposals.
 
 ---
 
 ## 1. Executive Summary & Purpose
 
-This research report analyzes the established Visual Studio Code Discord Rich Presence ecosystem to guide feature expansion, privacy architecture, asset hosting, and telemetry decisions for the independent **Developer Presence** companion application.
+This research report analyzes the established Visual Studio Code Discord Rich Presence ecosystem to guide feature expansion, privacy architecture, asset hosting, and telemetry decisions for the independent **Deskchirp** companion application.
 
 Traditional code editor extensions (e.g., `iCrawl/discord-vscode` and `LeonardSSH/vscord`) model a continuous, in-process stream of user buffer operations: active filename, programming language syntax, line/column coordinates, Git branch, and linter diagnostic counts. In contrast, modern agentic coding environments (such as T3 Code, Claude Desktop/CLI, and Codex Desktop/CLI) operate on an asynchronous task paradigm: planning/thinking, autonomous tool execution (file edits, terminal commands), user review pauses, multi-agent delegation, and token/context budgets.
 
 By examining primary source code, configuration schemas, marketplace registries, and community pull requests—specifically community PR [#18346](https://github.com/pingdotgg/t3code/pull/18346) in `pingdotgg/t3code`—this report distinguishes between:
 1. **Editor-specific mechanisms** that depend entirely on internal buffer APIs (`vscode.TextDocument`, `vscode.languages.getDiagnostics`, cursor selections) and cannot or should not be emulated by an external companion.
-2. **Transferable design patterns** (Git remote sanitization, URL-based action buttons, debounce loops, workspace exclusion regexes, and external HTTPS asset hosting) that can directly enhance Developer Presence.
+2. **Transferable design patterns** (Git remote sanitization, URL-based action buttons, debounce loops, workspace exclusion regexes, and external HTTPS asset hosting) that can directly enhance Deskchirp.
 3. **Agent-specific requirements** (token/cost telemetry, provider/model disclosure, multi-agent session deduplication, and lifecycle state management) that have no equivalent in traditional VS Code extensions.
 
 ---
@@ -67,7 +67,7 @@ Source analysis conducted on local checkouts of `iCrawl/discord-vscode` (commit 
 
 ### 4.1 What Requires In-Process Editor APIs (Non-Transferable)
 
-The following features depend strictly on editor runtime internals and cannot be cleanly reproduced by an out-of-process companion (such as Developer Presence observing window handles or polling read-only APIs):
+The following features depend strictly on editor runtime internals and cannot be cleanly reproduced by an out-of-process companion (such as Deskchirp observing window handles or polling read-only APIs):
 
 1. **Cursor Coordinates & Selection State (`line:column`):**
    - *Implementation in vscord:* Read synchronously via `window.activeTextEditor.selection.active`.
@@ -81,26 +81,26 @@ The following features depend strictly on editor runtime internals and cannot be
 
 ### 4.2 What Transfers Cleanly to Agentic Desktop Apps
 
-The following mechanisms provide direct architectural inspiration for Developer Presence:
+The following mechanisms provide direct architectural inspiration for Deskchirp:
 
 1. **Sanitized Git Remote Action Buttons:**
    - *Mechanism:* Both extensions parse Git remotes and strip private SSH syntax (`git@github.com:org/repo.git` $
 ightarrow$ `https://github.com/org/repo`) and embedded HTTP authentication credentials (`https://user:token@host/repo` $
 ightarrow$ `https://host/repo`).
-   - *Application for Developer Presence:* When Developer Presence detects an active workspace Git repository via a local metadata adapter, it can offer an opt-in `View Repository` action button pointing to verified public HTTPS URLs.
+   - *Application for Deskchirp:* When Deskchirp detects an active workspace Git repository via a local metadata adapter, it can offer an opt-in `View Repository` action button pointing to verified public HTTPS URLs.
 2. **Granular Privacy & Ignore Rules:**
    - *Mechanism:* `vscord` provides distinct exclude lists:
      - `ignore.workspaces`: Array of glob/regex paths.
      - `ignore.repositories`: Exclude specific repository names.
      - `ignore.organizations`: Exclude internal enterprise GitHub organizations.
      - `ignore.gitHosts`: Exclude private enterprise GitLab/GitHub Enterprise domain names (e.g., `git.internal.company.com`).
-   - *Application for Developer Presence:* This 4-tier filtering hierarchy should be adopted directly. If an observed project belongs to an ignored host or organization, Developer Presence should automatically suppress the project name and repository button, falling back to a sanitized generic status (e.g., `Using T3 Code`).
+   - *Application for Deskchirp:* This 4-tier filtering hierarchy should be adopted directly. If an observed project belongs to an ignored host or organization, Deskchirp should automatically suppress the project name and repository button, falling back to a sanitized generic status (e.g., `Using T3 Code`).
 3. **Monotonic Elapsed Timestamps:**
    - *Mechanism:* Storing a fixed Unix epoch timestamp (`startTimestamp = Date.now()`) and passing it through consecutive activity updates lets Discord render the ticking clock client-side without requiring outbound IPC packets every second.
-   - *Application for Developer Presence:* Developer Presence should maintain a stable `sessionStartTime` tied to the companion session or thread focus, avoiding clock resets when agents transition between thinking, tool execution, and waiting states.
+   - *Application for Deskchirp:* Deskchirp should maintain a stable `sessionStartTime` tied to the companion session or thread focus, avoiding clock resets when agents transition between thinking, tool execution, and waiting states.
 4. **Debounced Lifecycle State Transitions:**
    - *Mechanism:* `vscord` uses a dedicated throttle class with configurable timeouts to coalesce rapid window blur/focus events.
-   - *Application for Developer Presence:* Debouncing foreground focus shifts prevents Discord Rich Presence flickering when a user briefly switches between T3 Code, a browser, and terminal windows.
+   - *Application for Deskchirp:* Debouncing foreground focus shifts prevents Discord Rich Presence flickering when a user briefly switches between T3 Code, a browser, and terminal windows.
 
 ---
 
@@ -127,14 +127,14 @@ ightarrow$ Art Assets**.
 | **iCrawl/discord-vscode** | Uploaded Developer Portal Assets | ~150 uploaded keys | Avoids a separate third-party image host; Discord still controls asset delivery and caching. | Reached capacity constraints; cannot add hundreds of community syntax icons without deleting others. |
 | **LeonardSSH/vscord** | External HTTPS URLs on GitHub Raw CDN | Unlimited (all assets in Git) | Flexible; instantaneous asset updates via Git commits without touching Developer Portal. | Depends on GitHub raw availability; subject to CDN caching latency and potential raw domain throttling. |
 
-#### C. Recommendation for Developer Presence
-Because Developer Presence is designed for AI coding environments (T3 Code, Claude Desktop, Codex Desktop) rather than 500+ text syntax grammars, its asset requirements are compact:
+#### C. Recommendation for Deskchirp
+Because Deskchirp is designed for AI coding environments (T3 Code, Claude Desktop, Codex Desktop) rather than 500+ text syntax grammars, its asset requirements are compact:
 - **Application Logos (Large Image):** 3 core application icons (T3 Code, Claude, Codex) plus build variants (Dev, Nightly, Alpha).
 - **Activity Status Badges (Small Image):** 4 lifecycle badges (Working/Thinking, Needs Attention/Waiting, Paused, Idle).
 - **Model Provider Marks (Optional Small Image):** ~6 provider icons (Anthropic, OpenAI, Google Gemini, Meta/Llama, DeepSeek, Local/Ollama).
 
 **Total required assets: < 20.**
-Therefore, Developer Presence should:
+Therefore, Deskchirp should:
 1. Register a dedicated Discord Application ID owned by the project.
 2. Upload high-resolution (1024x1024 PNG) curated assets directly to the Developer Portal. This removes a third-party image-host dependency; rendering still needs validation on Discord clients.
 3. Support an optional configuration override (`customAssetBaseUrl`) permitting advanced users or fork developers to provide external HTTPS URLs if they wish to customize icons.
@@ -201,17 +201,17 @@ ightarrow$ `black`.
   > *"This adds a new Discord integration that publishes project, model, and agent activity. The PR explicitly states that maintainer approval has not been obtained. The contribution guide requires approval of a new feature's direction and scope, so I'm closing this PR. Please propose the integration in an Ideas discussion and obtain explicit scope approval before requesting reconsideration."*
 - **Subsequent Action:** Ideas Discussion [#18348](https://github.com/pingdotgg/t3code/discussions/18348) was initiated. Contributor `geekynasir` submitted a scoped compromise proposal emphasizing desktop-only operation, default-off settings, zero prompt/code leakage, and minimal maintainer burden.
 
-#### D. Relationship Between PR #18346 and Developer Presence
+#### D. Relationship Between PR #18346 and Deskchirp
 PR #18346 is an **in-process Electron desktop feature** for T3 Code.
-In contrast, **Developer Presence** is an **independent, multi-app companion** written in native Swift (macOS) and C#/WinUI 3 (Windows).
-- *Decoupling Advantage:* Developer Presence does not require maintainer sign-off on T3 Code's core repository, does not bloat T3 Code's Electron bundle, and serves developers using Claude Desktop and Codex Desktop alongside T3 Code.
-- *Integration Path:* Instead of embedding socket code into T3 Code, The proposed Developer Presence adapter would read T3 Code activity via T3's documented, authenticated, read-only MCP outside-agents interface.
+In contrast, **Deskchirp** is an **independent, multi-app companion** written in native Swift (macOS) and C#/WinUI 3 (Windows).
+- *Decoupling Advantage:* Deskchirp does not require maintainer sign-off on T3 Code's core repository, does not bloat T3 Code's Electron bundle, and serves developers using Claude Desktop and Codex Desktop alongside T3 Code.
+- *Integration Path:* Instead of embedding socket code into T3 Code, The proposed Deskchirp adapter would read T3 Code activity via T3's documented, authenticated, read-only MCP outside-agents interface.
 
 ---
 
-## 6. Recommendations for Developer Presence
+## 6. Recommendations for Deskchirp
 
-Based on verified ecosystem practices, the following architectural roadmap is recommended for `/data/ubuntu/projects/developer-presence`:
+Based on verified ecosystem practices, the following architectural roadmap is recommended for `the Deskchirp checkout`:
 
 ### Phase 1: High-Value Quick Transfers (No Deep Editor Hooks Required)
 1. **Git Remote & Public Action Button:**

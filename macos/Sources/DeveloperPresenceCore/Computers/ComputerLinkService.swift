@@ -22,7 +22,7 @@ public enum ComputerLinkError: LocalizedError {
         switch self {
         case .address: return "Use a secure linking address. Plain http:// works only on this computer."
         case .connection: return "Couldn’t link this computer. Check the address and try a new code."
-        case .account: return "Check that Discord uses the same account on each computer and only one copy of Developer Presence is open."
+        case .account: return "Check that Discord uses the same account on each computer and only one copy of Deskchirp is open."
         case .removed: return "This computer’s link is no longer available. Unlink it, then use a new code."
         }
     }

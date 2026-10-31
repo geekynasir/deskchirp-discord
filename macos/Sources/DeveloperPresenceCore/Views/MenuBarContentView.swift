@@ -11,7 +11,7 @@ public struct MenuBarContentView: View {
 
     public var body: some View {
         Group {
-            Text("Developer Presence")
+            Text("Deskchirp")
                 .font(.headline)
 
             Text(UserFacingStatus.describe(state: coordinator.state, settings: coordinator.settings).title)
@@ -48,7 +48,7 @@ public struct MenuBarContentView: View {
 
             Divider()
 
-            Button("Quit Developer Presence") {
+            Button("Quit Deskchirp") {
                 coordinator.quitApplication()
             }
             .keyboardShortcut("q", modifiers: [.command])

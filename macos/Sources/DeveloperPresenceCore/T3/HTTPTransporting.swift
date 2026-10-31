@@ -9,7 +9,7 @@ public enum HTTPTransportError: LocalizedError, Equatable {
     public var errorDescription: String? {
         switch self {
         case .redirectRefused:
-            return "T3 Code sent Developer Presence to a different address. Copy the address again from T3 Code."
+            return "T3 Code sent Deskchirp to a different address. Copy the address again from T3 Code."
         case .invalidResponse, .responseTooLarge:
             return "This address didn’t respond like T3 Code. Check that you copied it with Copy MCP URL."
         case .httpError:

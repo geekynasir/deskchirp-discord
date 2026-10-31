@@ -23,7 +23,7 @@ public final class SettingsWindowController {
         let hostingController = NSHostingController(rootView: settingsView)
 
         let win = NSWindow(contentViewController: hostingController)
-        win.title = "Developer Presence Settings"
+        win.title = "Deskchirp for Discord Settings"
         win.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         win.setContentSize(NSSize(width: 560, height: 560))
         win.contentMinSize = NSSize(width: 520, height: 520)

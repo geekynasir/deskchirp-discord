@@ -297,7 +297,7 @@ class Server(ThreadingHTTPServer):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Private Developer Presence computer linking")
+    parser = argparse.ArgumentParser(description="Private Deskchirp computer linking")
     parser.add_argument("--database", required=True)
     parser.add_argument("--port", type=int, default=4859)
     parser.add_argument("--first-code-file", help="Write a private first-computer code if no computers are linked")

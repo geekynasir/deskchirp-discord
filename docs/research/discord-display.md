@@ -34,7 +34,7 @@ All examples below use fictional sample counts, with a constant companion applic
 ### App only
 
 ```
-Developer Presence
+Deskchirp
 Using T3 Code
 ```
 
@@ -43,7 +43,7 @@ Large image is T3's logo. Equivalent cards can identify Claude and Codex without
 ### Workload
 
 ```
-Developer Presence
+Deskchirp
 Using T3 Code
 3 running · 1 needs attention
 00:24:18 elapsed
@@ -54,7 +54,7 @@ Use confirmed thread states. Track top-level sessions and helpers separately. Th
 ### Usage
 
 ```
-Developer Presence
+Deskchirp
 T3 Code · 3 running
 842K tokens · API ~$1.84
 00:24:18 elapsed

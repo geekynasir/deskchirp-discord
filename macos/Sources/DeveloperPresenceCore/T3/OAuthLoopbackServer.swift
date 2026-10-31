@@ -222,7 +222,7 @@ public final class BSDLoopbackServer: OAuthLoopbackServing, @unchecked Sendable 
 
     private func writeResponse(client: Int32, success: Bool, active: Session, deadline: TimeInterval) {
         let title = success ? "Approval received" : "Sign-in didn’t finish"
-        let message = success ? "Return to Developer Presence to finish connecting. You can close this tab." : "Return to Developer Presence and try connecting again."
+        let message = success ? "Return to Deskchirp to finish connecting. You can close this tab." : "Return to Deskchirp and try connecting again."
         let html = "<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>\(title)</title><body style=\"font:16px system-ui;padding:32px\"><h1>\(title)</h1><p>\(message)</p></body></html>"
         let body = Data(html.utf8)
         let status = success ? "200 OK" : "400 Bad Request"

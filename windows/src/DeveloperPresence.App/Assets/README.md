@@ -1,4 +1,4 @@
-# Developer Presence Windows Assets
+# Deskchirp Windows Assets
 
 Place application icons and asset files here:
 - `app.ico`: Standard Windows application and notification tray icon (16x16, 32x32, 48x48, 256x256).

@@ -1,0 +1,32 @@
+name: Bug report
+description: Report something that did not work as expected.
+body:
+  - type: markdown
+    attributes:
+      value: "Please use fictional data and remove credentials, account IDs, private addresses and conversations. Report security issues privately through Security → Report a vulnerability."
+  - type: input
+    id: version
+    attributes:
+      label: Deskchirp version
+      placeholder: 0.1.0-preview.1
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Operating system and computer type
+      placeholder: macOS 15 on Apple Silicon, or Windows 11 x64
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Include steps to reproduce, what you expected, and what you saw.
+    validations:
+      required: true
+  - type: textarea
+    id: checks
+    attributes:
+      label: Additional details
+      description: Discord desktop version, linked-computer setup, or a redacted screenshot if relevant.

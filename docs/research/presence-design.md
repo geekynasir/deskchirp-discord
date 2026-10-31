@@ -8,7 +8,7 @@ Companion to [discord-display.md](discord-display.md) (field surface and privacy
 
 ## Reference: what Discord actually draws
 
-The PR #18346 screenshot (`/data/ubuntu/tmp/developer-presence/research/pr-18346-discord.png`) shows the profile "Playing" card:
+The PR #18346 screenshot (linked in the T3 PR research report) shows the profile "Playing" card:
 
 ```
 Playing                                   ···
@@ -18,13 +18,13 @@ Playing                                   ···
            🎮 1:26                 ← elapsed timer (green, Discord-rendered)
 ```
 
-That PR used T3's own application ID, so the bold title read "T3 Code". **Our companion uses its own public application ID, registered as "Developer Presence"**, so the bold title and the member-list line ("Playing Developer Presence") always read "Developer Presence". The Social SDK documents `Activity::SetName` for overriding the title. Our raw-IPC `SET_ACTIVITY` path has not validated that, so the design does not rely on a dynamic title. The app identity therefore has to come from the large image and the `details` line.
+That PR used T3's own application ID, so the bold title read "T3 Code". **Our companion uses its own public application ID, registered as "Deskchirp"**, so the bold title and the member-list line ("Playing Deskchirp") always read "Deskchirp". The Social SDK documents `Activity::SetName` for overriding the title. Our raw-IPC `SET_ACTIVITY` path has not validated that, so the design does not rely on a dynamic title. The app identity therefore has to come from the large image and the `details` line.
 
 ## Information hierarchy
 
 | Slot | Carries | Rule |
 | --- | --- | --- |
-| Title | "Developer Presence" (registered) | Constant. Do not assume an override works. |
+| Title | "Deskchirp" (registered) | Constant. Do not assume an override works. |
 | Large image | Observed app's logo (T3 Code / Claude / Codex) | Primary identity. Hover text = app name, plus the metric definition when usage is shown. |
 | Small badge | **One** of: status (working / needs you / idle) or provider of the pinned thread | Only one slot exists, so the user picks one. Hide it when no data backs it. |
 | `details` | App, plus an optional project alias | `Using T3 Code` by default; `T3 Code · Orbit Notes` when an alias is opted in. |
@@ -40,14 +40,14 @@ All values are fictional.
 
 **App only** (works today for all three apps; only the artwork and timer are new)
 ```
-Developer Presence
+Deskchirp
 Using Claude
 🎮 24:18            (focus time)
 ```
 
 **Workload** (T3 only; needs the T3 metadata adapter)
 ```
-Developer Presence           [T3 logo + amber "!" badge]
+Deskchirp           [T3 logo + amber "!" badge]
 Using T3 Code
 2 running · 1 needs you
 🎮 24:18            (observed app session)
@@ -56,7 +56,7 @@ Counts are top-level threads; delegated helpers are excluded. Badge priority is 
 
 **Usage** (T3 only; needs cumulative counters from the adapter)
 ```
-Developer Presence
+Deskchirp
 Using T3 Code
 842K tokens this session              (cost off: default)
 842K tokens this session · ~$1.84 API (cost on: may truncate; see Fit)

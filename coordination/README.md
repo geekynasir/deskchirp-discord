@@ -8,21 +8,22 @@ This is a self-hosted development service. No public service is bundled or deplo
 
 Use Python 3.10 or later on a Unix host with a persistent local disk. The service's process lock uses `fcntl`, so it is not a native Windows server. The desktop apps remain native on Windows and macOS.
 
-On the Mumbai VPS, first verify `/data` is mounted. Keep state under `/data/ubuntu`, private to the service owner. For example:
+From the source checkout (or the extracted linking-service download), create a private state directory and run:
 
 ```sh
-mountpoint -q /data
-install -d -m 700 /data/ubuntu/developer-presence-state
-python3 /data/ubuntu/projects/developer-presence/coordination/service.py \
-  --database /data/ubuntu/developer-presence-state/computers.sqlite3 \
-  --first-code-file /data/ubuntu/developer-presence-state/first-computer-code
+install -d -m 700 "$HOME/.local/share/deskchirp"
+python3 coordination/service.py \
+  --database "$HOME/.local/share/deskchirp/computers.sqlite3" \
+  --first-code-file "$HOME/.local/share/deskchirp/first-computer-code"
 ```
+
+On a server with a dedicated data volume, put this state there instead and verify the volume is mounted before starting the process.
 
 Keep this process running. Configure a private HTTPS reverse proxy to `http://127.0.0.1:4859`, using a new, dedicated address/port; do not replace the existing T3, Paperclip, or other routes. Request bodies and Authorization headers must not be logged by the proxy. Configure a bounded request-body size and timeout there as well. Do not set up several independently running replicas or load-balance separate copies of the database.
 
 The first code is written to the specified owner-only file only when no active computers are linked. Read it in your own terminal, not in chat. It expires five minutes after server startup and works once. Restart before your first link if it expires. With an interactive terminal, typing `pair` and Enter creates a fresh group/code; this is an administrative action, not how you add a computer to an existing group. Do not record that terminal's output.
 
-1. Open Developer Presence settings → **Computers → Follow me**.
+1. Open Deskchirp settings → **Computers → Follow me**.
 2. Enter your private HTTPS **Linking address**, a name for this computer, and the first code.
 3. Choose **Link this computer**. It saves a private device credential in Keychain or Windows Credential Manager.
 4. On this linked computer, choose **Link another computer**. Enter that new code and the same linking address on the next computer. Repeat for each Mac or Windows PC; each code works once.

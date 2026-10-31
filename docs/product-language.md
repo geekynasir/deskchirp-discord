@@ -1,10 +1,10 @@
 # Product language
 
-The words Developer Presence uses in its macOS and Windows settings, menus, status messages, and Discord activity. Platform code should take its strings from this file. Technical terms stay in source, logs, and developer docs.
+The words Deskchirp uses in its macOS and Windows settings, menus, status messages, and Discord activity. Platform code should take its strings from this file. Technical terms stay in source, logs, and developer docs.
 
 This guide doesn't change any approved behavior. Sharing stays off by default. T3 access is read-only. Only the active app is in scope. When T3 activity is unavailable, the app shows the app name only. Thread titles, models, projects, prompts, paths, private URLs, and credentials are never published.
 
-Method: [Impeccable](https://github.com/pbakaus/impeccable) 4.8.0 `clarify`, Operate mode, and the craft floor (`/data/ubuntu/tools/presence-skills/impeccable`). The project context launcher didn't run, and there is no PRODUCT.md or DESIGN.md, so this guide uses only the existing source and `spec/t3-activity.md`.
+Method: [Impeccable](https://github.com/pbakaus/impeccable) 4.8.0 `clarify`, Operate mode, and the craft floor. The project context launcher didn't run, and there is no PRODUCT.md or DESIGN.md, so this guide uses only the existing source and `spec/t3-activity.md`.
 
 Follow-up review on 2026-10-31: the user confirmed **Unslop** as the intended name. Applied the audit guidance from [Unslop by Damir Sokolovsky (@heydamir)](https://github.com/heydamir/unslop/blob/main/skills/unslop/SKILL.md), licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). This review note adapts that guidance. The earlier “Stack Cursor” attribution remains unverified.
 
@@ -145,7 +145,7 @@ The macOS settings window sits at 520 pt minimum width, so help text must wrap: 
 | Address placeholder | Paste from T3 Code |
 | Address help | In T3 Code, open Settings → Environments and choose Copy MCP URL. |
 | Connect button | macOS **Connect T3 Code** / Windows **Connect T3 Code** |
-| Consent line under Connect | Opens your browser so you can approve read-only access in T3 Code. Developer Presence only reads which agent tools are working and how many tasks and helpers they have. |
+| Consent line under Connect | Opens your browser so you can approve read-only access in T3 Code. Deskchirp only reads which agent tools are working and how many tasks and helpers they have. |
 | Disconnect button | **Disconnect**. Accessible name: “Disconnect T3 Code”. No confirmation, because reconnecting is easy. Help after disconnecting: “To revoke access in T3 too, open T3 Code Settings → Sharing & access.” |
 | Stored credential note (shown once connected) | macOS: Your sign-in is saved in Keychain. · Windows: Your sign-in is saved in Windows Credential Manager. |
 
@@ -186,7 +186,7 @@ This replaces `SettingsView.swift:51` and `MainWindow.xaml:79`. The current text
 | Remove, accessible names (`SettingsView.swift:77`, `MainWindow.xaml:71`) | “Remove {identifier}” / “Remove {file}.exe”. Bind the identifier; don't use the generic “application mapping”. |
 | Restore (`SettingsView.swift:96`) | macOS **Restore Defaults** |
 | Unknown row (`SettingsView.swift:67`, `MainViewModel.cs:33`) | Unknown app |
-| Active-app identifier (`SettingsView.swift:61`) | **Last active app: {identifier}**. See the open question below about Developer Presence detecting itself. |
+| Active-app identifier (`SettingsView.swift:61`) | **Last active app: {identifier}**. See the open question below about Deskchirp detecting itself. |
 | Bad file name (`MainViewModel.cs`, `AddProcessMapping`) | Enter only the file name, like example.exe, without a folder path. |
 
 ## Status and recovery messages
@@ -213,13 +213,13 @@ A status is one line with the state, plus at most one line with the next step. I
 |---|---|---|
 | `Connecting to Discord at {path}...`, `Scanning Discord named pipes (0..9)...`, `Connecting to Discord (retrying)...` | Connecting to Discord… | — |
 | `No Discord IPC candidate sockets found.`, `Discord desktop client not found on local named pipes.` | Couldn’t find Discord | Open the Discord desktop app. Discord in a browser can’t show this status. |
-| `Connection and handshake timed out.`, `Handshake timed out waiting for READY.`, `Handshake failed: …`, `Operation timed out.` | Discord didn’t respond | Make sure Discord is open and signed in. Developer Presence will keep trying. |
+| `Connection and handshake timed out.`, `Handshake timed out waiting for READY.`, `Handshake failed: …`, `Operation timed out.` | Discord didn’t respond | Make sure Discord is open and signed in. Deskchirp will keep trying. |
 | `Discord rejected the connection.`, `Discord error: {msg}`, `Discord SET_ACTIVITY error: {msg}`, `Failed to send SET_ACTIVITY: …` | Discord didn’t accept the update | Check that your Discord application ID matches an app in the Developer Portal. |
 | `Discord closed IPC connection.`, `Discord IPC disconnected.`, `Disconnected from Discord.`, `Discord closed connection.`, `Discord disconnected: …`, `Cleared and disconnected` | Discord disconnected | Reconnects when Discord is running again. |
 | `Discord framing error: …`, `Protocol framing error: …`, `Invalid JSON received from Discord IPC: …`, `Connection error: …`, `Connection attempt failed: …`, socket/transport errors | Lost the connection to Discord | Reconnecting… |
 | `Connection canceled.` | *(no user message; use the gate message)* | — |
-| `Couldn't save settings: {ex.Message}` | Couldn’t save your settings | Try again. If it keeps happening, quit and reopen Developer Presence. |
-| `Couldn't start sharing: {ex.Message}` | Couldn’t start sharing | Quit and reopen Developer Presence. |
+| `Couldn't save settings: {ex.Message}` | Couldn’t save your settings | Try again. If it keeps happening, quit and reopen Deskchirp. |
+| `Couldn't start sharing: {ex.Message}` | Couldn’t start sharing | Quit and reopen Deskchirp. |
 
 "Will keep trying" and "Reconnects" depend on the bounded automatic reconnect in `spec/behavior.md`. If a platform doesn't retry in that state, use “Open Discord, then turn sharing off and on again.” instead.
 
@@ -249,7 +249,7 @@ These appear inline under the T3 address field or as the status detail line.
 | `http://` to a host other than localhost | Use an address that starts with https://. Plain http:// works only for T3 Code on this computer. |
 | Has userinfo, query, or fragment; wrong path; not a URL | This doesn’t look like a T3 Code address. Copy it again from Settings → Environments → Copy MCP URL. |
 | Discovery/metadata invalid or on another origin | This address didn’t respond like T3 Code. Check that you copied it with Copy MCP URL. |
-| Redirect refused | T3 Code sent Developer Presence to a different address. Copy the address again from T3 Code. |
+| Redirect refused | T3 Code sent Deskchirp to a different address. Copy the address again from T3 Code. |
 | Browser couldn't open | Couldn’t open your browser. Check that you have a default browser, then try again. |
 | User denied or cancelled in browser | Sign-in was cancelled. *(If a previous connection is still saved, add:)* Your existing connection wasn’t changed. |
 | State/issuer mismatch, bad callback | Sign-in didn’t finish. Try connecting again. |
@@ -261,8 +261,8 @@ These appear inline under the T3 address field or as the status detail line.
 
 The local callback page is the HTML shown in the user's browser after T3 approval. Keep it plain text with no branding claims, and include no address or token.
 
-- Success title: **Developer Presence is connected to T3 Code**. Body: “You can close this tab and return to Developer Presence.”
-- Failure title: **Sign-in didn’t finish**. Body: “Return to Developer Presence and try connecting again.”
+- Success title: **Deskchirp is connected to T3 Code**. Body: “You can close this tab and return to Deskchirp.”
+- Failure title: **Sign-in didn’t finish**. Body: “Return to Deskchirp and try connecting again.”
 
 ## Menu bar (macOS) and notification area (Windows)
 
@@ -270,7 +270,7 @@ The local callback page is the HTML shown in the user's browser after T3 approva
 
 | Item | Copy |
 |---|---|
-| Header (`:15`) | Developer Presence |
+| Header (`:15`) | Deskchirp |
 | Status (`:18`) | the status line alone, without a “Status:” prefix |
 | Preview (`:28`) | the details line, then the state line as a second item if there is one. No “Preview:” prefix. Show nothing extra when not shown on Discord. |
 | Active app (`:21–25`) | Remove from the menu. The status line already explains why nothing is shared. Don't show the unrecognized identifier here. |
@@ -282,10 +282,10 @@ The local callback page is the HTML shown in the user's browser after T3 approva
 
 | Item | Copy |
 |---|---|
-| Open | **Open Developer Presence** (was “Show Developer Presence”) |
+| Open | **Open Deskchirp** (was “Show Deskchirp”) |
 | Pause | **Pause sharing** / **Resume sharing** (was “Pause/Resume Presence”). Drop `MF_CHECKED`, because a checked “Resume” item contradicts itself. |
 | Quit | **Exit** (the Windows convention) |
-| Tooltip | `Developer Presence` + newline + the details line, plus “ · {state}” if there is one; or + newline + `Not shown on Discord`. Keep within `szTip`'s 128 characters. |
+| Tooltip | `Deskchirp` + newline + the details line, plus “ · {state}” if there is one; or + newline + `Not shown on Discord`. Keep within `szTip`'s 128 characters. |
 
 ## Kept out of ordinary UI
 
@@ -303,7 +303,7 @@ The local callback page is the HTML shown in the user's browser after T3 approva
 
 ## Open questions for root
 
-1. **Self-detection on macOS.** While Settings is open, the frontmost app is Developer Presence itself, so “Current app” shows Developer Presence's own identifier. Have the detector keep the last identifier that isn't its own, for local display only, and show it as **Last active app**. Optionally add an **Add This App** button next to it.
+1. **Self-detection on macOS.** While Settings is open, the frontmost app is Deskchirp itself, so “Current app” shows Deskchirp's own identifier. Have the detector keep the last identifier that isn't its own, for local display only, and show it as **Last active app**. Optionally add an **Add This App** button next to it.
 2. **Winner with no running work.** The copy assumes the chosen tool shows the highest-priority non-empty bucket: running, then waiting, then starting. If root publishes starting-only states as `Using T3 Code` to avoid churn, rule 3 is never used.
 3. **Disconnect.** This matches `docs/connect-t3.md`: Disconnect removes this app's saved T3 connection from this computer, and the stored credential must actually be deleted. Server-side revocation stays in T3 (Settings → Sharing & access); the app must not claim it revoked anything.
 4. **Icons on app-only T3 presence.** Decide whether `large_image = t3_code` is also sent when T3 activity is off. The icon help text holds either way.

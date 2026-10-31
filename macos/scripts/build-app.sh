@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Build script for Developer Presence macOS application bundle.
+# Build script for Deskchirp macOS application bundle.
 # Usage: ./scripts/build-app.sh [--release|--debug]
 
 CONFIGURATION="release"
@@ -24,7 +24,7 @@ if [[ ! -f "${EXECUTABLE}" ]]; then
     exit 1
 fi
 
-APP_BUNDLE="${PACKAGE_DIR}/dist/DeveloperPresence.app"
+APP_BUNDLE="${PACKAGE_DIR}/dist/Deskchirp.app"
 CONTENTS_DIR="${APP_BUNDLE}/Contents"
 MACOS_DIR="${CONTENTS_DIR}/MacOS"
 RESOURCES_DIR="${CONTENTS_DIR}/Resources"
@@ -34,11 +34,18 @@ rm -rf "${APP_BUNDLE}"
 mkdir -p "${MACOS_DIR}" "${RESOURCES_DIR}"
 
 # Copy binary
-cp "${EXECUTABLE}" "${MACOS_DIR}/DeveloperPresence"
-chmod +x "${MACOS_DIR}/DeveloperPresence"
+cp "${EXECUTABLE}" "${MACOS_DIR}/Deskchirp"
+chmod +x "${MACOS_DIR}/Deskchirp"
 
 # Copy Info.plist
 cp "${PACKAGE_DIR}/Sources/DeveloperPresence/Info.plist" "${CONTENTS_DIR}/Info.plist"
+
+# Keep the version aligned with the release tag and include redistribution notices.
+APP_VERSION="$(tr -d '[:space:]' < "${PACKAGE_DIR}/../VERSION")"
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${APP_VERSION%%-*}" "${CONTENTS_DIR}/Info.plist"
+cp "${PACKAGE_DIR}/../LICENSE" "${RESOURCES_DIR}/LICENSE"
+cp "${PACKAGE_DIR}/../THIRD_PARTY_NOTICES.md" "${RESOURCES_DIR}/THIRD_PARTY_NOTICES.md"
+cp -R "${PACKAGE_DIR}/../licenses" "${RESOURCES_DIR}/licenses"
 
 # Create PkgInfo
 echo -n "APPL????" > "${CONTENTS_DIR}/PkgInfo"

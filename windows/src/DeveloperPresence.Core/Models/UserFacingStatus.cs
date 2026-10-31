@@ -20,7 +20,7 @@ public static class UserFacingStatus
         if (diagnostic.Contains("not found") || diagnostic.Contains("no discord"))
             return ("Couldn’t find Discord", "Open the Discord desktop app. Discord in a browser can’t show this status.");
         if (diagnostic.Contains("timed out") || diagnostic.Contains("timeout"))
-            return ("Discord didn’t respond", "Make sure Discord is open and signed in. Developer Presence will keep trying.");
+            return ("Discord didn’t respond", "Make sure Discord is open and signed in. Deskchirp will keep trying.");
         if (diagnostic.Contains("set_activity") || diagnostic.Contains("rejected") || diagnostic.StartsWith("discord error:"))
             return ("Discord didn’t accept the update", "Check that your Discord application ID matches an app in the Developer Portal.");
         if (state.ConnectionStatus == PresenceConnectionStatus.Error) return ("Lost the connection to Discord", "Reconnecting…");

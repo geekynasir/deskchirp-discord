@@ -61,7 +61,7 @@ public sealed class TrayIcon : IDisposable
             uFlags = Win32.NIF_MESSAGE | Win32.NIF_ICON | Win32.NIF_TIP,
             uCallbackMessage = Win32.WM_TRAYICON,
             hIcon = hIcon,
-            szTip = "Developer Presence\nNot shown on Discord"
+            szTip = "Deskchirp\nNot shown on Discord"
         };
 
         _isCreated = Win32.Shell_NotifyIcon(Win32.NIM_ADD, ref _nid);
@@ -119,7 +119,7 @@ public sealed class TrayIcon : IDisposable
             // Drop MF_CHECKED per Windows UX conventions (a checked 'Resume' item contradicts itself)
             uint pauseFlags = Win32.MF_STRING | (_isSharingEnabledProvider() ? 0 : Win32.MF_GRAYED);
 
-            Win32.AppendMenu(hMenu, Win32.MF_STRING, CmdShow, "Open Developer Presence");
+            Win32.AppendMenu(hMenu, Win32.MF_STRING, CmdShow, "Open Deskchirp");
             Win32.AppendMenu(hMenu, pauseFlags, CmdTogglePause, pauseText);
             Win32.AppendMenu(hMenu, Win32.MF_SEPARATOR, 0, string.Empty);
             Win32.AppendMenu(hMenu, Win32.MF_STRING, CmdQuit, "Exit");

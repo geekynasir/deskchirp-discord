@@ -39,7 +39,7 @@ struct DeveloperPresenceApp: App {
     @StateObject private var coordinator = AppModel.coordinator
 
     var body: some Scene {
-        MenuBarExtra("Developer Presence", systemImage: coordinator.menuBarIconName) {
+        MenuBarExtra("Deskchirp", systemImage: coordinator.menuBarIconName) {
             MenuBarContentView(coordinator: coordinator)
         }
     }

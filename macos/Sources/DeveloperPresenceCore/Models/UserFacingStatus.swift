@@ -31,7 +31,7 @@ public enum UserFacingStatus {
             return Message("Couldn’t find Discord", "Open the Discord desktop app. Discord in a browser can’t show this status.")
         }
         if diagnostic.contains("timed out") || diagnostic.contains("timeout") {
-            return Message("Discord didn’t respond", "Make sure Discord is open and signed in. Developer Presence will keep trying.")
+            return Message("Discord didn’t respond", "Make sure Discord is open and signed in. Deskchirp will keep trying.")
         }
         if diagnostic.contains("set_activity") || diagnostic.contains("rejected") || diagnostic.hasPrefix("discord error:") {
             return Message("Discord didn’t accept the update", "Check that your Discord application ID matches an app in the Developer Portal.")
@@ -52,7 +52,7 @@ public enum UserFacingStatus {
             "Use an address that starts with https://. Plain http:// works only for T3 Code on this computer.",
             "This doesn’t look like a T3 Code address. Copy it again from Settings → Environments → Copy MCP URL.",
             "This address didn’t respond like T3 Code. Check that you copied it with Copy MCP URL.",
-            "T3 Code sent Developer Presence to a different address. Copy the address again from T3 Code.",
+            "T3 Code sent Deskchirp to a different address. Copy the address again from T3 Code.",
             "Couldn’t open your browser. Check that you have a default browser, then try again.",
             "Sign-in was cancelled.",
             "Sign-in was cancelled. Your existing connection wasn’t changed.",

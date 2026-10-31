@@ -17,3 +17,11 @@ dist/
 *.cer
 __pycache__/
 *.pyc
+.env
+.env.*
+!.env.example
+*.sqlite3
+*.sqlite3-*
+first-computer-code
+release-assets/
+artifacts/

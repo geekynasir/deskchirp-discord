@@ -1,0 +1,9 @@
+title = "Public fixture review"
+[extend]
+useDefault = true
+[[allowlists]]
+description = "Public synthetic application IDs used only in tests"
+condition = "AND"
+regexTarget = "match"
+paths = ['(^|/)(macos/Tests/|windows/tests/|checks/WindowsShell.Tests/)']
+regexes = ['123456789012345678|999888777666555444']

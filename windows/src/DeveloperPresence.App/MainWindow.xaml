@@ -4,7 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:vm="using:DeveloperPresence.App.ViewModels"
     xmlns:media="using:Microsoft.UI.Xaml.Media"
-    Title="Developer Presence">
+    Title="Deskchirp for Discord">
     <Window.SystemBackdrop>
         <media:MicaBackdrop />
     </Window.SystemBackdrop>
@@ -12,7 +12,7 @@
         <StackPanel Spacing="24" Padding="28" MaxWidth="720" HorizontalAlignment="Stretch">
             <!-- Header Section -->
             <StackPanel Spacing="6">
-                <TextBlock Text="Developer Presence" Style="{StaticResource TitleTextBlockStyle}" />
+                <TextBlock Text="Deskchirp for Discord" Style="{StaticResource TitleTextBlockStyle}" />
                 <TextBlock Text="Show your Discord friends which developer app you’re using." TextWrapping="Wrap" />
             </StackPanel>
 
@@ -60,7 +60,7 @@
                     <TextBlock Text="{x:Bind ViewModel.ComputerStatus, Mode=OneWay}" TextWrapping="Wrap"
                         AutomationProperties.LiveSetting="Polite" />
                     <HyperlinkButton Content="How to link your computers" Padding="0"
-                        NavigateUri="https://github.com/geekynasir/developer-presence/blob/d3f61e6e863ba798f6f3e75f500aadf4ff33770b/docs/computers.md" />
+                        NavigateUri="https://github.com/geekynasir/deskchirp-discord/blob/main/docs/computers.md" />
                     <StackPanel Spacing="8" Visibility="{x:Bind BoolToVisibility(ViewModel.ShowComputerLinkForm), Mode=OneWay}">
                         <TextBox Header="Linking address" AutomationProperties.Name="Linking address"
                             Text="{x:Bind ViewModel.LinkingAddress, Mode=TwoWay}" PlaceholderText="Paste your linking address" />
@@ -112,7 +112,7 @@
                     <Button Content="{x:Bind ViewModel.T3ConnectButtonText, Mode=OneWay}"
                         Command="{x:Bind ViewModel.ConnectT3Command}"
                         AutomationProperties.Name="{x:Bind ViewModel.T3ConnectButtonAutomationName, Mode=OneWay}" />
-                    <TextBlock Text="Opens your browser so you can approve read-only access in T3 Code. Developer Presence only reads which agent tools are working and how many tasks and helpers they have."
+                    <TextBlock Text="Opens your browser so you can approve read-only access in T3 Code. Deskchirp only reads which agent tools are working and how many tasks and helpers they have."
                         TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                         Visibility="{x:Bind BoolToVisibility(ViewModel.ShowT3Consent), Mode=OneWay}" />
                     <TextBlock Text="Your sign-in is saved in Windows Credential Manager."
@@ -143,7 +143,7 @@
             </StackPanel>
 
             <HyperlinkButton Content="How to add the icons"
-                NavigateUri="https://github.com/geekynasir/developer-presence/blob/b9580eb6e4dfc32cb828b904350fb39ce83e8062/docs/connect-t3.md#add-logos" Padding="0" />
+                NavigateUri="https://github.com/geekynasir/deskchirp-discord/blob/main/docs/connect-t3.md#add-logos" Padding="0" />
 
             <!-- App Detection Section -->
             <Expander Header="App detection" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">

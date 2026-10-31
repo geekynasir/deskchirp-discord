@@ -1,8 +1,8 @@
 # Verification status
 
-Updated 2026-10-31. T3 activity and linked-computer switching are implemented in both native companions. The tested application and service source is `6692ff57d101192add7d31429d049378e3ba7d47`; later documentation changes do not change those binaries.
+Updated 2026-10-31. Deskchirp for Discord includes T3 activity and linked-computer switching in both native apps. The first public preview is [v0.1.0-preview.1](https://github.com/geekynasir/deskchirp-discord/releases/tag/v0.1.0-preview.1). Each download includes `BUILD-INFO.json` with its exact source commit and build run, plus license notices and setup guides. `SHA256SUMS` on the release page verifies the archives.
 
-Native builds: [run 41239907490](https://github.com/geekynasir/developer-presence/actions/runs/41239907490). The repository and artifacts are private; sign in with an account that has access. Artifacts are kept for 14 days. No linking service has been deployed.
+Before the rename and release packaging, [native run 41239907490](https://github.com/geekynasir/deskchirp-discord/actions/runs/41239907490) passed all five jobs for source `6692ff57d101192add7d31429d049378e3ba7d47`. The release workflow rebuilds the renamed applications and reruns those checks before publishing. No linking service has been deployed.
 
 ## Automated checks
 
@@ -21,7 +21,7 @@ Swift 5 language mode is used. Concurrency warnings remain, including lock calls
 
 ## Downloaded builds and visual checks
 
-Artifacts from the linked-computer build are downloaded under `/data/ubuntu/tmp/developer-presence/build-6692ff5/`. Both Mac archives passed CRC checks and contain the expected Mach-O CPU architecture. The Windows folder contains an x64 PE executable, XAML resources, .NET/WinUI runtimes, setup notes, and artwork. Local checksums accompany the downloads.
+Artifacts from the pre-release linked-computer build were downloaded and inspected locally. Both Mac archives passed CRC checks and contain the expected Mach-O CPU architecture. The Windows folder contains an x64 PE executable, XAML resources, .NET/WinUI runtimes, setup notes, and artwork. Local checksums accompany the downloads.
 
 The captured Mac General settings window was inspected in light and dark appearance, plus the new Computers tab in light appearance. Native controls, linking fields, explanatory text, and the off-by-default state render correctly in the captured views. A Windows light-mode settings screenshot was also inspected; the app launches and its sharing controls, Discord preview, and collapsed Computers section render correctly. The expanded Windows linking form, other connection states, scaling, and screen readers still need hands-on checks.
 
@@ -45,4 +45,4 @@ The optional T3 connection reads only capabilities and thread lists from one exp
 
 Follow me requires explicit computer enrollment and a private HTTPS linking service. It selects recent OS input, never workload size or background polls. Only the selected computer’s T3 environment contributes counts; remote work is never added across computers. Missing service access stops sharing instead of reverting to independent publishing. Discord may still display an already accepted activity temporarily, so instantaneous handoff and absolute global exclusivity are not claimed. The linking service receives computer names, availability, coarse input timing, and a group-specific account fingerprint, but no activity text or T3 information. See [computer setup](computers.md) and [the real-device checks](../spec/multiple-computers.md#release-acceptance).
 
-Claude Desktop and Codex Desktop remain app-name-only. Conversations, projects, thread titles, model names, private provider labels, and file paths are excluded from the Discord card. Tokens and cost are outside this feature. The companion does not modify upstream T3 Code. See [the setup guide](connect-t3.md) and [the companion PR](https://github.com/geekynasir/developer-presence/pull/1).
+Claude Desktop and Codex Desktop remain app-name-only. Conversations, projects, thread titles, model names, private provider labels, and file paths are excluded from the Discord card. Tokens and cost are outside this feature. The companion does not modify upstream T3 Code. See [the setup guide](connect-t3.md) and [the companion PR](https://github.com/geekynasir/deskchirp-discord/pull/1).

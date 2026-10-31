@@ -13,7 +13,7 @@ public static class PresenceCapture {
     public static extern bool SetForegroundWindow(IntPtr handle);
 }
 '@
-$appProcess = Start-Process -FilePath './dist/windows-x64/DeveloperPresence.App.exe' -PassThru
+$appProcess = Start-Process -FilePath './dist/windows-x64/Deskchirp.exe' -PassThru
 try {
     for ($attempt = 0; $attempt -lt 10; $attempt++) {
         Start-Sleep -Seconds 1

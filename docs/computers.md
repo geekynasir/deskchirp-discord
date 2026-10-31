@@ -1,12 +1,12 @@
 # Follow you between computers
 
-Developer Presence can select the linked computer you most recently used. For example, when you move from your Windows PC to your MacBook, the Windows app stops sharing and the MacBook takes over. Another MacBook can join the same group.
+Deskchirp can select the linked computer you most recently used. For example, when you move from your Windows PC to your MacBook, the Windows app stops sharing and the MacBook takes over. Another MacBook can join the same group.
 
 This feature is in development. It needs a private linking service; we do not currently operate a public one. [Set up the service](../coordination/README.md) before following these steps. Earlier builds do not have computer linking.
 
 ## Link your computers
 
-1. Open Developer Presence settings → **Computers → Follow me**.
+1. Open Deskchirp settings → **Computers → Follow me**.
 2. Paste your **Linking address**, choose a **Computer name**, and enter a fresh **Linking code**. Your service provides the first code.
 3. Choose **Link this computer**. Linking leaves your sharing choice unchanged.
 4. Choose **Link another computer** to get a code for your next Mac or PC. Use the same linking address there. Codes expire after five minutes and work once.

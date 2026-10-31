@@ -142,18 +142,18 @@ public sealed class TcpLoopbackCallbackListener : ILoopbackCallbackListener
 
         if (success && exchangeCompleted)
         {
-            title = "Developer Presence is connected to T3 Code";
-            body = "You can close this tab and return to Developer Presence.";
+            title = "Deskchirp is connected to T3 Code";
+            body = "You can close this tab and return to Deskchirp.";
         }
         else if (success && !exchangeCompleted)
         {
             title = "Approval received";
-            body = "You can close this tab and return to Developer Presence.";
+            body = "You can close this tab and return to Deskchirp.";
         }
         else
         {
             title = "Sign-in didn’t finish";
-            body = "Return to Developer Presence and try connecting again.";
+            body = "Return to Deskchirp and try connecting again.";
         }
 
         string html =

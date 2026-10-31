@@ -49,7 +49,7 @@ public sealed class ProcessMappingItem : INotifyPropertyChanged
 }
 
 /// <summary>
-/// Primary ViewModel driving the Developer Presence Settings Window.
+/// Primary ViewModel driving the Deskchirp Settings Window.
 /// Conforms to plain-language requirements and Windows system appearance guidelines.
 /// </summary>
 public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
@@ -574,7 +574,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
         catch (Exception)
         {
-            Dispatch(() => StatusMessage = "Couldn’t save your settings. Try again. If it keeps happening, quit and reopen Developer Presence.");
+            Dispatch(() => StatusMessage = "Couldn’t save your settings. Try again. If it keeps happening, quit and reopen Deskchirp.");
         }
     }
 

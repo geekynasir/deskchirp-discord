@@ -16,7 +16,7 @@ struct ComputerSettingsView: View {
                     Text("Share from the computer you most recently used. Other linked computers wait. Switching waits briefly for the previous computer to stop. Activity hides after five minutes without input.")
                     Text(computers.status)
                         .accessibilityAddTraits(.updatesFrequently)
-                    Link("How to Link Your Computers", destination: URL(string: "https://github.com/geekynasir/developer-presence/blob/d3f61e6e863ba798f6f3e75f500aadf4ff33770b/docs/computers.md")!)
+                    Link("How to Link Your Computers", destination: URL(string: "https://github.com/geekynasir/deskchirp-discord/blob/main/docs/computers.md")!)
                     if !computers.hasSavedLink {
                         TextField("Linking address", text: $address, prompt: Text("Paste your linking address"))
                         TextField("Computer name", text: $name)

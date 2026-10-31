@@ -136,7 +136,7 @@ public sealed class T3McpClient : IT3McpClient
         {
             jsonrpc = "2.0", id, method = "initialize",
             @params = new { protocolVersion = InitialProtocolVersion, capabilities = new { },
-                clientInfo = new { name = "Developer Presence", version = "1.0.0" } }
+                clientInfo = new { name = "Deskchirp", version = "0.1.0-preview.1" } }
         }, id, initialize: true, ct).ConfigureAwait(false) ?? throw InvalidResponse();
         var result = GetResult(doc.RootElement);
         if (!result.TryGetProperty("protocolVersion", out var version) || version.ValueKind != JsonValueKind.String ||

@@ -286,7 +286,7 @@ public sealed class ComputerLinkService : IComputerLinkService
         if (!response.IsSuccessStatusCode)
         {
             string message = response.StatusCode == System.Net.HttpStatusCode.Conflict
-                ? "Check that Discord uses the same account on each computer and only one copy of Developer Presence is open."
+                ? "Check that Discord uses the same account on each computer and only one copy of Deskchirp is open."
                 : response.StatusCode == System.Net.HttpStatusCode.Unauthorized
                 ? "This computer’s link is no longer available. Unlink it, then use a new code."
                 : "Couldn’t reach the linking service. Check the address or try a new code.";

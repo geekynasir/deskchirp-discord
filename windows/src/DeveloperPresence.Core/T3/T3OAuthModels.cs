@@ -47,7 +47,7 @@ public sealed class T3AuthorizationServerMetadata
 public sealed class T3ClientRegistrationRequest
 {
     [JsonPropertyName("client_name")]
-    public string ClientName { get; set; } = "Developer Presence";
+    public string ClientName { get; set; } = "Deskchirp";
 
     [JsonPropertyName("redirect_uris")]
     public List<string> RedirectUris { get; set; } = new();

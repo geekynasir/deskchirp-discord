@@ -169,7 +169,7 @@ public sealed partial class MainWindow : Window
         string tooltip;
         if (state.OutgoingHeadline == ActivityFormatter.HeadlineNone)
         {
-            tooltip = "Developer Presence\nNot shown on Discord";
+            tooltip = "Deskchirp\nNot shown on Discord";
         }
         else
         {
@@ -178,7 +178,7 @@ public sealed partial class MainWindow : Window
             {
                 line += $" · {state.OutgoingState}";
             }
-            tooltip = $"Developer Presence\n{line}";
+            tooltip = $"Deskchirp\n{line}";
         }
 
         if (tooltip.Length > 127)
@@ -220,6 +220,6 @@ public sealed partial class MainWindow : Window
     private async Task StartCoordinatorAsync()
     {
         try { await _coordinator.StartAsync(); }
-        catch (Exception) { ViewModel.ShowError("Couldn’t start sharing. Quit and reopen Developer Presence."); }
+        catch (Exception) { ViewModel.ShowError("Couldn’t start sharing. Quit and reopen Deskchirp."); }
     }
 }

@@ -324,7 +324,7 @@ public sealed class T3OAuthClient : IT3OAuthClient
     {
         var regRequest = new T3ClientRegistrationRequest
         {
-            ClientName = "Developer Presence",
+            ClientName = "Deskchirp",
             RedirectUris = new List<string> { redirectUri },
             TokenEndpointAuthMethod = "none"
         };
@@ -397,7 +397,7 @@ public sealed class T3OAuthClient : IT3OAuthClient
         var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
         if ((int)response.StatusCode >= 300 && (int)response.StatusCode < 400)
         {
-            throw new InvalidOperationException("T3 Code sent Developer Presence to a different address. Copy the address again from T3 Code.");
+            throw new InvalidOperationException("T3 Code sent Deskchirp to a different address. Copy the address again from T3 Code.");
         }
         return response;
     }
