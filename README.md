@@ -15,9 +15,9 @@ The initial source implements foreground-app presence: **“Using T3 Code,” �
 
 Foreground detection does not establish agent activity or task counts. The authenticated T3 metadata adapter and richer Claude/Codex activity adapters remain future work. No conversation bodies, window titles, code, or file paths are intended for presence payloads.
 
-This repository was created on Linux. Native compilation, application detection, actual Discord display, and desktop lifecycle behavior require macOS and Windows validation. The presence of CI definitions is not evidence of passing CI. Do not treat these sources as signed or distribution-ready releases.
+Native development builds are available for Apple Silicon Macs, Intel Macs, and Windows x64 from the [successful GitHub Actions run](https://github.com/geekynasir/developer-presence/actions/runs/41190337628). Sign in to the repository account to download its artifacts; see [trying a build](docs/trying-builds.md). These are development bundles, not signed releases or installers.
 
-The portable C# checks currently pass **77 tests** (75 core, 2 settings presentation). Swift tests and native application builds have not run. See [verification status](docs/validation.md).
+CI passed **30 Swift tests on each Mac architecture** and **77 portable C# tests** (75 core, 2 settings presentation), built both macOS app bundles, and published the Windows app with its runtimes. Actual Discord display, application detection, and desktop lifecycle behavior still require validation on real machines. See [verification status](docs/validation.md).
 
 ## Development
 
