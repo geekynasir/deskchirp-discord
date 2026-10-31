@@ -93,6 +93,24 @@ public sealed class ComputerLinkTests
     }
 
     [Fact]
+    public async Task MissingDiscordIdentityReportsAvailabilityButCannotAcceptPublishingGrant()
+    {
+        var handler = new Handler();
+        handler.Heartbeat = _ => Task.FromResult(Handler.Reply(new {
+            allowed = true, validFor = 15, selectedHere = true, selectedName = "My PC", switching = false
+        }));
+        var service = new ComputerLinkService(new TestSettings(), new InMemoryCredentialStore(), new Input(), new HttpClient(handler));
+        await service.LinkAsync("https://link.example", "test-code", "My PC");
+        service.UpdateContext(true, null);
+        await service.PollOnceAsync();
+        using var report = JsonDocument.Parse(handler.Calls.Last(x => x.Path == "/v1/heartbeat").Body);
+        Assert.True(report.RootElement.GetProperty("available").GetBoolean());
+        Assert.Equal("", report.RootElement.GetProperty("accountKey").GetString());
+        Assert.False(service.CanPublish);
+        Assert.Equal("Open Discord on this computer to share its activity.", service.Status);
+    }
+
+    [Fact]
     public async Task LateGrantCannotRestoreLostEligibility()
     {
         var handler = new Handler(); var input = new Input();

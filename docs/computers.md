@@ -22,6 +22,8 @@ The settings show **Selected computer: this computer** or the name of another li
 
 If you use a browser or another unsupported app on the selected computer, the developer activity hides. It does not switch back to an unattended PC with T3 open. Activity also hides after five minutes without input. Remote desktop and input-sharing software can create input on more than one computer; near ties keep the existing selection.
 
+The same rule applies if Discord is closed on the computer you just started using: the old computer stops sharing. Open Discord on the selected computer to share there. The app must verify its Discord account before it can publish.
+
 Task and helper counts come only from the selected computer's connected T3 environment. The app never adds duplicate counts just because two computers can see the same work.
 
 ## When something stops working

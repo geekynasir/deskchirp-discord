@@ -363,11 +363,13 @@ public sealed class PresenceCoordinator : IAsyncDisposable
 
             if (settings.FollowComputers)
             {
+                // Even with Discord closed, recent use here must suppress an unattended peer.
+                _computers?.UpdateContext(true, _discordClient.CurrentUserId);
                 // A standby connection reads READY account identity but sends no activity.
                 if (!_discordClient.IsConnected)
                 {
                     if (!await _discordClient.ConnectAsync(settings.DiscordClientId, token).ConfigureAwait(false))
-                    { _computers?.UpdateContext(false, null); return; }
+                    { _computers?.UpdateContext(true, null); return; }
                     _connectedClientId = settings.DiscordClientId;
                     _connectionNeedsPublish = true;
                 }
@@ -605,7 +607,12 @@ public sealed class PresenceCoordinator : IAsyncDisposable
 
     private void OnDiscordStatusChanged(PresenceConnectionStatus status, string? message)
     {
-        if (status != PresenceConnectionStatus.Connected) _computers?.UpdateContext(false, null);
+        if (status != PresenceConnectionStatus.Connected)
+        {
+            var settings = _settingsService.Settings;
+            _computers?.UpdateContext(settings.EnableSharing && !settings.IsPaused &&
+                !_isSessionLocked && !_isSystemSuspended && settings.IsValidDiscordClientId(), null);
+        }
         UpdateState(s =>
         {
             s.ConnectionStatus = status;

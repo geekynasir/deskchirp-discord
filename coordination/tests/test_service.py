@@ -75,8 +75,17 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual(result.exception.code, "different_discord_account")
 
     def test_no_grant_without_account(self):
-        with self.assertRaises(ApiError):
-            self.beat(self.a, account="")
+        self.assertFalse(self.beat(self.a, account="")["allowed"])
+
+    def test_recent_computer_with_discord_closed_hides_unattended_peer(self):
+        self.assertTrue(self.beat(self.a)["allowed"])
+        self.now += 3
+        self.beat(self.b, account="")
+        self.now += 2
+        result = self.beat(self.b, account="", age=2)
+        self.assertFalse(result["allowed"])
+        self.assertTrue(result["selectedHere"])
+        self.assertFalse(self.beat(self.a, age=5)["allowed"])
 
     def test_new_runtime_cannot_reuse_old_runtime_grant(self):
         first = self.beat(self.a)

@@ -91,6 +91,32 @@ final class ComputerLinkTests: XCTestCase {
     }
 
     @MainActor
+    func testMissingDiscordIdentityReportsAvailabilityWithoutPublishingPermission() async throws {
+        let transport = MockHTTPTransport { request in
+            let body: String
+            if request.url!.path == "/v1/join" {
+                body = #"{"deviceId":"test_device_123456","groupId":"test_group_123456","token":"test_token_123456789012"}"#
+            } else {
+                let report = try JSONSerialization.jsonObject(with: request.httpBody!) as! [String: Any]
+                XCTAssertEqual(report["available"] as? Bool, true)
+                XCTAssertEqual(report["accountKey"] as? String, "")
+                // Even a malformed server grant cannot bypass local account verification.
+                body = #"{"allowed":true,"validFor":15,"selectedHere":true,"selectedName":"My Mac","switching":false}"#
+            }
+            return (Data(body.utf8), HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+        }
+        let service = ComputerLinkService(keychain: MockKeychain(), transport: transport, inputAge: { 0 })
+        service.updateContext(linked: true, available: true, discordUserId: nil)
+        let linked = await service.link(address: "https://link.example", code: "test-code", name: "My Mac")
+        XCTAssertTrue(linked)
+        service.updateContext(linked: true, available: true, discordUserId: nil)
+        await service.pollOnce()
+        XCTAssertFalse(service.permission.allows(account: nil))
+        XCTAssertFalse(service.permission.allows(account: "123456789012345678"))
+        XCTAssertEqual(service.status, "Open Discord on this computer to share its activity.")
+    }
+
+    @MainActor
     func testFailedCredentialSaveDoesNotClaimLinked() async {
         let transport = MockHTTPTransport { request in
             let body = #"{"deviceId":"test_device_123456","groupId":"test_group_123456","token":"test_token_123456789012"}"#

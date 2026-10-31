@@ -132,9 +132,9 @@ class Store:
             raise ApiError(400, "invalid_request")
         group, device_id = device["group_id"], device["id"]
         g = self.db.execute("SELECT * FROM groups WHERE id=?", (group,)).fetchone()
-        if available and not account:
-            raise ApiError(400, "account_required")
         if account and g["account"] and g["account"] != account:
+            if device_id in self.observations:
+                self.observations[device_id]["available"] = False
             # No activity, lease or private device names are returned to a different account.
             raise ApiError(409, "different_discord_account")
         if account and not g["account"]:
@@ -152,8 +152,9 @@ class Store:
         self.observations[device_id] = dict(group=group, runtime=runtime, sequence=sequence,
                                            input=last_input, seen=now, available=available,
                                            name=device["name"], account=account)
+        bound_account = g["account"] or account
         candidates = {key: value for key, value in self.observations.items()
-                      if value["group"] == group and value["available"] and value["account"]
+                      if bound_account and value["group"] == group and value["available"]
                       and now - value["seen"] < FRESH and now - value["input"] < IDLE}
         grant = self.grants.get(group)
         incumbent = grant["device"] if grant else None
@@ -175,7 +176,7 @@ class Store:
         if grant and grant["expires"] <= now:
             self.grants.pop(group)
             grant = None
-        if now >= self.quarantine_until and selected == device_id:
+        if account and now >= self.quarantine_until and selected == device_id:
             if grant is None:
                 self.db.execute("UPDATE groups SET generation=generation+1 WHERE id=?", (group,))
                 generation = self.db.execute("SELECT generation FROM groups WHERE id=?", (group,)).fetchone()[0]
@@ -183,12 +184,14 @@ class Store:
                 self.grants[group] = grant
             elif grant["device"] == device_id and grant["runtime"] == runtime:
                 grant["expires"] = now + LEASE
-        allowed = bool(grant and selected == device_id and grant["device"] == device_id
+        allowed = bool(account and grant and selected == device_id and grant["device"] == device_id
                        and grant["runtime"] == runtime and now >= self.quarantine_until)
         return {"allowed": allowed, "generation": grant["generation"] if allowed else 0,
                 "validFor": LEASE if allowed else 0,
                 "selectedName": candidates[selected]["name"] if selected else None,
-                "switching": selected is not None and not (grant and grant["device"] == selected),
+                "selectedHere": selected == device_id,
+                "switching": selected is not None and bool(candidates[selected]["account"])
+                             and not (grant and grant["device"] == selected),
                 "retryAfter": 3}
 
     def request(self, path, body, token="", source="local"):

@@ -100,7 +100,7 @@ public sealed class ComputerLinkService : IComputerLinkService
             lock (_gate)
             {
                 var age = _input.ReadSeconds();
-                return _available && _credential != null && _grantSeconds > 0 &&
+                return _available && _account != null && _credential != null && _grantSeconds > 0 &&
                     _clock.GetElapsedTime(_requestStart).TotalSeconds < _grantSeconds &&
                     age is >= 0 and < 300;
             }
@@ -234,7 +234,7 @@ public sealed class ComputerLinkService : IComputerLinkService
             credential = _credential;
             var input = _input.ReadSeconds();
             age = input is >= 0 and <= 604800 ? input.Value : 604800;
-            available = _available && input.HasValue && _account != null;
+            available = _available && input.HasValue;
             account = _account != null && credential != null
                 ? Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(credential.GroupId + ":" + _account))).ToLowerInvariant() : "";
             double instant = _clock.GetElapsedTime(0).TotalSeconds - age;
@@ -254,11 +254,13 @@ public sealed class ComputerLinkService : IComputerLinkService
         {
             if (_credential != credential || context != _contextVersion || !_settings.Settings.FollowComputers) return;
             double validity = reply.GetProperty("validFor").GetDouble();
-            bool allowed = reply.GetProperty("allowed").GetBoolean() && available && validity is > 3 and <= 15;
+            bool allowed = reply.GetProperty("allowed").GetBoolean() && available && account.Length > 0 && validity is > 3 and <= 15;
             _requestStart = start;
             _grantSeconds = allowed ? validity - 3 : 0;
             string? selected = reply.GetProperty("selectedName").GetString();
             _status = allowed && _clock.GetElapsedTime(start).TotalSeconds < _grantSeconds ? "Selected computer: this computer"
+                : account.Length == 0 && reply.TryGetProperty("selectedHere", out var here) && here.GetBoolean()
+                    ? "Open Discord on this computer to share its activity."
                 : reply.GetProperty("switching").GetBoolean() ? "Switching computers…"
                 : selected != null ? $"Selected computer: {selected}" : "No computer is sharing";
         }

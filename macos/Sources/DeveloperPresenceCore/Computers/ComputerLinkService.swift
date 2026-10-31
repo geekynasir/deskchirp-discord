@@ -205,7 +205,7 @@ public final class ComputerLinkService: ObservableObject {
         if instant > lastInput + 0.3 { lastInput = instant; inputSequence += 1 }
         let version = contextVersion
         let currentAccount = account
-        let canParticipate = available && input != nil && currentAccount != nil
+        let canParticipate = available && input != nil
         let accountKey = currentAccount.map {
             SHA256.hash(data: Data((value.groupId + ":" + $0).utf8)).map { String(format: "%02x", $0) }.joined()
         } ?? ""
@@ -219,10 +219,12 @@ public final class ComputerLinkService: ObservableObject {
             guard let validity = result["validFor"] as? Double, let allowed = result["allowed"] as? Bool else {
                 throw ComputerLinkError.connection
             }
-            if allowed && canParticipate { permission.grant(start: start, seconds: validity) }
+            if allowed && canParticipate && currentAccount != nil { permission.grant(start: start, seconds: validity) }
             else { permission.invalidate() }
             let selected = result["selectedName"] as? String
             status = permission.allows(account: account) ? "Selected computer: this computer"
+                : currentAccount == nil && result["selectedHere"] as? Bool == true
+                    ? "Open Discord on this computer to share its activity."
                 : result["switching"] as? Bool == true ? "Switching computers…"
                 : selected.map { "Selected computer: \($0)" } ?? "No computer is sharing"
         } catch {
