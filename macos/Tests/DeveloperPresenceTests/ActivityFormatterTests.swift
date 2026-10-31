@@ -96,6 +96,6 @@ final class ActivityFormatterTests: XCTestCase {
         XCTAssertEqual(ActivityFormatter.getHeadline(for: .t3Code), "Using T3 Code")
         XCTAssertEqual(ActivityFormatter.getHeadline(for: .claude), "Using Claude")
         XCTAssertEqual(ActivityFormatter.getHeadline(for: .codex), "Using Codex")
-        XCTAssertEqual(ActivityFormatter.getHeadline(for: .none), "None / Cleared")
+        XCTAssertEqual(ActivityFormatter.getHeadline(for: SupportedApp.none), "None / Cleared")
     }
 }

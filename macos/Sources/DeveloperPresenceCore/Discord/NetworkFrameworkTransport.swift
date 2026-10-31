@@ -5,6 +5,9 @@ import Network
 /// Uses NWEndpoint.unix(path:) and NWParameters.tcp.
 public final class NetworkFrameworkTransport: DiscordTransport, @unchecked Sendable {
     private var connection: NWConnection?
+    // Confined to queue, together with connection. Superseded callbacks are
+    // rejected by connection identity before reading or changing this flag.
+    private var connectionCompleted = false
     private let queue: DispatchQueue
     private let queueKey = DispatchSpecificKey<Void>()
 
@@ -39,8 +42,7 @@ public final class NetworkFrameworkTransport: DiscordTransport, @unchecked Senda
 
             let conn = NWConnection(to: endpoint, using: parameters)
             self.connection = conn
-
-            var connectionCompleted = false
+            self.connectionCompleted = false
 
             conn.stateUpdateHandler = { [weak self, weak conn] state in
                 guard let self = self, let conn = conn else { return }
@@ -50,15 +52,15 @@ public final class NetworkFrameworkTransport: DiscordTransport, @unchecked Senda
 
                     switch state {
                     case .ready:
-                        if !connectionCompleted {
-                            connectionCompleted = true
+                        if !self.connectionCompleted {
+                            self.connectionCompleted = true
                             completion(.success(()))
                         }
                         self.startReceiving(conn: conn)
 
                     case .failed(let error):
-                        if !connectionCompleted {
-                            connectionCompleted = true
+                        if !self.connectionCompleted {
+                            self.connectionCompleted = true
                             self.disconnectInternal()
                             completion(.failure(error))
                         } else {
@@ -69,8 +71,8 @@ public final class NetworkFrameworkTransport: DiscordTransport, @unchecked Senda
                         self.handleDisconnection(conn: conn, error: nil)
 
                     case .waiting(let error):
-                        if !connectionCompleted {
-                            connectionCompleted = true
+                        if !self.connectionCompleted {
+                            self.connectionCompleted = true
                             self.disconnectInternal()
                             completion(.failure(error))
                         }
