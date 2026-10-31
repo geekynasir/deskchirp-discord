@@ -6,6 +6,8 @@ final class ScriptedMockDiscordTransport: DiscordTransport, @unchecked Sendable 
     var onDisconnected: (@Sendable (Error?) -> Void)?
 
     private let lock = NSLock()
+    private let handshakeSent = DispatchSemaphore(value: 0)
+    private let activitySent = DispatchSemaphore(value: 0)
     var isConnected: Bool = false
     var connectedPaths: [String] = []
     var disconnectCount: Int = 0
@@ -42,6 +44,14 @@ final class ScriptedMockDiscordTransport: DiscordTransport, @unchecked Sendable 
         lock.unlock()
 
         for frame in frames {
+            if frame.opcode == DiscordIpcFrame.opcodeHandshake {
+                handshakeSent.signal()
+            } else if frame.opcode == DiscordIpcFrame.opcodeFrame,
+                      let object = try? JSONSerialization.jsonObject(with: frame.payload) as? [String: Any],
+                      let args = object["args"] as? [String: Any],
+                      args["activity"] is [String: Any] {
+                activitySent.signal()
+            }
             frameCallback?(frame)
         }
 
@@ -72,11 +82,20 @@ final class ScriptedMockDiscordTransport: DiscordTransport, @unchecked Sendable 
         }
     }
 
-    func simulateReady() {
+    func simulateReady(waitForHandshake: Bool = true) {
+        // A real Discord server cannot send READY before receiving the
+        // handshake. Synchronize with the client queue instead of racing it.
+        if waitForHandshake {
+            XCTAssertEqual(handshakeSent.wait(timeout: .now() + 2), .success)
+        }
         simulateIncomingFrame(
             opcode: DiscordIpcFrame.opcodeFrame,
             json: "{\"cmd\":\"DISPATCH\",\"evt\":\"READY\",\"data\":{\"v\":1}}"
         )
+    }
+
+    func waitForActivityFrame() {
+        XCTAssertEqual(activitySent.wait(timeout: .now() + 2), .success)
     }
 
     func simulateActivityAck(nonce: String) {
@@ -107,10 +126,10 @@ final class DiscordIpcClientTests: XCTestCase {
     private func makeFastConfig() -> DiscordClientConfiguration {
         DiscordClientConfiguration(
             minPublishInterval: 0.05,
-            handshakeTimeout: 0.15,
-            commandTimeout: 0.15,
-            retryInterval: 0.05,
-            connectTimeout: 0.05
+            handshakeTimeout: 2,
+            commandTimeout: 0.4,
+            retryInterval: 0.5,
+            connectTimeout: 0.5
         )
     }
 
@@ -378,7 +397,7 @@ final class DiscordIpcClientTests: XCTestCase {
         client.clearAndCloseImmediately()
 
         // Stale READY frame arrives from old connection attempt
-        mock.simulateReady()
+        mock.simulateReady(waitForHandshake: false)
 
         let waitExp = expectation(description: "Wait to ensure stale callback ignored")
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -532,9 +551,9 @@ final class DiscordIpcClientTests: XCTestCase {
         mock.simulateReady()
         wait(for: [frameExp], timeout: 1.0)
 
-        // Never send ACK; command timeout should fire after 0.15s
+        // Never send ACK; observe after the command deadline and before retry.
         let timeoutExp = expectation(description: "Wait for command timeout")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
             XCTAssertTrue(timeoutReported)
             XCTAssertFalse(mock.isConnected)
             timeoutExp.fulfill()
@@ -685,6 +704,7 @@ final class DiscordIpcClientTests: XCTestCase {
         mock.simulateReady()
 
         // Now request clear
+        mock.waitForActivityFrame()
         client.updateActivity(nil, clientId: testClientId)
 
         wait(for: [clearFrameExp], timeout: 1.0)
