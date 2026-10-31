@@ -3,6 +3,8 @@ import XCTest
 
 final class MockForegroundDetector: ForegroundDetecting, @unchecked Sendable {
     var onForegroundAppChanged: (@Sendable (SupportedApp, String?) -> Void)?
+    var t3Running = false
+    func isAppRunning(_ app: SupportedApp) -> Bool { currentApp == app || (app == .t3Code && t3Running) }
     var currentApp: SupportedApp = .none
     var currentBundleId: String? = nil
     var bundleMappings: [String: SupportedApp] = [:]
@@ -401,6 +403,23 @@ final class PresenceCoordinatorTests: XCTestCase {
             exp2.fulfill()
         }
         await fulfillment(of: [exp2], timeout: 2.0)
+
+        mockDetector.t3Running = true
+        mockDetector.simulateAppChange(app: .none, bundleId: "com.example.browser")
+        try await Task.sleep(nanoseconds: 20_000_000)
+        XCTAssertEqual(coordinator.state.foregroundApp, .none)
+        coordinator.evaluatePresence()
+        XCTAssertEqual(coordinator.state.outgoingHeadline, "T3 Code · Antigravity")
+        XCTAssertEqual(coordinator.state.outgoingState, "1 task")
+        mockDetector.simulateAppChange(app: .claude, bundleId: "com.anthropic.claudefordesktop")
+        try await Task.sleep(nanoseconds: 20_000_000)
+        coordinator.evaluatePresence()
+        XCTAssertEqual(coordinator.state.outgoingHeadline, "T3 Code · Antigravity")
+        mockDetector.t3Running = false // A quit clears old T3 work immediately.
+        coordinator.evaluatePresence()
+        XCTAssertEqual(coordinator.state.outgoingHeadline, "Using Claude")
+        coordinator.togglePause()
+        XCTAssertEqual(coordinator.state.outgoingHeadline, "None / Cleared")
     }
 
     @MainActor

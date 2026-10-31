@@ -7,6 +7,7 @@
     <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
     <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
     <RootNamespace>DeveloperPresence.App</RootNamespace>
+    <ApplicationIcon>../../../assets/brand/deskchirp.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <Platforms>x64;arm64</Platforms>
     <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
@@ -28,6 +29,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="../../../assets/discord/*.png" Link="Discord-artwork/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="../../../assets/brand/deskchirp.ico" Link="Discord-artwork/deskchirp.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Manifest Include="$(ApplicationManifest)" />
   </ItemGroup>
 </Project>

@@ -1,20 +1,22 @@
-# Discord artwork
+# Included Discord artwork
 
-These four 1024×1024 PNGs match the app's optional artwork setting. Add them to the **same Discord application** whose Application ID you entered in Deskchirp.
+Deskchirp includes these 1024×1024 PNGs in both apps, in the Windows installer and in the separate artwork download. Artwork is on by default. Fixed public URLs under the immutable `artwork-v1` Git tag are used in activity payloads; Discord fetches them through its media proxy. A user never needs to upload assets or configure keys. The optional artwork toggle remains under Advanced.
 
-1. Open [Discord Developer Portal](https://discord.com/developers/applications) and select your application.
-2. Open its Rich Presence art assets and upload the PNGs.
-3. Keep these exact lowercase names:
-
-| File / asset name | Used for |
+| File | Purpose |
 | --- | --- |
-| `t3_code` | Large T3 Code image |
-| `harness_claude` | Claude Code badge |
-| `harness_codex` | Codex badge, using the OpenAI mark |
-| `harness_antigravity` | Antigravity badge |
+| `deskchirp.png` | Deskchirp logo; also provided as SVG, Windows ICO and Mac ICNS in `assets/brand` |
+| `t3_code.png` | T3 Code card image |
+| `harness_claude.png` | Claude app image / Claude Code badge |
+| `harness_codex.png` | Codex app image / Codex badge, using the OpenAI mark |
+| `harness_antigravity.png` | Antigravity badge |
+| `harness_cursor.png` | Cursor badge |
+| `harness_opencode.png` | OpenCode badge |
+| `harness_grok.png` | Grok badge |
 
-After the assets are available, turn on **Show app icons** in Deskchirp. Leave it off if you haven't uploaded them. The app cannot upload artwork into your Discord application for you.
+The large image identifies the app; Discord's single small badge identifies the busiest supported T3 tool. Muse, Pi and unknown tools have no provider badge until verified artwork is available. No model logos are inferred from model names.
 
-The large image identifies T3 Code; the small badge identifies the agent tool doing the most work. Discord has one small badge slot. Other tools use the T3 image without a tool badge.
+The native Deskchirp app icon is included in the executable / app bundle. The Discord **application icon** is a separate publisher setting: upload `deskchirp.png` under General Information for application `1566210608569782373`. No user account tokens or passwords belong in Deskchirp. Publisher account access is needed for this one-time change; users of the app do not need to do it.
 
-Source artwork comes from the [T3 Code repository](https://github.com/pingdotgg/t3code), inspected at `da04ebc5087477a82deae9ce19c03539a627359f`: `assets/prod/logo.svg`, `apps/marketing/public/harnesses/claude-ai-icon.svg`, `apps/marketing/public/harnesses/openai_dark.svg`, and `apps/mobile/assets/antigravity.png`. Marks identify their respective products; Deskchirp is independent and unaffiliated. Original marks retain their owners' rights.
+Discord documents [external image URLs](https://docs.discord.com/developers/events/gateway-events#activity-object-activity-asset-image). Live desktop rendering should still be checked on supported Discord clients.
+
+Deskchirp's original logo is MIT licensed with the project. Product artwork comes from [T3 Code](https://github.com/pingdotgg/t3code/tree/da04ebc5087477a82deae9ce19c03539a627359f) at commit `da04ebc5087477a82deae9ce19c03539a627359f`: `assets/prod/logo.svg`, `apps/marketing/public/harnesses/claude-ai-icon.svg`, `openai_dark.svg`, `cursor_light.svg`, `opencode-dark.svg`, `grok-dark.svg`, and `apps/mobile/assets/antigravity.png`. The upstream MIT notice is in `licenses/t3code-MIT.txt`. Marks identify observed products; Deskchirp is independent and unaffiliated. Trademark rights remain with their owners.

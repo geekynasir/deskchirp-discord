@@ -4,9 +4,9 @@ Deskchirp's original code is copyright 2026 geekynasir and licensed under [MIT](
 
 ## Optional Discord artwork
 
-The four PNGs in `assets/discord/` were adapted from [T3 Code](https://github.com/pingdotgg/t3code/tree/da04ebc5087477a82deae9ce19c03539a627359f) at commit `da04ebc5087477a82deae9ce19c03539a627359f`. The original paths and usage instructions are in [the artwork guide](https://github.com/geekynasir/deskchirp-discord/blob/main/assets/discord/README.md). The upstream MIT notice, copyright 2026 T3 Tools Inc., is preserved in [licenses/t3code-MIT.txt](licenses/t3code-MIT.txt).
+The seven product PNGs in `assets/discord/` (excluding the original Deskchirp logo) were adapted from [T3 Code](https://github.com/pingdotgg/t3code/tree/da04ebc5087477a82deae9ce19c03539a627359f) at commit `da04ebc5087477a82deae9ce19c03539a627359f`. The original paths and usage instructions are in [the artwork guide](https://github.com/geekynasir/deskchirp-discord/blob/main/assets/discord/README.md). The upstream MIT notice, copyright 2026 T3 Tools Inc., is preserved in [licenses/t3code-MIT.txt](licenses/t3code-MIT.txt).
 
-Product marks identify the products being observed. The software license does not grant trademark rights or imply endorsement. Artwork is optional and disabled by default.
+Product marks identify the products being observed. The software license does not grant trademark rights or imply endorsement. Artwork is included and on by default; users can turn it off.
 
 ## Windows dependencies and bundled runtimes
 
@@ -15,6 +15,8 @@ Windows builds use .NET 8, Windows App SDK, and WinUI 3. Self-contained download
 - [.NET MIT license](licenses/dotnet-MIT.txt) and [runtime third-party notices](licenses/dotnet-THIRD-PARTY-NOTICES.txt), from the .NET 8 runtime source.
 - [Windows App SDK MIT license](licenses/windowsappsdk-MIT.txt).
 - [WinUI MIT license](licenses/winui-MIT.txt).
+- App-local Microsoft Visual C++ runtime files, subject to [Microsoft’s runtime terms](licenses/visual-cpp-runtime.md).
+- Windows setup uses Inno Setup 6. Its installed compiler license is copied to `licenses/innosetup-license.txt` in the Windows download and installation. Inno Setup is copyright Jordan Russell and Martijn Laan; see https://jrsoftware.org/isinfo.php.
 
 Microsoft Windows SDK components and system libraries remain subject to Microsoft's applicable terms. The build uses `Microsoft.Windows.SDK.BuildTools`; it is a build dependency, not an independently licensed Deskchirp component. Development tests use xUnit and the Microsoft test SDK, which are not included in the desktop downloads. Swift, AppKit, SwiftUI, and Python use the licenses and platform terms of their respective distributions.
 

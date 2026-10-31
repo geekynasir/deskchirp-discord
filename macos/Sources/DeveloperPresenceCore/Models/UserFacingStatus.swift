@@ -22,7 +22,7 @@ public enum UserFacingStatus {
         if settings.followComputers && state.computerStatus != "Selected computer: this computer" {
             return Message(state.computerStatus)
         }
-        if state.foregroundApp == .none {
+        if state.foregroundApp == .none && state.outgoingHeadline == ActivityFormatter.headlineNone {
             return Message("Not sharing while another app is active", "Shares when T3 Code, Claude, or Codex is the active app.")
         }
         if state.connectionStatus == .connecting { return Message("Connecting to Discord…") }

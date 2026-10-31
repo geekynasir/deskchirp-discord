@@ -37,7 +37,9 @@ If T3 cannot be reached or the activity is out of date, Discord falls back to **
 
 ## Add logos
 
-Artwork is optional and off by default. Deskchirp’s shared Discord application is included, so users do not need to register an application. If you choose a custom application in **Advanced**, upload the included [Discord artwork](../assets/discord/README.md) there before enabling **Show app icons**.
+App and agent artwork is bundled and on by default. The card uses fixed public image URLs from the versioned [artwork pack](../assets/discord/README.md), which Discord fetches through its media proxy. Users do not need to register or upload anything. **Advanced → Show app icons** can turn it off. Custom application IDs work with the same public images.
+
+The application's publisher icon is separate from card artwork: it is managed in the Discord Developer Portal by the owner of Deskchirp's application.
 
 ## Privacy and disconnecting
 
@@ -46,3 +48,7 @@ Task counts and agent tool names are optional. Project names, conversation title
 T3 grants read-only access to thread metadata. The app uses it to read tool names and activity; it does not open conversations or run agents. Sign-in credentials stay in your computer's secure storage.
 
 Pause sharing, turn it off, or quit to clear Discord. **Disconnect** removes this app's saved T3 connection. You can also revoke its access in T3's **Settings → Sharing & access**. If access expires or is revoked, choose **Allow T3 activity** again.
+
+## Minimized and background apps
+
+T3 does not need focus. Deskchirp observes whether its desktop app is running using only its exact app identifier or program name. Fresh running, waiting or starting T3 work takes priority over another active developer app. Otherwise the active developer app wins; when no supported developer app has focus, an open T3 app still shows its app-name card. Closing T3 clears its counts. Sharing off, pause, screen lock, sleep and linked-computer selection continue to hide activity.

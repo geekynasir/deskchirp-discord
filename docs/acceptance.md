@@ -23,7 +23,7 @@ Record OS version, CPU architecture, Discord channel/version, and companion comm
 
 - Fresh install: no Discord connection before opt-in. Invalid or empty public application ID cannot enable publishing.
 - Focus each supported app and verify the actual profile displays only its approved `Using …` text.
-- Focus an unsupported app, pause, disable, lock, sleep, or quit: activity clears and stays cleared.
+- Focus an unsupported app with T3 closed, pause, disable, lock, sleep, or quit Deskchirp: activity clears and stays cleared.
 - Rapidly change focus and settings while Discord is starting. No stale callback restores old or disabled activity.
 - Launch Discord after the companion; restart Discord without changing focus; the current eligible presence returns.
 - Stop/restart Discord repeatedly; no crash, busy reconnect loop, duplicate publishes, or permanently stuck connection.
@@ -33,16 +33,16 @@ Record OS version, CPU architecture, Discord channel/version, and companion comm
 
 ## Both platforms: optional T3 activity
 
-- Fresh install and an upgrade from an older build: **Show T3 activity** and **Show app icons** remain off. Existing Discord settings and app mappings survive the upgrade.
-- Copy a T3 address from Settings → Environments → Copy MCP URL. Connect without administrator privileges, approve **Read only** in the browser, and confirm the app returns to **Connected**. Test both local HTTP and remote HTTPS environments.
+- Fresh install and an upgrade from an older build: **Show T3 activity** remains off until approved. Artwork is on by default; an opt-out after the artwork migration survives later restarts. Existing Discord settings and app mappings survive the upgrade.
+- Choose **Allow T3 activity** for local discovery, or copy a remote T3 address from Settings → Environments → Copy MCP URL under Advanced. Connect without administrator privileges, approve **Read only** in the browser, and confirm the app returns to **Connected**. Test both local HTTP and remote HTTPS environments.
 - Cancel in the app, deny in the browser, let sign-in time out, and send an invalid callback. No listener remains open, and an existing saved connection stays usable. Confirm Disconnect removes the saved sign-in from Keychain or Windows Credential Manager.
 - With sharing and T3 activity enabled, focus T3 Code. Run tasks and helpers with Claude Code, Codex, and Antigravity. Check that each helper counts under the tool that runs it, even when its parent uses another tool. A fork counts as a task.
 - Confirm the busiest tool wins by running task/helper count. Ties retain the current tool; a new leader must stay ahead for 10 seconds. Waiting and starting work must be labeled as such, and finished work must disappear.
-- Change counts without switching apps: the native preview and Discord update. Unknown tools show **Other tools**, with no private account or tool names.
+- Minimize T3, focus a browser, then Claude/Codex: unfinished T3 work remains visible. Finish all T3 work: the active developer app wins, or an open minimized T3 keeps its app-name card. Quit T3: its counts clear. Change counts without switching apps: the native preview and Discord update. Unknown tools show **Other tools**, with no private account or tool names.
 - Test multiple result pages, repeated thread IDs, an incomplete or oversized response, network failure, and expired/revoked access. Failed or stale data falls back to **Using T3 Code**, never a partial or remembered total.
-- Pause, lock, disconnect, change the T3 address, or switch to Claude/Codex while a poll or sign-in is pending. A late result must not restore activity or save a disconnected sign-in.
+- Pause, lock, disconnect, change the T3 address, or close T3 while a poll or sign-in is pending. A late result must not restore activity or save a disconnected sign-in.
 - Inspect requests using a synthetic test environment: only capabilities and thread-list tools are called. No conversation-reading tool or transcript access occurs. Inspect settings/logs for accidental credential storage.
-- Enable icons after uploading the included artwork to the configured Discord application. Verify the T3 icon and supported tool badge on a real profile, including app-only mode. Disable icons and confirm both images disappear.
+- With default artwork enabled, verify public image URLs resolve without any user asset upload. Verify the T3 icon and supported tool badge on a real profile, including app-only mode. Disable icons and confirm both images disappear.
 - Read the app at larger text sizes and with a screen reader. Helper text wraps, the full two-line Discord preview is available, and normal status messages contain no protocol names or raw errors.
 
 Record which helpers T3 exposes as child threads. Helpers that exist only inside a provider's own run are not inferred or included in these counts.

@@ -168,7 +168,7 @@ public final class PresenceCoordinator: ObservableObject {
         }
         computerTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
-                guard let self = self, self.started, self.settings.followComputers else { return }
+                guard let self = self, self.started else { return }
                 self.evaluatePresence()
             }
         }
@@ -208,14 +208,18 @@ public final class PresenceCoordinator: ObservableObject {
         let isEligible = localEligible && computers.permission.allows(account: discordUserId)
         state.computerStatus = computers.status
 
-        // Update T3 polling eligibility: poll only when sharing is active, awake, T3 activity enabled, and T3 Code focused
+        // Observe a running T3 desktop app even when minimized. Privacy and computer grants still gate polling.
+        let t3Running = state.foregroundApp == .t3Code || foregroundDetector.isAppRunning(.t3Code)
         let isEligibleToPoll = isEligible &&
-                              settings.showT3Activity &&
-                              state.foregroundApp == .t3Code
+                              settings.showT3Activity && t3Running
         t3Service.updateEligibility(isEligibleToPoll: isEligibleToPoll)
 
+        let currentT3 = settings.showT3Activity ? t3Service.currentFormattedActivity(showAppIcons: settings.showAppIcons) : nil
+        let hasT3Work = currentT3?.winningTool != nil
+        let displayedApp: SupportedApp = t3Running && (hasT3Work || state.foregroundApp == .none) ? .t3Code : state.foregroundApp
+
         let t3Formatted: T3FormattedActivity?
-        if state.foregroundApp == .t3Code {
+        if displayedApp == .t3Code {
             t3Formatted = settings.showT3Activity
                 ? t3Service.currentFormattedActivity(showAppIcons: settings.showAppIcons)
                 : T3ActivityFormatter.format(snapshot: nil, winningTool: nil, showAppIcons: settings.showAppIcons)
@@ -223,8 +227,8 @@ public final class PresenceCoordinator: ObservableObject {
             t3Formatted = nil
         }
 
-        let activity = ActivityFormatter.formatActivity(
-            app: state.foregroundApp,
+        let formatted = ActivityFormatter.formatActivity(
+            app: displayedApp,
             enableSharing: isEligible,
             isPaused: settings.isPaused,
             isSuspended: state.isSessionSuspended,
@@ -232,12 +236,14 @@ public final class PresenceCoordinator: ObservableObject {
             t3FormattedActivity: t3Formatted
         )
 
+        let activity = DiscordArtwork.apply(to: formatted, app: displayedApp, enabled: settings.showAppIcons)
+
         if isEligible {
             state.outgoingHeadline = ActivityFormatter.getHeadline(for: activity)
             state.outgoingState = activity?.state
 
             // Activity note per product language specification
-            if !settings.showT3Activity || state.foregroundApp != .t3Code {
+            if !settings.showT3Activity || displayedApp != .t3Code {
                 state.t3ActivityNote = nil
             } else if t3Service.connectionStatus != .connected {
                 state.t3ActivityNote = "Connect T3 Code to show agent activity."

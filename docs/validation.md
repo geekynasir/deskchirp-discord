@@ -1,18 +1,19 @@
 # Verification status
 
-Updated 2026-10-31. Deskchirp for Discord includes T3 activity and linked-computer switching in both native apps. The first public preview is [v0.1.0-preview.1](https://github.com/geekynasir/deskchirp-discord/releases/tag/v0.1.0-preview.1). Each download includes `BUILD-INFO.json` with its exact source commit and build run, plus license notices and setup guides. `SHA256SUMS` on the release page verifies the archives.
+Updated 2026-10-31. Preview 3 adds a Windows setup wizard, bundled artwork and minimized T3 activity. Build results and native screenshots are recorded in the [Native apps history](https://github.com/geekynasir/deskchirp-discord/actions/workflows/native.yml). This page distinguishes automated checks from real-device acceptance. Each release download carries source/build metadata and license notices; `SHA256SUMS` verifies published downloads. No linking service has been deployed.
 
-Before the rename and release packaging, [native run 41239907490](https://github.com/geekynasir/deskchirp-discord/actions/runs/41239907490) passed all five jobs for source `6692ff57d101192add7d31429d049378e3ba7d47`. The release workflow rebuilds the renamed applications and reruns those checks before publishing. No linking service has been deployed.
+[Installer run 41249298736](https://github.com/geekynasir/deskchirp-discord/actions/runs/41249298736) passed both native Mac architectures, Windows publication, portable tests and coordination checks. Its Windows smoke check installed an older-version setup fixture, launched from the Start shortcut, upgraded to the current version and uninstalled while preserving user data. The fixture used the current app payload, so this does not establish compatibility with all historical versions.
 
 ## Automated checks
 
-- **80 Swift tests on each Mac architecture**, Apple Silicon and Intel. These cover the existing Discord protocol/privacy checks, settings migration, task/helper grouping, tool selection, TTL fallback, MCP sessions, bounded streaming responses, browser sign-in, and real local callback requests (including rejection of a missing issuer).
-- **142 C# core tests and 3 Windows settings tests**, locally and on the portable CI runner. These include shared activity cases, session/stream handling, late sign-in after Disconnect, late polls after invalidation, endpoint changes, and slow polling without blocking active-app detection.
+- **Swift tests on each Mac architecture**, Apple Silicon and Intel. These cover the existing Discord protocol/privacy checks, settings migration, task/helper grouping, tool selection, TTL fallback, MCP sessions, bounded streaming responses, browser sign-in, and real local callback requests (including rejection of a missing issuer).
+- **160 C# core tests and 5 Windows settings tests**, locally and on the portable CI runner. These include shared activity cases, session/stream handling, late sign-in after Disconnect, late polls after invalidation, endpoint changes, and slow polling without blocking active-app detection.
 - Linked-mode native tests cover account fingerprints, standby handshakes without activity, publishing gates, idle time, expiry, delayed grants, credential recovery, unlinking, and a selected computer with Discord closed.
 - **17 Python service tests** cover enrollment, hashed device tokens, account isolation, concurrent claims, near ties, unchanged input, idle/unavailable devices, Discord-closed selection, grant expiry, revocation, restart quarantine, and real HTTP requests.
 - An additional integration check runs **two actual C# client services against the Python server over TCP**, with simulated OS input and real grant expiry. Enrollment, an idle peer staying quiet, the old client stopping, and exclusive takeover passed locally and in CI.
 - Release macOS app bundles, plist checks, and ad-hoc signature verification for arm64 and x86_64.
 - Windows x64 WinUI/XAML compilation and self-contained publication, including .NET and Windows App SDK runtimes.
+- Minimized T3 count selection, active-app fallback, quitting T3, pause/disable clearing, artwork URL allowlisting and persisted artwork opt-out.
 - JSON, project/XAML XML, plist, shared fixture equality, packaging shell syntax, and source whitespace checks.
 
 The shared synthetic fixtures contain mixed agent tools, helpers that use a different tool from their parent, forks, repeated IDs, waiting/completed work, and private-name bait. Unknown driver labels never become public names. Transport tests use controlled responses, not a user's live conversations. The actual Mac callback tests run only against ephemeral local test listeners.
@@ -32,12 +33,12 @@ Hosted-runner launch captures and artifact inspection do not replace clean-machi
 - Linked computers: at least two Macs and one Windows PC, the same Discord account/application ID, and a second account observing the profile. Check switching, near ties, unsupported apps, Discord closed, five-minute idle hiding, local pause, lock/sleep, crashes, and delayed clears.
 - Network partitions, a service restart, process suspension beyond a grant deadline, remote desktop/input sharing, Discord Stable/Canary, and multiple OS-user sessions. Automated grant checks do not prove Discord’s global display ordering.
 - T3 browser approval against a real local/remote environment, secure-store persistence, expiry, and revocation.
-- A real Discord profile displaying the card and uploaded artwork, including reconnect after Discord restarts.
+- A real Discord profile displaying the card and external artwork, including reconnect after Discord restarts.
 - Exact app identities, active-app transitions, menu/tray behavior, lock/sleep, and quitting during pending operations.
 - Screen readers, high contrast, larger text/scaling, multiple monitors, and clean-machine installation.
-- Release signing, Mac notarization, and installers.
+- Release signing, Mac notarization, and installer use on a clean personal Windows machine.
 
-The Linux VPS has no local Xcode or Windows desktop. Native builds and screenshots run on the matching GitHub hosts. These are development builds, not distribution-ready releases. Follow [acceptance.md](acceptance.md) before release.
+The Linux VPS has no local Xcode or Windows desktop. Native builds and screenshots run on the matching GitHub hosts. These are development builds, unsigned previews with the real-device checks below still pending. Follow [acceptance.md](acceptance.md) before release.
 
 ## Scope
 

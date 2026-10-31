@@ -47,6 +47,9 @@ cp "${PACKAGE_DIR}/../LICENSE" "${RESOURCES_DIR}/LICENSE"
 cp "${PACKAGE_DIR}/../THIRD_PARTY_NOTICES.md" "${RESOURCES_DIR}/THIRD_PARTY_NOTICES.md"
 cp -R "${PACKAGE_DIR}/../licenses" "${RESOURCES_DIR}/licenses"
 
+cp "${PACKAGE_DIR}/../assets/brand/deskchirp.icns" "${RESOURCES_DIR}/deskchirp.icns"
+cp -R "${PACKAGE_DIR}/../assets/discord" "${RESOURCES_DIR}/Discord-artwork"
+
 # Create PkgInfo
 echo -n "APPL????" > "${CONTENTS_DIR}/PkgInfo"
 

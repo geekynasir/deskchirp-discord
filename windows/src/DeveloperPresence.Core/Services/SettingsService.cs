@@ -64,6 +64,7 @@ public sealed class SettingsService : ISettingsService
 
                     if (string.IsNullOrEmpty(loaded.DiscordClientId))
                         loaded.DiscordClientId = PresenceSettings.DefaultDiscordApplicationId;
+                    if (loaded.ArtworkDefaultsVersion < 1) { loaded.ShowAppIcons = true; loaded.ArtworkDefaultsVersion = 1; }
                     _settings = loaded;
                     SettingsChanged?.Invoke(_settings);
                     return;
@@ -71,13 +72,13 @@ public sealed class SettingsService : ISettingsService
             }
 
             // Apply safe defaults if file does not exist or deserialized to null
-            _settings = new PresenceSettings();
+            _settings = new PresenceSettings { ArtworkDefaultsVersion = 1 };
             SettingsChanged?.Invoke(_settings);
         }
         catch
         {
             // Fall back safely to default settings on read or parsing error
-            _settings = new PresenceSettings();
+            _settings = new PresenceSettings { ArtworkDefaultsVersion = 1 };
             SettingsChanged?.Invoke(_settings);
         }
         finally

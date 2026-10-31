@@ -1,8 +1,8 @@
 # Set up Deskchirp for Discord
 
-These are unsigned development builds, not signed releases or installers. CI compilation and automated tests do not verify real Discord display, desktop focus, lock/sleep behavior, or clean-machine installation. Sharing is off by default. macOS lock-state handling still needs native validation; pause or quit the companion before leaving it unattended.
+These are unsigned preview builds. Windows has a setup wizard; Mac downloads are app bundles. CI compilation and automated tests do not verify real Discord display, desktop focus, lock/sleep behavior, or clean-machine installation. Sharing is off by default. macOS lock-state handling still needs native validation; pause or quit the companion before leaving it unattended.
 
-Download your platform’s ZIP from [GitHub Releases](https://github.com/geekynasir/deskchirp-discord/releases). No GitHub sign-in is needed for public release downloads. Choose the latest preview, and use its `SHA256SUMS` to verify the files. GitHub’s automatic “Source code” downloads contain source, not ready-to-run apps.
+Download your platform’s installer or app ZIP from [GitHub Releases](https://github.com/geekynasir/deskchirp-discord/releases). No GitHub sign-in is needed for public release downloads. Choose the latest preview, and use its `SHA256SUMS` to verify the files. GitHub’s automatic “Source code” downloads contain source, not ready-to-run apps.
 
 ## macOS 13 or newer
 
@@ -12,7 +12,11 @@ The app has an ad-hoc development signature, not an Apple Developer ID signature
 
 ## Windows 10 build 19041 or newer / Windows 11 (x64)
 
-Extract the entire `windows-x64.zip` download into a folder, then run `Deskchirp.exe` from that folder. Keep every DLL and subdirectory beside the EXE. The artifact includes .NET and Windows App SDK runtimes, but is not a single-file executable or an installer. A clean PC may also require the Microsoft Visual C++ v14 x64 Redistributable. Windows may warn because the app is unsigned. Native installation and runtime behavior remain unverified until tested on a real PC.
+Download **`Deskchirp-0.1.0-preview.3-windows-x64-setup.exe`** and open it. Follow the setup wizard, then launch **Deskchirp** from Start. It installs for your Windows account, includes the required runtimes and offers an optional desktop shortcut. No administrator access or separate runtime download is needed. Windows may warn because this preview is unsigned.
+
+To update, quit Deskchirp from its tray menu and run the newer installer. To remove it, use **Windows Settings → Apps → Installed apps → Deskchirp for Discord → Uninstall**. Settings and saved sign-ins stay available for a later reinstall; disconnect T3 and unlink computers in the app first if you want to remove those saved connections.
+
+The **`windows-x64-portable.zip`** download is optional. Only portable users need to extract the whole folder and keep its files together.
 
 The app lives in the notification area. Closing its settings hides the window when the tray icon is available. Use the tray menu to quit.
 
@@ -23,7 +27,9 @@ The app lives in the notification area. Closing its settings hides the window wh
 3. Focus a supported desktop application and check your Discord activity. Discord’s activity-sharing setting must permit it.
 4. For task and helper counts, choose **Allow T3 activity** and approve read-only access in your browser. The local T3 address is found automatically. Remote addresses and custom Discord application IDs are under **Advanced**.
 
-By default, sharing shows only `Using T3 Code`, `Using Claude`, or `Using Codex`. Builds with the optional **Show T3 activity** setting can also show agent tool names and task/helper counts after [connecting T3 Code](connect-t3.md). Use the included `CONNECT-T3.md` when trying a downloaded build. Older builds without that setting remain app-name-only. Projects, models, and conversation contents are not published. Codex on macOS may need an entry under App Detection; desktop app variants may also need one.
+T3 can stay minimized while its activity is shared. Unfinished T3 work takes priority over other active apps; otherwise the active developer app wins. When no supported app is active, an open T3 app retains its app-name status. Closing T3 clears its counts. App and agent artwork is on by default.
+
+Without the optional T3 connection, sharing shows only `Using T3 Code`, `Using Claude`, or `Using Codex`. Builds with the optional **Show T3 activity** setting can also show agent tool names and task/helper counts after [connecting T3 Code](connect-t3.md). Use the included `CONNECT-T3.md` when trying a downloaded build. Older builds without that setting remain app-name-only. Projects, models, and conversation contents are not published. Codex on macOS may need an entry under App Detection; desktop app variants may also need one.
 
 Pause, disable, or quit should clear presence. Verify these behaviors, Discord restarts, screen lock, and sleep before relying on the app. See `docs/acceptance.md` in the source repository for the full checklist.
 

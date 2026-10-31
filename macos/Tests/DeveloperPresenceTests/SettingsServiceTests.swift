@@ -49,6 +49,16 @@ final class SettingsServiceTests: XCTestCase {
         XCTAssertTrue(settings.isPaused)
     }
 
+    func testArtworkUpgradeRespectsLaterOptOut() {
+        testDefaults.set(false, forKey: SettingsService.Keys.showAppIcons)
+        let service = SettingsService(userDefaults: testDefaults)
+        var settings = service.loadSettings()
+        XCTAssertTrue(settings.showAppIcons)
+        settings.showAppIcons = false
+        service.saveSettings(settings)
+        XCTAssertFalse(service.loadSettings().showAppIcons)
+    }
+
     func testSaveAndLoadSettings() {
         let service = SettingsService(userDefaults: testDefaults)
         var settings = service.loadSettings()

@@ -18,4 +18,6 @@ public interface IForegroundDetector
     /// Returns the exact base executable file name (e.g. "t3code.exe") of the foreground window, or null.
     /// </summary>
     string? GetActiveProcessImageName();
+
+    bool IsAppRunning(SupportedApp app, IReadOnlyDictionary<string, SupportedApp> mappings) => DetectForegroundApp(mappings) == app;
 }

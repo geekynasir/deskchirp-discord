@@ -13,7 +13,7 @@ public static class UserFacingStatus
         if (!settings.IsValidDiscordClientId()) return ("Check your Discord application ID", "Application IDs are 15 to 20 digits.");
         if (settings.FollowComputers && state.ComputerStatus != "Selected computer: this computer")
             return (state.ComputerStatus, null);
-        if (state.ForegroundApp == SupportedApp.None)
+        if (state.ForegroundApp == SupportedApp.None && state.OutgoingHeadline == "None / Cleared")
             return ("Not sharing while another app is active", "Shares when T3 Code, Claude, or Codex is the active app.");
         if (state.ConnectionStatus == PresenceConnectionStatus.Connecting) return ("Connecting to Discord…", null);
         string diagnostic = state.StatusMessage.ToLowerInvariant();

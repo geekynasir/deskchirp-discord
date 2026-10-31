@@ -19,6 +19,21 @@ public class SettingsServiceTests
         Assert.Equal(5, settings.UpdateIntervalSeconds);
     }
 
+    [Fact]
+    public async Task ArtworkUpgradeRunsOnceAndRespectsLaterOptOut()
+    {
+        string path = Path.GetTempFileName();
+        try {
+            await File.WriteAllTextAsync(path, "{\"ShowAppIcons\":false}");
+            var service = new SettingsService(path);
+            await service.LoadSettingsAsync();
+            Assert.True(service.Settings.ShowAppIcons);
+            await service.UpdateSettingsAsync(settings => settings.ShowAppIcons = false);
+            await service.LoadSettingsAsync();
+            Assert.False(service.Settings.ShowAppIcons);
+        } finally { File.Delete(path); }
+    }
+
     [Theory]
     [InlineData("", PresenceSettings.DefaultDiscordApplicationId)]
     [InlineData("123456789012345678", "123456789012345678")]

@@ -27,7 +27,7 @@ final class SettingsMigrationTests: XCTestCase {
         // Safe defaults for newly introduced keys
         XCTAssertFalse(settings.showT3Activity, "showT3Activity must default to false for privacy on migration")
         XCTAssertEqual(settings.t3Address, "", "t3Address must default to empty string")
-        XCTAssertFalse(settings.showAppIcons, "showAppIcons must default to false")
+        XCTAssertTrue(settings.showAppIcons, "Bundled public artwork is on by default")
 
         // Existing bundle mappings must be preserved
         XCTAssertEqual(settings.bundleMappings["com.t3tools.t3code"], .t3Code)
@@ -44,7 +44,7 @@ final class SettingsMigrationTests: XCTestCase {
         XCTAssertEqual(settings.updateIntervalSeconds, 5)
         XCTAssertFalse(settings.showT3Activity)
         XCTAssertEqual(settings.t3Address, "")
-        XCTAssertFalse(settings.showAppIcons)
+        XCTAssertTrue(settings.showAppIcons)
         XCTAssertEqual(settings.bundleMappings["com.t3tools.t3code"], .t3Code)
     }
 }

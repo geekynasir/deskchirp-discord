@@ -245,7 +245,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public bool ShowT3Consent => !IsT3Connected && !IsT3Connecting;
     public bool IsT3AddressEditable => !IsT3Connecting;
     public string PrivacyFooterText => ShowT3Activity
-        ? "Discord sees the app name and, while T3 Code is active, an agent tool name with task and helper counts. Conversations, thread titles, projects, models, and files are never shared. Close this window to keep running in the notification area."
+        ? "Discord sees the app name and T3 agent tool names with task and helper counts, including work running in the background. Conversations, thread titles, projects, models, and files are never shared. Close this window to keep running in the notification area."
         : "Discord sees only the name of the app you’re using. Conversations, window titles, files, and projects are never shared. Close this window to keep running in the notification area.";
 
     public bool IsT3Connecting => _findingT3 || _t3ConnectionStatus == T3ConnectionStatus.OpeningSignIn;
@@ -266,7 +266,14 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public string OutgoingHeadlineText
     {
         get => _outgoingHeadlineText;
-        private set { _outgoingHeadlineText = value; OnPropertyChanged(); }
+        private set { _outgoingHeadlineText = value; OnPropertyChanged(); OnPropertyChanged(nameof(PreviewImageUri)); }
+    }
+
+    public string PreviewImageUri {
+        get {
+            string key = OutgoingHeadlineText.Contains("T3 Code", StringComparison.Ordinal) ? "t3_code" : OutgoingHeadlineText == "Using Claude" ? "harness_claude" : OutgoingHeadlineText == "Using Codex" ? "harness_codex" : "deskchirp";
+            return $"ms-appx:///Discord-artwork/{key}.png";
+        }
     }
 
     public string? OutgoingStateText

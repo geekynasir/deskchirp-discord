@@ -16,7 +16,7 @@ public enum T3ConnectionStatus: String, Codable, Equatable, Sendable {
         case .openingSignIn:
             return "Approve access in your browser, then come back here."
         case .connected:
-            return "Activity is checked only while T3 Code is the active app."
+            return "T3 work stays visible while the app is minimized."
         case .signInAgain:
             return "Your T3 Code sign-in expired. Connect again to keep showing activity."
         case .couldNotReach:

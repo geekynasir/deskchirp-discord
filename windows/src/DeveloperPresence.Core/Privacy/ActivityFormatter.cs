@@ -110,8 +110,8 @@ public static class ActivityFormatter
             {
                 LargeImage = "t3_code",
                 LargeText = "T3 Code",
-                SmallImage = toolName switch { "Claude Code" => "harness_claude", "Codex" => "harness_codex", "Antigravity" => "harness_antigravity", _ => null },
-                SmallText = toolName is "Claude Code" or "Codex" or "Antigravity" ? toolName : null
+                SmallImage = toolName switch { "Claude Code" => "harness_claude", "Codex" => "harness_codex", "Antigravity" => "harness_antigravity", "Cursor" => "harness_cursor", "OpenCode" => "harness_opencode", "Grok" => "harness_grok", _ => null },
+                SmallText = toolName is "Claude Code" or "Codex" or "Antigravity" or "Cursor" or "OpenCode" or "Grok" ? toolName : null
             };
         }
 

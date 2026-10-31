@@ -6,6 +6,7 @@ import json
 from pathlib import Path, PurePosixPath
 import plistlib
 import re
+import shutil
 import struct
 import zipfile
 
@@ -27,7 +28,7 @@ def package(artifacts, output, version, commit, run_url):
         source = artifacts / ("Deskchirp-" + platform)
         if not source.is_dir():
             raise ValueError("Missing artifact: " + str(source))
-        archive = output / f"Deskchirp-{version}-{platform}.zip"
+        archive = output / f"Deskchirp-{version}-{platform}{'-portable' if platform == 'windows-x64' else ''}.zip"
         with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as result:
             if platform.startswith("macos-"):
                 with zipfile.ZipFile(source / ("Deskchirp-" + platform + ".zip")) as app:
@@ -49,7 +50,7 @@ def package(artifacts, output, version, commit, run_url):
                 offset = struct.unpack_from("<I", binary, 60)[0]
                 if binary[:2] != b"MZ" or binary[offset:offset + 4] != b"PE\0\0" or struct.unpack_from("<H", binary, offset + 4)[0] != 0x8664:
                     raise ValueError("Wrong Windows CPU architecture")
-                for name in ("Deskchirp.dll", "Deskchirp.pri", "coreclr.dll", "Microsoft.ui.xaml.dll"):
+                for name in ("Deskchirp.dll", "Deskchirp.pri", "coreclr.dll", "Microsoft.ui.xaml.dll", "vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll"):
                     if not (source / name).is_file():
                         raise ValueError("Missing Windows runtime/resource: " + name)
             for path in sorted(source.rglob("*")):
@@ -57,7 +58,7 @@ def package(artifacts, output, version, commit, run_url):
                     continue
                 relative = path.relative_to(source).as_posix()
                 safe_name(relative)
-                if path.suffix.lower() in (".zip", ".pdb") or path.name.startswith("settings"):
+                if path.suffix.lower() in (".zip", ".pdb") or path.name.startswith("settings") or path.name == "BUILD-INFO.json":
                     continue
                 result.write(path, relative)
             legal_path = "LICENSE"
@@ -74,6 +75,28 @@ def package(artifacts, output, version, commit, run_url):
                 raise ValueError("Packaged archive failed its CRC check")
         archives.append(archive)
         print(archive.name, archive.stat().st_size, "bytes")
+    installer_dir = artifacts / "Deskchirp-windows-installer"
+    installer = installer_dir / f"Deskchirp-{version}-windows-x64-setup.exe"
+    provenance = json.loads((installer_dir / "BUILD-INFO.json").read_text(encoding="utf-8-sig"))
+    if provenance.get("version") != version or provenance.get("commit") != commit:
+        raise ValueError("Windows installer source/version does not match release")
+    with installer.open("rb") as stream:
+        if stream.read(2) != b"MZ" or installer.stat().st_size < 1_048_576:
+            raise ValueError("Windows installer executable is missing or invalid")
+    published_installer = output / installer.name
+    shutil.copyfile(installer, published_installer)
+    archives.append(published_installer)
+    print(published_installer.name, published_installer.stat().st_size, "bytes")
+    artwork = output / f"Deskchirp-{version}-artwork.zip"
+    root = Path(__file__).resolve().parent.parent
+    with zipfile.ZipFile(artwork, "w", compression=zipfile.ZIP_DEFLATED) as pack:
+        for directory in (root / "assets/discord", root / "assets/brand"):
+            for asset in sorted(directory.iterdir()):
+                if asset.is_file(): pack.write(asset, asset.relative_to(root / "assets").as_posix())
+        pack.write(root / "LICENSE", "LICENSE")
+        pack.write(root / "licenses/t3code-MIT.txt", "licenses/t3code-MIT.txt")
+        pack.writestr("BUILD-INFO.json", json.dumps({"version": version, "commit": commit, "platform": "artwork"}, indent=2) + "\n")
+    archives.append(artwork)
     (output / "SHA256SUMS").write_text("".join(
         hashlib.sha256(path.read_bytes()).hexdigest() + "  " + path.name + "\n" for path in archives
     ))

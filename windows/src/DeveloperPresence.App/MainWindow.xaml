@@ -29,7 +29,11 @@
             <Border Padding="20" CornerRadius="8" BorderThickness="1"
                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
-                <StackPanel Spacing="10">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="56" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <Image Width="56" Height="56" VerticalAlignment="Top" Source="{x:Bind ViewModel.PreviewImageUri, Mode=OneWay}"
+                        AutomationProperties.AccessibilityView="Raw" />
+                <StackPanel Grid.Column="1" Spacing="10">
                     <TextBlock Text="Discord preview" Style="{StaticResource CaptionTextBlockStyle}" />
                     <TextBlock Text="{x:Bind ViewModel.OutgoingHeadlineText, Mode=OneWay}"
                         Style="{StaticResource SubtitleTextBlockStyle}" TextWrapping="Wrap" />
@@ -48,6 +52,7 @@
                         Style="{StaticResource CaptionTextBlockStyle}"
                         Visibility="{x:Bind BoolToVisibility(ViewModel.HasLastUpdate), Mode=OneWay}" />
                 </StackPanel>
+                </Grid>
             </Border>
 
             <!-- T3 Code Section -->
@@ -134,7 +139,7 @@
                         TextWrapping="Wrap" Visibility="{x:Bind BoolToVisibility(ViewModel.ShowClientIdError), Mode=OneWay}" />
                     <ToggleSwitch Header="Show app icons" AutomationProperties.Name="Show app icons"
                         IsOn="{x:Bind ViewModel.ShowAppIcons, Mode=TwoWay}" />
-                    <TextBlock Text="Optional artwork. Keep this off unless the icons have been added to the Discord application."
+                    <TextBlock Text="Included app and agent artwork. No upload is needed."
                         TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     <HyperlinkButton Content="How to add the icons" Padding="0"
                         NavigateUri="https://github.com/geekynasir/deskchirp-discord/blob/main/docs/connect-t3.md#add-logos" />
