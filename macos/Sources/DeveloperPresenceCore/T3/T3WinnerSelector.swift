@@ -80,7 +80,39 @@ public final class T3WinnerSelector: @unchecked Sendable {
         }
 
         let snapshot = T3ActivitySnapshot(observedAt: now, toolCounts: toolCounts)
+        selectLocked(toolCounts: toolCounts, now: now)
+        return (snapshot, currentWinner)
+    }
 
+    /// Winner selection over already aggregated counts (combined multi-environment snapshot).
+    public func evaluate(toolCounts: [String: T3DriverCounts], now: Date = Date()) -> String? {
+        lock.lock()
+        defer { lock.unlock() }
+        selectLocked(toolCounts: toolCounts, now: now)
+        return currentWinner
+    }
+
+    /// Stateless winner rules without hysteresis: most running, then waiting, then starting work.
+    /// Ties keep `previous`, otherwise the alphabetically first tool.
+    public static func bestTool(toolCounts: [String: T3DriverCounts], previous: String? = nil) -> String? {
+        let names = toolCounts.keys.sorted()
+        let scores: [(T3DriverCounts) -> Int] = [{ $0.activeScore }, { $0.waitingScore }, { $0.startingScore }]
+        for score in scores {
+            var best: String?
+            var bestScore = 0
+            for name in names {
+                let value = toolCounts[name].map(score) ?? 0
+                if value > bestScore || (value == bestScore && value > 0 && name == previous) {
+                    best = name
+                    bestScore = value
+                }
+            }
+            if bestScore > 0 { return best }
+        }
+        return nil
+    }
+
+    private func selectLocked(toolCounts: [String: T3DriverCounts], now: Date) {
         // 3. Winner selection with 10-second hysteresis
         // Find tool with highest activeScore (running work)
         var bestRunningTool: String? = nil
@@ -179,8 +211,6 @@ public final class T3WinnerSelector: @unchecked Sendable {
                 }
             }
         }
-
-        return (snapshot, currentWinner)
     }
 
     public var winningTool: String? {

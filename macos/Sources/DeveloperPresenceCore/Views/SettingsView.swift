@@ -18,6 +18,10 @@ public struct SettingsView: View {
                 .tabItem { Label("General", systemImage: "gearshape") }
                 .tag(0)
 
+            PresenceControlsView(coordinator: coordinator)
+                .tabItem { Label("Card", systemImage: "rectangle.on.rectangle") }
+                .tag(3)
+
             Form { ComputerSettingsView(coordinator: coordinator, computers: coordinator.computers) }
                 .formStyle(.grouped)
                 .tabItem { Label("Computers", systemImage: "desktopcomputer") }
@@ -174,26 +178,10 @@ public struct SettingsView: View {
                 }
             }
 
+            EnvironmentsView(coordinator: coordinator)
+
             // 4. Discord Section
             DisclosureGroup("Advanced") {
-                VStack(alignment: .leading, spacing: 6) {
-                    TextField("T3 address", text: Binding(
-                        get: { coordinator.settings.t3Address },
-                        set: { coordinator.setT3Address($0) }
-                    ), prompt: Text("Paste from T3 Code"))
-                    .textFieldStyle(.roundedBorder)
-                    .disabled(coordinator.isFindingT3 || coordinator.state.t3ConnectionStatus == .openingSignIn)
-
-                    Text("In T3 Code, open Settings → Environments and choose Copy MCP URL.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Text("Leave the T3 address empty to find the local app. Enter an address only for a remote or custom installation.")
-                    .font(.caption).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
                 VStack(alignment: .leading, spacing: 6) {
                     TextField("Discord application ID", text: Binding(
                         get: { coordinator.settings.discordClientId },
@@ -343,10 +331,14 @@ public struct SettingsView: View {
     }
 
     private var privacyFooterText: String {
-        if coordinator.settings.showT3Activity {
-            return "Discord sees the app name and T3 agent tool names with task and helper counts, including work running in the background. Conversations, thread titles, projects, models, and files are never shared."
-        } else {
+        let settings = coordinator.settings
+        guard settings.showT3Activity, settings.cardStyle != .appOnly else {
             return "Discord sees only the name of the app you’re using. Conversations, window titles, files, and projects are never shared."
         }
+        var shared = ["the app name", "T3 agent tool names with task and helper counts, including work running in the background"]
+        if settings.shareProjectAlias { shared.append("the public project names you write") }
+        if settings.shareModel { shared.append("the model name") }
+        if settings.cardStyle == .usage { shared.append("the token number you chose") }
+        return "Discord sees " + shared.joined(separator: ", ") + ". Conversations, thread titles, real project names, environment names, and files are never shared."
     }
 }

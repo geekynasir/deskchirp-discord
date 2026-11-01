@@ -27,7 +27,9 @@ public class BackgroundPresenceTests
         Assert.Equal("2 tasks · 4 helpers", coordinator.CurrentState.OutgoingState);
         Assert.True(t3.PollOnceCallCount > 0);
         Assert.Equal(DiscordArtwork.BaseUrl + "t3_code.png", discord.LastSentActivity?.Assets?.LargeImage);
-        Assert.Equal(DiscordArtwork.BaseUrl + "harness_claude.png", discord.LastSentActivity?.Assets?.SmallImage);
+        // Presence v3 default badge is the work status; the provider badge is a separate choice.
+        Assert.Equal(DiscordArtwork.BaseUrl + "status_working.png", discord.LastSentActivity?.Assets?.SmallImage);
+        Assert.Equal("Working", discord.LastSentActivity?.Assets?.SmallText);
 
         active = "claude.exe";
         await coordinator.EvaluateAndDispatchAsync(CancellationToken.None);

@@ -376,7 +376,7 @@ final class PresenceCoordinatorTests: XCTestCase {
             // Verify that connect succeeded and status is connected:
             XCTAssertEqual(coordinator.state.t3ConnectionStatus, .connected)
             // Verify credential is saved in Keychain:
-            let saved = try? mockKeychain.loadCredential(forService: KeychainService.defaultService, account: "http://localhost:3773")
+            let saved = try? mockKeychain.loadCredential(forService: KeychainService.defaultService, account: "http://localhost:3773/mcp")
             XCTAssertEqual(saved?.accessToken, "token-sharing-off")
             // Verify snapshot is NIL because sharing was OFF (no poll while sharing off):
             XCTAssertNil(coordinator.t3Service.currentSnapshot)

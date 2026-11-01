@@ -65,6 +65,7 @@ public sealed class SettingsService : ISettingsService
                     if (string.IsNullOrEmpty(loaded.DiscordClientId))
                         loaded.DiscordClientId = PresenceSettings.DefaultDiscordApplicationId;
                     if (loaded.ArtworkDefaultsVersion < 1) { loaded.ShowAppIcons = true; loaded.ArtworkDefaultsVersion = 1; }
+                    loaded.NormalizeAndMigrate();
                     _settings = loaded;
                     SettingsChanged?.Invoke(_settings);
                     return;

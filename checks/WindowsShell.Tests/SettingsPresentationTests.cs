@@ -35,7 +35,7 @@ public class SettingsPresentationTests
         Assert.Equal("123456789012345678", model.DiscordClientId);
         Assert.True(model.ShowT3Activity);
         Assert.True(model.ShowAppIcons);
-        Assert.Equal("http://127.0.0.1:8080/mcp", model.T3Address);
+        Assert.Equal("http://127.0.0.1:8080/mcp", Assert.Single(model.Environments).Address);
         Assert.Single(model.ProcessMappings);
         Assert.Equal("custom.exe", model.ProcessMappings[0].ExecutableName);
     }

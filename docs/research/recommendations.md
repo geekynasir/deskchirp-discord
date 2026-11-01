@@ -1,6 +1,6 @@
 # Recommended Rich Presence feature set
 
-Reviewed 2026-10-31. This is a design and adapter roadmap. Current native development builds still publish foreground identity only; these features have not been added to those binaries.
+Reviewed 2026-10-31. This is a design and adapter roadmap. Implementation status: [presence controls v3](../../spec/presence-v3.md) implements this set, with token usage through the [usage transport](../../spec/t3-usage-transport.md).
 
 ## Product direction
 

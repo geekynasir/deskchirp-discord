@@ -53,29 +53,57 @@ public struct DiscordActivityAssets: Codable, Equatable, Sendable {
     }
 }
 
+/// Elapsed timer. Discord IPC JSON: `"timestamps":{"start":unixSeconds}`.
+public struct DiscordActivityTimestamps: Codable, Equatable, Sendable {
+    public let start: Int64
+
+    public init(start: Int64) {
+        self.start = start
+    }
+}
+
+/// Discord IPC JSON: `{"label":…,"url":…}`. At most two per activity.
+public struct DiscordActivityButton: Codable, Equatable, Sendable {
+    public let label: String
+    public let url: String
+
+    public init(label: String, url: String) {
+        self.label = label
+        self.url = url
+    }
+}
+
 /// Safe Discord Rich Presence Activity payload.
-/// Under version 2 specification, contains safe details (app name and optional generic agent tool),
-/// optional state line (task/helper counts), and optional public app icons.
-/// No elapsed timestamps, secrets, buttons, projects, models, prompts, titles, or private URLs.
+/// Contains safe details (app name, generic agent tool or user-written alias), an optional state line,
+/// optional public app icons, an optional elapsed timer, and at most two fixed-format buttons.
+/// No secrets, prompts, titles, project names, paths, or private URLs.
 public struct DiscordActivity: Codable, Equatable, Sendable {
     public let details: String
     public let state: String?
     public let assets: DiscordActivityAssets?
+    public let timestamps: DiscordActivityTimestamps?
+    public let buttons: [DiscordActivityButton]?
 
     public init(
         details: String,
         state: String? = nil,
-        assets: DiscordActivityAssets? = nil
+        assets: DiscordActivityAssets? = nil,
+        timestamps: DiscordActivityTimestamps? = nil,
+        buttons: [DiscordActivityButton]? = nil
     ) {
         self.details = details
         self.state = state
         self.assets = assets
+        self.timestamps = timestamps
+        self.buttons = (buttons?.isEmpty ?? true) ? nil : Array(buttons!.prefix(2))
     }
 
     private enum CodingKeys: String, CodingKey {
         case details
         case state
         case assets
+        case timestamps
+        case buttons
     }
 
     public init(from decoder: Decoder) throws {
@@ -83,6 +111,8 @@ public struct DiscordActivity: Codable, Equatable, Sendable {
         self.details = try container.decode(String.self, forKey: .details)
         self.state = try container.decodeIfPresent(String.self, forKey: .state)
         self.assets = try container.decodeIfPresent(DiscordActivityAssets.self, forKey: .assets)
+        self.timestamps = try container.decodeIfPresent(DiscordActivityTimestamps.self, forKey: .timestamps)
+        self.buttons = try container.decodeIfPresent([DiscordActivityButton].self, forKey: .buttons)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -93,6 +123,12 @@ public struct DiscordActivity: Codable, Equatable, Sendable {
         }
         if let assets = assets {
             try container.encode(assets, forKey: .assets)
+        }
+        if let timestamps = timestamps {
+            try container.encode(timestamps, forKey: .timestamps)
+        }
+        if let buttons = buttons, !buttons.isEmpty {
+            try container.encode(Array(buttons.prefix(2)), forKey: .buttons)
         }
     }
 }

@@ -65,12 +65,21 @@ public class T3ServiceLifecycleTests
         var mcp = new PendingMcp();
         await using var service = new T3ActivityService(settings, store, new PendingOAuth(), mcp);
         await service.InitializeAsync();
-        await settings.UpdateSettingsAsync(s => s.T3Address = "https://different.example/mcp");
-        Assert.Equal(T3ConnectionStatus.NotConnected, service.ConnectionStatus);
+        Assert.Equal(T3ConnectionStatus.Connected, service.ConnectionStatus);
+        // The legacy credential moved to the per-environment key.
+        Assert.NotNull(await store.ReadCredentialAsync(T3ActivityService.CredentialTargetFor(Token().McpUri), T3ActivityService.CredentialUsername));
+        await settings.UpdateSettingsAsync(s => s.T3Environments[0].Address = "https://different.example/mcp");
+        await WaitUntil(() => service.ConnectionStatus == T3ConnectionStatus.NotConnected);
         Assert.Null(await service.PollOnceAsync());
         Assert.False(mcp.Started.Task.IsCompleted);
-        await settings.UpdateSettingsAsync(s => s.T3Address = Token().McpUri);
-        Assert.Equal(T3ConnectionStatus.Connected, service.ConnectionStatus);
+        await settings.UpdateSettingsAsync(s => s.T3Environments[0].Address = Token().McpUri);
+        await WaitUntil(() => service.ConnectionStatus == T3ConnectionStatus.Connected);
+    }
+
+    internal static async Task WaitUntil(Func<bool> condition)
+    {
+        for (int i = 0; i < 200 && !condition(); i++) await Task.Delay(10);
+        Assert.True(condition());
     }
 
     [Fact]

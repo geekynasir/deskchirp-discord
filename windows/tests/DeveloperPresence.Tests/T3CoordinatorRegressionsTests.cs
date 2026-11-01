@@ -12,6 +12,9 @@ namespace DeveloperPresence.Tests;
 public class MockT3ActivityService : IT3ActivityService
 {
     public T3ConnectionStatus ConnectionStatus { get; set; } = T3ConnectionStatus.Connected;
+    /// <summary>When set, overrides "any environment connected" independently of the combined status.</summary>
+    public bool? AnyConnectedOverride { get; set; }
+    public bool AnyEnvironmentConnected => AnyConnectedOverride ?? ConnectionStatus == T3ConnectionStatus.Connected;
     public string StatusDetail { get; set; } = "Connected";
     public T3Snapshot? CurrentSnapshot { get; set; }
     public bool IsSnapshotValid => CurrentSnapshot != null && CurrentSnapshot.IsValid;

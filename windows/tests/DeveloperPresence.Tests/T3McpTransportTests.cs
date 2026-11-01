@@ -27,6 +27,42 @@ public sealed class T3McpTransportTests
     }
 
     [Fact]
+    public async Task ProjectListIsAllowlistedAndThreadListDecodesV3Metadata()
+    {
+        Assert.Equal(new[] { "orchestrator_capabilities", "t3_project_list", "t3_thread_list" }, T3McpClient.AllowedTools.OrderBy(t => t, StringComparer.Ordinal));
+        var projects = new ProtocolHandler
+        {
+            Payload = JsonSerializer.SerializeToElement(new
+            {
+                projects = new object[] { new { projectId = "p1", title = "Local title", path = "PRIVATE/path" }, new { id = "p2", name = "Second" }, new { title = "no id" } },
+                nextCursor = (string?)null
+            })
+        };
+        using (var http = new HttpClient(projects))
+        await using (var client = new T3McpClient(http))
+        {
+            var list = await client.ListProjectsAsync(Endpoint, "synthetic");
+            Assert.Equal(new[] { ("p1", "Local title"), ("p2", "Second") }, list.Select(p => (p.ProjectId, p.Title!)));
+        }
+
+        var threads = new ProtocolHandler
+        {
+            Payload = JsonDocument.Parse("{\"threads\":[{\"threadId\":\"t\",\"providerInstanceId\":\"p\",\"status\":\"running\",\"projectId\":\"p1\"," +
+                "\"model\":{\"unexpected\":\"object\"},\"parentThreadId\":null,\"createdAt\":\"2026-10-31T09:00:00Z\",\"updatedAt\":\"2026-10-31T10:00:00Z\"," +
+                "\"title\":\"Picker only\"}],\"nextCursor\":null,\"total\":1}").RootElement.Clone()
+        };
+        using (var http = new HttpClient(threads))
+        await using (var client = new T3McpClient(http))
+        {
+            var thread = Assert.Single((await client.ListThreadsAsync(Endpoint, "synthetic")).Threads);
+            Assert.Equal("p1", thread.ProjectId);
+            Assert.Null(thread.Model); // non-string values decode as null instead of failing
+            Assert.Equal(DateTimeOffset.Parse("2026-10-31T10:00:00Z"), thread.UpdatedAtValue);
+            Assert.Equal("Picker only", thread.Title);
+        }
+    }
+
+    [Fact]
     public async Task RejectsMismatchedJsonReplyAndStartsANewSessionNextTime()
     {
         var handler = new ProtocolHandler { WrongReplyId = true };
@@ -153,7 +189,7 @@ public sealed class T3McpTransportTests
             Assert.Equal("tools/call", method);
             var parameters = root.GetProperty("params");
             string? tool = parameters.GetProperty("name").GetString();
-            Assert.True(tool is "orchestrator_capabilities" or "t3_thread_list");
+            Assert.True(tool is "orchestrator_capabilities" or "t3_thread_list" or "t3_project_list");
             if (tool == "t3_thread_list")
             {
                 var args = parameters.GetProperty("arguments");

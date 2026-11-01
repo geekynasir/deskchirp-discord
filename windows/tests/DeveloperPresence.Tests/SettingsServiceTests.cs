@@ -175,7 +175,10 @@ public class SettingsServiceTests
             string json = await File.ReadAllTextAsync(settingsFile);
             Assert.Contains("mycustomeditor.exe", json);
             Assert.Contains("999888777666555444", json);
-            Assert.DoesNotContain("token", json, StringComparison.OrdinalIgnoreCase);
+            // Presence v3 adds the non-secret display choices tokenCategory/tokenRounding/usageMetric "tokens".
+            string withoutDisplayChoices = json.Replace("\"TokenCategory\"", "").Replace("\"TokenRounding\"", "")
+                .Replace("\"tokens\"", "");
+            Assert.DoesNotContain("token", withoutDisplayChoices, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("secret", json, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("password", json, StringComparison.OrdinalIgnoreCase);
 

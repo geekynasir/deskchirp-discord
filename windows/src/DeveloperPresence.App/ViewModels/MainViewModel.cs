@@ -7,6 +7,7 @@ using DeveloperPresence.Core.Privacy;
 using DeveloperPresence.Core.Services;
 using DeveloperPresence.Core.T3;
 using DeveloperPresence.Core.Computers;
+using DeveloperPresence.Core.T3.Usage;
 
 namespace DeveloperPresence.App.ViewModels;
 
@@ -52,7 +53,7 @@ public sealed class ProcessMappingItem : INotifyPropertyChanged
 /// Primary ViewModel driving the Deskchirp Settings Window.
 /// Conforms to plain-language requirements and Windows system appearance guidelines.
 /// </summary>
-public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
+public sealed partial class MainViewModel : INotifyPropertyChanged, IDisposable
 {
     private readonly ISettingsService _settingsService;
     private readonly PresenceCoordinator _coordinator;
@@ -86,7 +87,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private string _discordClientId = string.Empty;
     private bool _isClientIdValid;
     private bool _showT3Activity;
-    private string _t3Address = string.Empty;
     private bool _showAppIcons;
 
     private T3ConnectionStatus _t3ConnectionStatus = T3ConnectionStatus.NotConnected;
@@ -180,25 +180,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
-    public string T3Address
-    {
-        get => _t3Address;
-        set
-        {
-            string normalized = value.Trim();
-            if (_t3Address != normalized)
-            {
-                _discoveryCts?.Cancel();
-                _findingT3 = false;
-                _setupMessage = null;
-                _t3Address = normalized;
-                NotifyT3Setup();
-                OnPropertyChanged();
-                _ = UpdateSettingAsync(s => s.T3Address = normalized);
-            }
-        }
-    }
-
     public bool ShowAppIcons
     {
         get => _showAppIcons;
@@ -243,9 +224,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     };
 
     public bool ShowT3Consent => !IsT3Connected && !IsT3Connecting;
-    public bool IsT3AddressEditable => !IsT3Connecting;
     public string PrivacyFooterText => ShowT3Activity
-        ? "Discord sees the app name and T3 agent tool names with task and helper counts, including work running in the background. Conversations, thread titles, projects, models, and files are never shared. Close this window to keep running in the notification area."
+        ? "Discord sees the app name and T3 agent tool names with task and helper counts, including work running in the background, plus only the extras you turn on here. Conversations, thread titles, project names, environment names, and files are never shared. Close this window to keep running in the notification area."
         : "Discord sees only the name of the app you’re using. Conversations, window titles, files, and projects are never shared. Close this window to keep running in the notification area.";
 
     public bool IsT3Connecting => _findingT3 || _t3ConnectionStatus == T3ConnectionStatus.OpeningSignIn;
@@ -363,8 +343,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         PresenceCoordinator coordinator,
         Action<Action>? uiDispatcher = null,
         IT3ActivityService? t3ActivityService = null,
-        IComputerLinkService? computers = null, IT3LocalDiscovery? t3Discovery = null)
+        IComputerLinkService? computers = null, IT3LocalDiscovery? t3Discovery = null,
+        IT3UsageService? usageService = null)
     {
+        _usageService = usageService;
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
         _t3Discovery = t3Discovery ?? new T3LocalDiscovery();
         _coordinator = coordinator ?? throw new ArgumentNullException(nameof(coordinator));
@@ -390,6 +372,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         AddMappingCommand = new RelayCommand(AddProcessMapping);
         RemoveMappingCommand = new RelayCommand<ProcessMappingItem>(RemoveProcessMapping);
 
+        InitializePresenceControls();
         LoadInitialData();
         _coordinator.StateChanged += OnCoordinatorStateChanged;
         _settingsService.SettingsChanged += OnSettingsChanged;
@@ -407,7 +390,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         _isPaused = s.IsPaused;
         _discordClientId = s.DiscordClientId;
         _showT3Activity = s.ShowT3Activity;
-        _t3Address = s.T3Address;
         _showAppIcons = s.ShowAppIcons;
         if (string.IsNullOrEmpty(_linkingAddress)) LinkingAddress = s.ComputerLinkAddress;
 
@@ -417,7 +399,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         OnPropertyChanged(nameof(DiscordClientId));
         OnPropertyChanged(nameof(ShowT3Activity));
         OnPropertyChanged(nameof(PrivacyFooterText));
-        OnPropertyChanged(nameof(T3Address));
         OnPropertyChanged(nameof(ShowAppIcons));
         ValidateClientId();
 
@@ -438,9 +419,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             OnPropertyChanged(nameof(IsT3Connected));
             OnPropertyChanged(nameof(T3ConnectButtonAutomationName));
             OnPropertyChanged(nameof(ShowT3Consent));
-            OnPropertyChanged(nameof(IsT3AddressEditable));
         }
 
+        LoadPresenceControls(s);
         UpdateFromPresenceState(_coordinator.CurrentState);
     }
 
@@ -490,7 +471,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             OnPropertyChanged(nameof(IsT3Connected));
             OnPropertyChanged(nameof(T3ConnectButtonAutomationName));
             OnPropertyChanged(nameof(ShowT3Consent));
-            OnPropertyChanged(nameof(IsT3AddressEditable));
+            RefreshEnvironmentStatus();
         });
     }
 
@@ -544,7 +525,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         OnPropertyChanged(nameof(IsT3Connected));
             OnPropertyChanged(nameof(T3ConnectButtonAutomationName));
             OnPropertyChanged(nameof(ShowT3Consent));
-            OnPropertyChanged(nameof(IsT3AddressEditable));
+        UpdatePreview(state);
     }
 
     private void OnConnectT3Clicked()
@@ -570,7 +551,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private void NotifyT3Setup()
     {
         foreach (var name in new[] { nameof(T3StatusText), nameof(T3StatusDetail), nameof(T3ConnectButtonText),
-            nameof(T3ConnectButtonAutomationName), nameof(IsT3Connecting), nameof(IsT3AddressEditable), nameof(ShowT3Consent) })
+            nameof(T3ConnectButtonAutomationName), nameof(IsT3Connecting), nameof(ShowT3Consent) })
             OnPropertyChanged(name);
     }
 
@@ -580,11 +561,19 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         var cts = new CancellationTokenSource();
         _discoveryCts = cts;
         _setupMessage = null;
-        _findingT3 = string.IsNullOrEmpty(T3Address);
+        // Discover local T3 only when no environment is configured yet; otherwise sign in to the
+        // first environment that isn't connected. Each environment also has its own Allow button.
+        _settingsService.Settings.NormalizeAndMigrate();
+        var environments = _settingsService.Settings.T3Environments;
+        var statuses = _t3ActivityService!.Environments;
+        string? existing = environments
+            .FirstOrDefault(e => statuses.FirstOrDefault(x => x.EnvironmentId == e.Id)?.Status != T3ConnectionStatus.Connected)?.Address
+            ?? environments.FirstOrDefault()?.Address;
+        _findingT3 = existing == null;
         NotifyT3Setup();
         try
         {
-            string address = T3Address;
+            string address = existing ?? string.Empty;
             if (_findingT3) address = await _t3Discovery.FindAsync(cts.Token);
             cts.Token.ThrowIfCancellationRequested();
             if (_disposed) return;
@@ -718,6 +707,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         {
             _t3ActivityService.StatusChanged -= OnT3StatusChanged;
         }
+        DisposePresenceControls();
     }
 
     private void Dispatch(Action action)

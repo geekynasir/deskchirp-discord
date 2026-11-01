@@ -74,9 +74,44 @@ public sealed class T3McpClient : IT3McpClient
         return result;
     }
 
+    public const int MaxProjectPages = 10;
+
+    public async Task<IReadOnlyList<T3ProjectListItem>> ListProjectsAsync(Uri mcpUri, string bearerToken, CancellationToken ct = default)
+    {
+        var projects = new List<T3ProjectListItem>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        JsonElement? cursor = null;
+        for (int page = 0; page < MaxProjectPages; page++)
+        {
+            var args = new Dictionary<string, object>();
+            if (cursor is { } c) args["cursor"] = c;
+            var payload = await CallToolAsync(mcpUri, bearerToken, "t3_project_list", args, ct).ConfigureAwait(false);
+            if (!payload.TryGetProperty("projects", out var list) || list.ValueKind != JsonValueKind.Array) throw InvalidResponse();
+            foreach (var item in list.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.Object) continue;
+                string? id = ReadString(item, "projectId") ?? ReadString(item, "id");
+                if (string.IsNullOrWhiteSpace(id) || !seen.Add(id)) continue;
+                projects.Add(new T3ProjectListItem { ProjectId = id, Title = ReadString(item, "title") ?? ReadString(item, "name") });
+                if (projects.Count > T3ActivityService.MaxPollThreads) throw InvalidResponse();
+            }
+            if (!payload.TryGetProperty("nextCursor", out var next) || next.ValueKind == JsonValueKind.Null) return projects;
+            if (next.ValueKind is not (JsonValueKind.Number or JsonValueKind.String)) throw InvalidResponse();
+            cursor = next.Clone();
+        }
+        throw InvalidResponse();
+    }
+
+    private static string? ReadString(JsonElement item, string name) =>
+        item.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+
+    /// <summary>The only MCP tools Deskchirp may call. All are read-only and need orchestration:read.</summary>
+    public static readonly IReadOnlySet<string> AllowedTools =
+        new HashSet<string>(StringComparer.Ordinal) { "orchestrator_capabilities", "t3_thread_list", "t3_project_list" };
+
     private async Task<JsonElement> CallToolAsync(Uri endpoint, string credential, string tool, object arguments, CancellationToken ct)
     {
-        if (tool is not ("orchestrator_capabilities" or "t3_thread_list")) throw new ArgumentException("Unsupported tool.", nameof(tool));
+        if (!AllowedTools.Contains(tool)) throw new ArgumentException("Unsupported tool.", nameof(tool));
         using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(ct, _lifetime.Token);
         await _callLock.WaitAsync(lifetime.Token).ConfigureAwait(false);
         try
