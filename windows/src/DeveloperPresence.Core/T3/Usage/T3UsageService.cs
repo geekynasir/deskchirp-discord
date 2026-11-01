@@ -47,7 +47,7 @@ public sealed class T3UsageService : IT3UsageService
 
     private readonly ISettingsService _settings;
     private readonly ICredentialStore _store;
-    private readonly T3UsagePairingClient _pairing;
+    private readonly T3UsagePairingClient _pairingClient;
     private readonly HttpClient _http;
     private readonly IT3UsageSocketFactory _sockets;
     private readonly Func<DateTimeOffset> _clock;
@@ -58,6 +58,16 @@ public sealed class T3UsageService : IT3UsageService
     private readonly Dictionary<string, string> _status = new(StringComparer.Ordinal); // keyed by origin
     private T3UsageSnapshot? _current;
     private long _generation;
+    // Per-origin credential generation. Removal bumps it and cancels any pairing in flight, so a
+    // late exchange can never recreate a removed credential. Save/delete are serialized.
+    private readonly Dictionary<string, long> _credentialGeneration = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, CancellationTokenSource> _pairing = new(StringComparer.Ordinal);
+    private readonly SemaphoreSlim _credentialLock = new(1, 1);
+
+    private long CredentialGeneration(string origin)
+    {
+        lock (_lock) { return _credentialGeneration.TryGetValue(origin, out long g) ? g : 0; }
+    }
 
     public static string CredentialTargetFor(string origin) => CredentialPrefix + origin;
 
@@ -72,7 +82,7 @@ public sealed class T3UsageService : IT3UsageService
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _http = http ?? new HttpClient(new SocketsHttpHandler { AllowAutoRedirect = false, UseCookies = false }) { Timeout = TimeSpan.FromSeconds(10) };
         _clock = clock ?? (() => DateTimeOffset.UtcNow);
-        _pairing = new T3UsagePairingClient(_http, _clock);
+        _pairingClient = new T3UsagePairingClient(_http, _clock);
         _sockets = sockets ?? new ClientWebSocketFactory();
         _timeZone = timeZone ?? TimeZoneInfo.Local;
     }
@@ -134,24 +144,55 @@ public sealed class T3UsageService : IT3UsageService
         if (origin == null) return new(T3PairingOutcome.Failed, T3UsageText.Failed);
         if (!T3UsagePairingInput.TryParse(rawInput, new Uri(origin), out string code, out string error))
             return new(T3PairingOutcome.InvalidInput, error);
-        var result = await _pairing.ExchangeAsync(new Uri(origin), code, ct).ConfigureAwait(false);
-        if (result.Outcome != T3PairingOutcome.Success || result.Credential == null) return result;
-        try
-        {
-            await _store.SaveCredentialAsync(CredentialTargetFor(origin), CredentialUsername, JsonSerializer.Serialize(result.Credential), ct).ConfigureAwait(false);
-        }
-        catch
-        {
-            return new(T3PairingOutcome.Failed, "Couldn’t save token access to Windows Credential Manager. Try pairing again.");
-        }
+
+        long generation;
+        var pairingCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         lock (_lock)
         {
-            _credentials[origin] = result.Credential;
-            _status.Remove(origin);
+            generation = _credentialGeneration.TryGetValue(origin, out long g) ? g : 0;
+            if (_pairing.Remove(origin, out var previous)) previous.Cancel();
+            _pairing[origin] = pairingCts;
         }
-        Changed?.Invoke();
-        return result with { Credential = null }; // Callers never need the token itself.
+        try
+        {
+            T3PairingResult result;
+            try { result = await ExchangePairingAsync(origin, code, pairingCts.Token).ConfigureAwait(false); }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested) { return new(T3PairingOutcome.Failed, T3UsageText.PairingDiscarded); }
+            if (result.Outcome != T3PairingOutcome.Success || result.Credential == null) return result;
+
+            await _credentialLock.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+            try
+            {
+                // Removed (or re-paired) while the exchange was in flight: discard this credential.
+                if (pairingCts.IsCancellationRequested || CredentialGeneration(origin) != generation)
+                    return new(T3PairingOutcome.Failed, T3UsageText.PairingDiscarded);
+                try
+                {
+                    await _store.SaveCredentialAsync(CredentialTargetFor(origin), CredentialUsername, JsonSerializer.Serialize(result.Credential), CancellationToken.None).ConfigureAwait(false);
+                }
+                catch
+                {
+                    return new(T3PairingOutcome.Failed, "Couldn’t save token access to Windows Credential Manager. Try pairing again.");
+                }
+                lock (_lock)
+                {
+                    _credentials[origin] = result.Credential;
+                    _status.Remove(origin);
+                }
+            }
+            finally { _credentialLock.Release(); }
+            Changed?.Invoke();
+            return result with { Credential = null }; // Callers never need the token itself.
+        }
+        finally
+        {
+            lock (_lock) { if (_pairing.TryGetValue(origin, out var current) && ReferenceEquals(current, pairingCts)) _pairing.Remove(origin); }
+            pairingCts.Dispose();
+        }
     }
+
+    private Task<T3PairingResult> ExchangePairingAsync(string origin, string code, CancellationToken ct) =>
+        _pairingClient.ExchangeAsync(new Uri(origin), code, ct);
 
     public async Task RemoveTokenAccessAsync(string environmentId, CancellationToken ct = default)
     {
@@ -172,10 +213,15 @@ public sealed class T3UsageService : IT3UsageService
     {
         lock (_lock)
         {
+            _credentialGeneration[origin] = (_credentialGeneration.TryGetValue(origin, out long g) ? g : 0) + 1;
+            if (_pairing.Remove(origin, out var pending)) pending.Cancel();
             _credentials.Remove(origin);
             if (status == null) _status.Remove(origin); else _status[origin] = status;
         }
-        try { await _store.DeleteCredentialAsync(CredentialTargetFor(origin), CredentialUsername).ConfigureAwait(false); } catch { }
+        await _credentialLock.WaitAsync().ConfigureAwait(false);
+        try { await _store.DeleteCredentialAsync(CredentialTargetFor(origin), CredentialUsername).ConfigureAwait(false); }
+        catch { }
+        finally { _credentialLock.Release(); }
         Changed?.Invoke();
     }
 
@@ -234,11 +280,9 @@ public sealed class T3UsageService : IT3UsageService
                     int slash = settings.PinnedTask.IndexOf('/');
                     if (slash <= 0 || slash == settings.PinnedTask.Length - 1) break;
                     string envId = settings.PinnedTask[..slash], threadId = settings.PinnedTask[(slash + 1)..];
-                    // Exclusions apply first: a pinned task in an excluded project is never read.
-                    if (request.Snapshot != null && request.Snapshot.Environments.Count > 0 &&
-                        request.Snapshot.Environments.Any(e => e.EnvironmentId == envId) &&
-                        !T3WorkloadView.Entries(request.Snapshot.Environments, settings.ExcludedProjects).Any(e => e.ThreadKey == settings.PinnedTask))
-                        break;
+                    // Exclusions apply first: a pinned task that is excluded (directly or through its parent)
+                    // or missing from the filtered snapshot is never read.
+                    if (!PresenceCardFormatter.IsPinnedTaskVisible(settings, request.Snapshot, now)) break;
                     if (PlanFor(envId) is { } plan) { plan.Threads.Add(threadId); pinnedKey = settings.PinnedTask; }
                     break;
                 }
@@ -427,6 +471,7 @@ public sealed class T3UsageService : IT3UsageService
     public ValueTask DisposeAsync()
     {
         Invalidate();
+        lock (_lock) { foreach (var cts in _pairing.Values) cts.Cancel(); _pairing.Clear(); }
         _pollLock.Dispose();
         return ValueTask.CompletedTask;
     }

@@ -85,7 +85,8 @@ public static class PresenceCardFormatter
         // Stale environments are dropped, never zeroed.
         var fresh = snapshot.Environments.Where(e => now - e.Timestamp >= TimeSpan.FromSeconds(-5) && now - e.Timestamp <= T3ActivityService.SnapshotTtl);
         var entries = T3WorkloadView.Entries(fresh, settings.ExcludedProjects);
-        if (!string.IsNullOrEmpty(settings.PinnedProject) && entries.Any(e => e.ProjectKey == settings.PinnedProject))
+        // A pinned project always restricts counts, even when it has no work right now.
+        if (!string.IsNullOrEmpty(settings.PinnedProject))
             entries = entries.Where(e => e.ProjectKey == settings.PinnedProject).ToList();
         return entries;
     }
@@ -94,6 +95,8 @@ public static class PresenceCardFormatter
     public static IReadOnlyList<T3HarnessWorkload> VisibleWorkloads(PresenceSettings settings, T3Snapshot snapshot, DateTimeOffset now) =>
         snapshot.Environments.Count > 0
             ? T3WorkloadView.Aggregate(VisibleEntries(settings, snapshot, now))
+            // Workload-only snapshots carry no projects, so a pinned project can't be confirmed.
+            : !string.IsNullOrEmpty(settings.PinnedProject) ? Array.Empty<T3HarnessWorkload>()
             : snapshot.Workloads.Count > 0 ? snapshot.Workloads
             : snapshot.WinningHarness != null ? new[] { snapshot.WinningHarness } : Array.Empty<T3HarnessWorkload>();
 
@@ -130,7 +133,7 @@ public static class PresenceCardFormatter
                 var workloads = T3WorkloadView.Aggregate(entries);
                 winner = (input.Leader ?? new T3LeaderTracker()).SelectLeader(workloads, input.Now);
             }
-            else
+            else if (string.IsNullOrEmpty(settings.PinnedProject))
             {
                 winner = snapshot.WinningHarness;
             }
@@ -151,7 +154,7 @@ public static class PresenceCardFormatter
         string? alias = null;
         if (settings.ShareProjectAlias && entries.Count > 0)
         {
-            aliasProject = !string.IsNullOrEmpty(settings.PinnedProject) && entries.Any(e => e.ProjectKey == settings.PinnedProject)
+            aliasProject = !string.IsNullOrEmpty(settings.PinnedProject)
                 ? settings.PinnedProject
                 : BusiestProject(entries, tool, input.PreviousAliasProject);
             if (aliasProject != null && settings.ProjectAliases.TryGetValue(aliasProject, out var raw))
@@ -172,7 +175,8 @@ public static class PresenceCardFormatter
         bool usageShown = false;
         if (settings.CardStyle == CardStyle.Usage && input.UsagePermitted)
         {
-            var (usageText, definition) = UsageLine(settings, input.Usage, input.Timer, input.Now);
+            bool pinnedVisible = IsPinnedTaskVisible(settings, input.Snapshot, input.Now);
+            var (usageText, definition) = UsageLine(settings, input.Usage, input.Timer, input.Now, pinnedVisible);
             if (usageText != null)
             {
                 state = usageText;
@@ -248,8 +252,24 @@ public static class PresenceCardFormatter
     public static UsageScope EffectiveScope(PresenceSettings settings) =>
         settings.UsageMetric == UsageMetric.Context ? UsageScope.PinnedTask : settings.UsageScope;
 
-    /// <summary>Returns the usage state line, or null when the value is unavailable, stale, or partial.</summary>
-    public static (string? Text, string? Definition) UsageLine(PresenceSettings settings, T3UsageSnapshot? usage, PresenceTimerState timer, DateTimeOffset now)
+    /// <summary>
+    /// True only when the pinned task is present in a fresh snapshot after exclusions, so neither its
+    /// project nor any parent's project is excluded. Older workload-only snapshots can't prove that.
+    /// </summary>
+    public static bool IsPinnedTaskVisible(PresenceSettings settings, T3Snapshot? snapshot, DateTimeOffset now)
+    {
+        if (string.IsNullOrEmpty(settings.PinnedTask) || snapshot == null || !IsSnapshotFresh(snapshot, now)) return false;
+        var fresh = snapshot.Environments.Where(e => now - e.Timestamp >= TimeSpan.FromSeconds(-5) && now - e.Timestamp <= T3ActivityService.SnapshotTtl);
+        return T3WorkloadView.Entries(fresh, settings.ExcludedProjects).Any(e => e.ThreadKey == settings.PinnedTask);
+    }
+
+    /// <summary>
+    /// Returns the usage state line, or null when the value is unavailable, stale, or partial.
+    /// <paramref name="pinnedTaskVisible"/> must come from <see cref="IsPinnedTaskVisible"/>; pinned-task
+    /// usage is never shown for a task that is excluded or missing from the filtered snapshot.
+    /// </summary>
+    public static (string? Text, string? Definition) UsageLine(PresenceSettings settings, T3UsageSnapshot? usage, PresenceTimerState timer,
+        DateTimeOffset now, bool pinnedTaskVisible = false)
     {
         if (usage == null || !usage.IsFresh(now)) return (null, null);
         var scope = EffectiveScope(settings);
@@ -262,27 +282,29 @@ public static class PresenceCardFormatter
                 value = usage.Today;
                 break;
             case UsageScope.Session:
-                if (timer.WorkSessionStart == null && usage.SessionStart != null) return (null, null);
-                if (usage.SessionStart != null && timer.WorkSessionStart != null && usage.SessionStart != timer.WorkSessionStart) return (null, null);
+                // Usage computed for an earlier work session (or with no session now) is never shown.
+                if (timer.WorkSessionStart == null) return (null, null);
+                if (usage.SessionStart != null && usage.SessionStart != timer.WorkSessionStart) return (null, null);
                 value = usage.Session;
                 break;
             default:
-                if (string.IsNullOrEmpty(settings.PinnedTask)) return (null, null);
+                if (string.IsNullOrEmpty(settings.PinnedTask) || !pinnedTaskVisible) return (null, null);
                 if (usage.PinnedTaskKey != null && usage.PinnedTaskKey != settings.PinnedTask) return (null, null);
                 value = usage.PinnedTask;
                 break;
         }
-        if (value == null || value.Partial) return (null, null);
+        if (value == null) return (null, null);
 
         bool playful = settings.PlayfulWording;
         if (settings.UsageMetric == UsageMetric.Context)
         {
+            // Context stands on its own used/max; turn-token completeness applies only to tokens.
             if (value.ContextUsedTokens is not { } used || value.ContextMaxTokens is not { } max || max <= 0 || used < 0) return (null, null);
             long percent = (long)((Int128)used * 100 / max);
             return (playful ? $"Context tank {percent}% full" : $"{percent}% of context used", HoverContext);
         }
 
-        if (value.Tokens is not { IsValid: true } tokens) return (null, null);
+        if (value.Partial || value.Tokens is not { IsValid: true } tokens) return (null, null);
         long amount;
         try
         {

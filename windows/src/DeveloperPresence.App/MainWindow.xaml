@@ -347,7 +347,10 @@
                     <ComboBox Header="Pinned project" AutomationProperties.Name="Pinned project" HorizontalAlignment="Stretch"
                         ItemsSource="{x:Bind ViewModel.PinnedProjectOptions}" DisplayMemberPath="Display"
                         SelectedIndex="{x:Bind ViewModel.PinnedProjectIndex, Mode=TwoWay}" />
-                    <TextBlock Text="Counts only that project’s work while it has any."
+                    <TextBlock Text="{x:Bind ViewModel.PinnedProjectNotFoundText}" TextWrapping="Wrap"
+                        AutomationProperties.LiveSetting="Polite"
+                        Visibility="{x:Bind BoolToVisibility(ViewModel.IsPinnedProjectMissing), Mode=OneWay}" />
+                    <TextBlock Text="Counts only that project’s work. When it has none, Discord shows only the app name."
                         TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                 </StackPanel>
             </Expander>

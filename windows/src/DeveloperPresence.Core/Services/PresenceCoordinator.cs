@@ -424,7 +424,7 @@ public sealed class PresenceCoordinator : IAsyncDisposable
                 _wasT3Eligible = true;
             }
 
-            if (isT3Eligible && _t3ActivityService?.ConnectionStatus == T3ConnectionStatus.Connected &&
+            if (isT3Eligible && _t3ActivityService?.AnyEnvironmentConnected == true &&
                 DateTimeOffset.UtcNow - _lastT3PollTimestamp >= TimeSpan.FromSeconds(15))
             {
                 _lastT3PollTimestamp = DateTimeOffset.UtcNow;
@@ -433,7 +433,7 @@ public sealed class PresenceCoordinator : IAsyncDisposable
             SupportedApp displayedApp = ChooseDisplayedApp(focusedApp, t3Running, settings);
             var now = DateTimeOffset.UtcNow;
             _timer.ObserveShownApp(displayedApp, now);
-            var t3Snapshot = _t3ActivityService?.ConnectionStatus == T3ConnectionStatus.Connected ? _t3ActivityService.CurrentSnapshot : null;
+            var t3Snapshot = _t3ActivityService?.AnyEnvironmentConnected == true ? _t3ActivityService.CurrentSnapshot : null;
             bool freshWork = isT3Eligible && PresenceCardFormatter.HasFreshUnfinishedWork(settings, t3Snapshot, now);
             _timer.Observe(freshWork, now);
             UpdateUsagePolling(isT3Eligible, settings, t3Snapshot);
@@ -465,7 +465,7 @@ public sealed class PresenceCoordinator : IAsyncDisposable
                 (focusedApp == SupportedApp.None &&
                  !_foregroundDetector.IsAppRunning(SupportedApp.Claude, settings.ProcessMappings) &&
                  !_foregroundDetector.IsAppRunning(SupportedApp.Codex, settings.ProcessMappings));
-            bool t3Connected = _t3ActivityService?.ConnectionStatus == T3ConnectionStatus.Connected;
+            bool t3Connected = _t3ActivityService?.AnyEnvironmentConnected == true;
             if (displayedApp == SupportedApp.T3Code && settings.ShowT3Activity && t3Connected &&
                 now - _lastT3PollTimestamp >= TimeSpan.FromSeconds(15))
             {
@@ -639,7 +639,7 @@ public sealed class PresenceCoordinator : IAsyncDisposable
     {
         if (_usageService == null) return;
         bool eligible = t3Eligible && settings.CardStyle == CardStyle.Usage &&
-            _t3ActivityService?.ConnectionStatus == T3ConnectionStatus.Connected && _usageService.HasAnyPermission;
+            _t3ActivityService?.AnyEnvironmentConnected == true && _usageService.HasAnyPermission;
         if (!eligible)
         {
             if (_wasUsageEligible)
@@ -653,8 +653,20 @@ public sealed class PresenceCoordinator : IAsyncDisposable
         }
         _wasUsageEligible = true;
         var now = DateTimeOffset.UtcNow;
-        // Session usage needs both a session and fresh work; wait for them rather than spending the interval.
-        if (PresenceCardFormatter.EffectiveScope(settings) == UsageScope.Session && (_timer.WorkSessionStart == null || snapshot == null)) return;
+        if (PresenceCardFormatter.EffectiveScope(settings) == UsageScope.Session)
+        {
+            // Session usage belongs to one work session. Drop numbers from an earlier (or ended) session
+            // and ask again right away for the new one.
+            var current = _usageService.CurrentSnapshot;
+            if (current != null && (current.Session != null || current.SessionStart != null) && current.SessionStart != _timer.WorkSessionStart)
+            {
+                CancelUsagePoll();
+                _usageService.Invalidate();
+                _lastUsagePollTimestamp = DateTimeOffset.MinValue;
+            }
+            // Session usage needs both a session and fresh work; wait for them rather than spending the interval.
+            if (_timer.WorkSessionStart == null || snapshot == null) return;
+        }
         if (now - _lastUsagePollTimestamp < T3UsageService.PollInterval) return;
         _lastUsagePollTimestamp = now;
         var request = new T3UsagePollRequest { Settings = settings, Snapshot = snapshot, WorkSessionStart = _timer.WorkSessionStart };
@@ -718,35 +730,39 @@ public sealed class PresenceCoordinator : IAsyncDisposable
         });
     }
 
+    /// <summary>
+    /// Starts one polling round. Rounds share a cancellation source but never wait for each other:
+    /// the service polls each environment under its own lock, so a slow environment skips only its
+    /// own next turn while healthy environments keep fresh snapshots.
+    /// </summary>
     private void BeginT3Poll()
     {
-        CancellationTokenSource source;
+        CancellationToken token;
         lock (_operationLock)
         {
-            if (_t3PollCts != null || _t3ActivityService == null) return;
-            source = CancellationTokenSource.CreateLinkedTokenSource(_loopCts?.Token ?? CancellationToken.None);
-            _t3PollCts = source;
+            if (_t3ActivityService == null) return;
+            if (_t3PollCts == null || _t3PollCts.IsCancellationRequested)
+                _t3PollCts = CancellationTokenSource.CreateLinkedTokenSource(_loopCts?.Token ?? CancellationToken.None);
+            token = _t3PollCts.Token;
         }
-        _ = PollInBackgroundAsync(source);
+        _ = PollInBackgroundAsync(token);
     }
 
-    private async Task PollInBackgroundAsync(CancellationTokenSource source)
+    private async Task PollInBackgroundAsync(CancellationToken token)
     {
-        try { await _t3ActivityService!.PollOnceAsync(source.Token).ConfigureAwait(false); }
+        try { await _t3ActivityService!.PollOnceAsync(token).ConfigureAwait(false); }
         catch { /* The service clears failed snapshots; the next attempt waits 15 seconds. */ }
-        finally
-        {
-            lock (_operationLock)
-            {
-                if (ReferenceEquals(_t3PollCts, source)) _t3PollCts = null;
-            }
-            source.Dispose();
-        }
     }
 
     private void CancelT3Poll()
     {
-        lock (_operationLock) { _t3PollCts?.Cancel(); }
+        lock (_operationLock)
+        {
+            // Cancel in-flight rounds; the next round gets a fresh source. Not disposed here
+            // because background rounds may still observe the token.
+            _t3PollCts?.Cancel();
+            _t3PollCts = null;
+        }
     }
 
     private void OnT3StatusChanged(T3ConnectionStatus status, string detail)

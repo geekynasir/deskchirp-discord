@@ -73,7 +73,8 @@ Availability (disabled options stay visible with a one-line reason):
 - `keepBackgroundVisible` is the preview 3 behavior: fresh unfinished T3 work wins over another foreground app.
 - `followActiveApp`: the foreground supported app always wins; T3 rich data only appears while T3 is the foreground or the only running supported app.
 - Featured tool: unchanged winner rules from v2, computed over the combined snapshot.
-- Pinned project (if set and present in the snapshot) restricts the counts to that project. Without a pin the alias shown is that of the project with the most running work for the featured tool; ties keep the previous project; none → no alias.
+- A pinned project always restricts the counts to that project. If it has no unfinished work, the card has no fresh work (app-only text). Settings show `Pinned project not found` when the project is missing from every connected environment's project list.
+- A pinned task's usage or context is requested and shown only when fresh, exclusion-filtered metadata confirms that the task (and its parent) is not excluded. Without that metadata, treat the value as unavailable. Without a pin the alias shown is that of the project with the most running work for the featured tool; ties keep the previous project; none → no alias.
 
 ## 5. Card formatting
 

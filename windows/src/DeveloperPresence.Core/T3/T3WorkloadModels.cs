@@ -105,8 +105,11 @@ public sealed class T3EnvironmentSnapshot
     /// <summary>providerInstanceId → driverKind. Display names are never decoded.</summary>
     public IReadOnlyDictionary<string, string> Drivers { get; init; } = new Dictionary<string, string>();
     public IReadOnlyList<T3ThreadListItem> Threads { get; init; } = Array.Empty<T3ThreadListItem>();
-    /// <summary>Project titles, for the local alias editor and pickers only.</summary>
-    public IReadOnlyList<T3ProjectListItem> Projects { get; init; } = Array.Empty<T3ProjectListItem>();
+    /// <summary>
+    /// The environment's project catalog from t3_project_list (ids only; titles stay in the local picker),
+    /// or null when it hasn't been fetched yet.
+    /// </summary>
+    public IReadOnlyList<T3ProjectListItem>? Projects { get; init; }
 
     public bool ContentEquals(T3EnvironmentSnapshot other)
     {

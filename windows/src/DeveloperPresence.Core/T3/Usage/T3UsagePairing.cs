@@ -33,6 +33,7 @@ public static class T3UsageText
     public const string InvalidInput = "Paste the pairing code or the pairing link from that computer.";
     public const string OtherOrigin = "That pairing link is for a different computer. Use a code from the computer that runs this environment.";
     public const string Failed = "Pairing didn’t finish. Check that T3 Code is running there, then try again.";
+    public const string PairingDiscarded = "Token access was removed while pairing, so that code wasn’t saved.";
     public const string PairAgain = "Pair again to keep showing tokens";
     public const string Unsupported = "This T3 version isn’t supported for token usage.";
     public const string Allowed = "Token usage allowed. Your access is saved in Windows Credential Manager.";

@@ -180,7 +180,7 @@ public class WorkSessionTimerTests
     }
 }
 
-public class MultiEnvironmentTests
+public partial class MultiEnvironmentTests
 {
     private const string EnvA = "https://a.example/mcp";
     private const string EnvB = "https://b.example/mcp";
@@ -196,8 +196,9 @@ public class MultiEnvironmentTests
             Task.FromResult(new T3CapabilitiesResult { Providers = new() {
                 new() { ProviderInstanceId = "claude", DriverKind = "claudeAgent" },
                 new() { ProviderInstanceId = "codex", DriverKind = "codex" } } });
+        public Dictionary<string, Func<Task<T3ThreadListResult>>> AsyncThreads { get; } = new();
         public Task<T3ThreadListResult> ListThreadsAsync(Uri uri, string token, int? cursor = null, CancellationToken ct = default) =>
-            Task.FromResult(Threads[uri.AbsoluteUri]());
+            AsyncThreads.TryGetValue(uri.AbsoluteUri, out var pending) ? pending() : Task.FromResult(Threads[uri.AbsoluteUri]());
         public Task<IReadOnlyList<T3ProjectListItem>> ListProjectsAsync(Uri uri, string token, CancellationToken ct = default)
         {
             ProjectCalls.Add(uri.AbsoluteUri);
@@ -360,7 +361,7 @@ public class MultiEnvironmentTests
     }
 }
 
-public class SelectionAndUsagePollingTests
+public partial class SelectionAndUsagePollingTests
 {
     private const string ValidClientId = "123456789012345678";
 

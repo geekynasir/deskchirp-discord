@@ -18,6 +18,21 @@ public static class PresenceAvailability
     public const string ReasonPickTask = "Pick a task to pin.";
     public const string ReasonTodayExclusions = "Today’s totals can’t skip excluded projects.";
     public const string ReasonShareAlias = "Turn on Share project alias first.";
+    public const string PinnedProjectNotFound = "Pinned project not found";
+
+    /// <summary>
+    /// True when a pinned project is missing from every connected environment's project list.
+    /// Shown only once at least one connected environment's list has loaded, so it never flashes at startup.
+    /// </summary>
+    public static bool IsPinnedProjectMissing(PresenceSettings settings, IEnumerable<T3.T3EnvironmentStatus> environments,
+        IEnumerable<T3.T3PickerProject> catalog)
+    {
+        if (string.IsNullOrEmpty(settings.PinnedProject)) return false;
+        var loaded = environments.Where(e => e.Status == Models.T3ConnectionStatus.Connected && e.ProjectCatalogLoaded)
+            .Select(e => e.EnvironmentId).ToHashSet(StringComparer.Ordinal);
+        if (loaded.Count == 0) return false;
+        return !catalog.Any(p => loaded.Contains(p.EnvironmentId) && T3.T3WorkloadView.Key(p.EnvironmentId, p.ProjectId) == settings.PinnedProject);
+    }
 
     public static OptionAvailability CardStyleOption(CardStyle style, PresenceSettings settings, bool anyEnvironmentConnected, bool anyUsagePermission)
     {

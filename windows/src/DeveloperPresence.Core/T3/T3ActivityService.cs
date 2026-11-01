@@ -67,6 +67,8 @@ public sealed class T3ActivityService : IT3ActivityService
         public DateTimeOffset ProjectsFetchedAt { get; set; } = DateTimeOffset.MinValue;
         public IReadOnlyList<T3PickerProject> Projects { get; set; } = Array.Empty<T3PickerProject>();
         public IReadOnlyList<T3PickerTask> Tasks { get; set; } = Array.Empty<T3PickerTask>();
+        /// <summary>Project ids from the last t3_project_list answer, or null before the first one.</summary>
+        public IReadOnlyList<T3ProjectListItem>? ProjectCatalog { get; set; }
     }
 
     public T3ConnectionStatus ConnectionStatus => _connectionStatus;
@@ -95,10 +97,15 @@ public sealed class T3ActivityService : IT3ActivityService
                 return OrderedStates().Select(e => new T3EnvironmentStatus
                 {
                     EnvironmentId = e.Id, Address = e.Address, Label = e.Label, Status = e.Status, Detail = e.Detail,
-                    HasReturnedWork = e.HasReturnedWork
+                    HasReturnedWork = e.HasReturnedWork, ProjectCatalogLoaded = e.ProjectCatalog != null
                 }).ToList();
             }
         }
+    }
+
+    public bool AnyEnvironmentConnected
+    {
+        get { lock (_stateLock) { return _environments.Values.Any(e => e.Status == T3ConnectionStatus.Connected && e.Token != null); } }
     }
 
     public IReadOnlyList<T3PickerTask> PickerTasks
@@ -375,10 +382,18 @@ public sealed class T3ActivityService : IT3ActivityService
         lock (_stateLock) { return _environments.TryGetValue(state.Id, out var current) && ReferenceEquals(current, state); }
     }
 
-    public Task CancelSignInAsync()
+    public Task CancelSignInAsync() => CancelSignInsAsync(null);
+
+    public Task CancelSignInAsync(string environmentId) => CancelSignInsAsync(environmentId);
+
+    private Task CancelSignInsAsync(string? environmentId)
     {
         List<EnvState> opening;
-        lock (_stateLock) { opening = _environments.Values.Where(e => e.Status == T3ConnectionStatus.OpeningSignIn).ToList(); }
+        lock (_stateLock)
+        {
+            opening = _environments.Values.Where(e => e.Status == T3ConnectionStatus.OpeningSignIn &&
+                (environmentId == null || e.Id == environmentId)).ToList();
+        }
         foreach (var state in opening)
         {
             Interlocked.Increment(ref state.AuthGeneration);
@@ -536,7 +551,10 @@ public sealed class T3ActivityService : IT3ActivityService
                 Model = t.Model, CreatedAt = t.CreatedAt, UpdatedAt = t.UpdatedAt
             }).ToList();
             var now = DateTimeOffset.UtcNow;
-            var envSnapshot = new T3EnvironmentSnapshot { EnvironmentId = state.Id, Timestamp = now, Drivers = drivers, Threads = stripped };
+            var catalog = projects != null
+                ? projects.Select(p => new T3ProjectListItem { ProjectId = p.ProjectId }).ToList()
+                : state.ProjectCatalog;
+            var envSnapshot = new T3EnvironmentSnapshot { EnvironmentId = state.Id, Timestamp = now, Drivers = drivers, Threads = stripped, Projects = catalog };
             bool hasWork = T3WorkloadView.Entries(new[] { envSnapshot }, null).Any(e => e.Phase != T3Phase.None);
 
             lock (_stateLock)
@@ -548,6 +566,7 @@ public sealed class T3ActivityService : IT3ActivityService
                 {
                     state.ProjectsFetchedAt = now;
                     state.Projects = projects.Select(p => new T3PickerProject(state.Id, p.ProjectId, p.Title)).ToList();
+                    state.ProjectCatalog = catalog;
                 }
                 state.HasPolled = true;
                 if (hasWork) state.HasReturnedWork = true;

@@ -10,7 +10,7 @@ using Xunit;
 
 namespace DeveloperPresence.Tests;
 
-public class T3UsageTransportTests
+public partial class T3UsageTransportTests
 {
     private static readonly Uri Origin = new("https://remote.example:8443");
 

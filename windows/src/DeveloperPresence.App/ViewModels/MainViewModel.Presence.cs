@@ -586,7 +586,8 @@ public sealed partial class MainViewModel
         if (_t3ActivityService == null) return;
         if (item.Status == T3ConnectionStatus.OpeningSignIn)
         {
-            _ = _t3ActivityService.CancelSignInAsync();
+            // Cancels only this environment's sign-in; others keep waiting for their browser approval.
+            _ = _t3ActivityService.CancelSignInAsync(item.Id);
             return;
         }
         _ = ConnectEnvironmentAsync(item.Id);
@@ -732,7 +733,7 @@ public sealed partial class MainViewModel
         }
         finally { _syncingPickers = false; }
         foreach (var name in new[] { nameof(PinnedTaskIndex), nameof(PinnedProjectIndex), nameof(AliasProjectIndex), nameof(ExclusionProjectIndex),
-            nameof(HasAliases), nameof(HasExclusions), nameof(HasProjects), nameof(ShowNoProjects) })
+            nameof(HasAliases), nameof(HasExclusions), nameof(HasProjects), nameof(ShowNoProjects), nameof(IsPinnedProjectMissing) })
             OnPropertyChanged(name);
     }
 
@@ -751,6 +752,9 @@ public sealed partial class MainViewModel
     }
 
     public bool HasProjects => ProjectOptions.Count > 0;
+    public string PinnedProjectNotFoundText => PresenceAvailability.PinnedProjectNotFound;
+    public bool IsPinnedProjectMissing => _t3ActivityService != null &&
+        PresenceAvailability.IsPinnedProjectMissing(_settingsService.Settings, _t3ActivityService.Environments, _t3ActivityService.PickerProjects);
     public bool ShowNoProjects => ProjectOptions.Count == 0;
     public bool HasAliases => Aliases.Count > 0;
     public bool HasExclusions => Exclusions.Count > 0;
