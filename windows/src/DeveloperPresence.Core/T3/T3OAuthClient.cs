@@ -172,6 +172,139 @@ public sealed class T3OAuthClient : IT3OAuthClient
         };
     }
 
+    /// <summary>Redirect URI for headless sign-in. Nothing listens on it; T3 returns the redirect as JSON.</summary>
+    public const string HeadlessRedirectUri = "http://127.0.0.1/deskchirp";
+
+    /// <summary>
+    /// Signs in without a browser: approves Deskchirp's authorization request with a one-time
+    /// pairing code that the T3 Code desktop app's own session minted for this computer.
+    /// </summary>
+    public async Task<T3StoredToken> SignInWithPairingCodeAsync(Uri normalizedMcpUri, string pairingCode, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(normalizedMcpUri);
+        if (string.IsNullOrWhiteSpace(pairingCode))
+        {
+            throw new ArgumentException("A pairing code is required.", nameof(pairingCode));
+        }
+
+        Uri origin = T3UrlValidator.GetOriginUri(normalizedMcpUri);
+        string originStr = origin.GetLeftPart(UriPartial.Authority);
+
+        var resourceMetadata = await DiscoverProtectedResourceAsync(origin, ct).ConfigureAwait(false);
+        ValidateProtectedResource(resourceMetadata, normalizedMcpUri, originStr);
+
+        var authServerMetadata = await DiscoverAuthServerAsync(origin, ct).ConfigureAwait(false);
+        ValidateAuthServer(authServerMetadata, originStr);
+
+        string clientId = await RegisterClientAsync(authServerMetadata.RegistrationEndpoint, HeadlessRedirectUri, ct).ConfigureAwait(false);
+
+        var (codeVerifier, codeChallenge) = PkceUtility.GeneratePkce();
+        string state = PkceUtility.GenerateState();
+
+        // The approval page posts here; T3 answers with the redirect instead of following it.
+        string decisionEndpoint = $"{originStr}/oauth/mcp/decision";
+        var decision = new
+        {
+            authorization = new
+            {
+                response_type = "code",
+                client_id = clientId,
+                redirect_uri = HeadlessRedirectUri,
+                code_challenge = codeChallenge,
+                code_challenge_method = "S256",
+                state,
+                resource = normalizedMcpUri.AbsoluteUri
+            },
+            decision = new Dictionary<string, string>
+            {
+                ["_tag"] = "pairing-code",
+                ["access"] = "read-only",
+                ["code"] = pairingCode
+            }
+        };
+
+        string redirectTo;
+        using (var request = new HttpRequestMessage(HttpMethod.Post, decisionEndpoint)
+        {
+            Content = new StringContent(JsonSerializer.Serialize(decision), Encoding.UTF8, "application/json")
+        })
+        {
+            using var response = await SendWithoutRedirectAsync(request, ct).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new InvalidOperationException("Sign-in didn’t finish. Try connecting again.");
+            }
+
+            string json = await ReadBoundedStringAsync(response, MaxMetadataBytes, ct).ConfigureAwait(false);
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object ||
+                !doc.RootElement.TryGetProperty("redirectTo", out var redirectElement) ||
+                redirectElement.ValueKind != JsonValueKind.String)
+            {
+                throw new InvalidOperationException("Sign-in didn’t finish. Try connecting again.");
+            }
+            redirectTo = redirectElement.GetString()!;
+        }
+
+        // Same checks as the browser callback: our redirect URI, then state, then issuer, then error.
+        if (!Uri.TryCreate(redirectTo, UriKind.Absolute, out var redirect) ||
+            !string.Equals(redirect.GetLeftPart(UriPartial.Path), HeadlessRedirectUri, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Sign-in didn’t finish. Try connecting again.");
+        }
+
+        var query = ParseQuery(redirect.Query);
+        if (!query.TryGetValue("state", out var returnedState) || !string.Equals(returnedState, state, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Sign-in didn’t finish. Try connecting again.");
+        }
+
+        if (!query.TryGetValue("iss", out var issuer) || !string.Equals(issuer, authServerMetadata.Issuer, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Sign-in didn’t finish. Try connecting again.");
+        }
+
+        if (query.ContainsKey("error") || !query.TryGetValue("code", out var authorizationCode) || string.IsNullOrEmpty(authorizationCode))
+        {
+            throw new InvalidOperationException("Sign-in didn’t finish. Try connecting again.");
+        }
+
+        var tokenResponse = await ExchangeCodeAsync(
+            authServerMetadata.TokenEndpoint,
+            authorizationCode,
+            HeadlessRedirectUri,
+            clientId,
+            codeVerifier,
+            normalizedMcpUri.AbsoluteUri,
+            ct).ConfigureAwait(false);
+        ValidateTokenResponse(tokenResponse);
+
+        return new T3StoredToken
+        {
+            AccessToken = tokenResponse.AccessToken,
+            TokenType = tokenResponse.TokenType,
+            ExpiresAt = DateTimeOffset.UtcNow.AddSeconds(tokenResponse.ExpiresIn),
+            McpUri = normalizedMcpUri.AbsoluteUri
+        };
+    }
+
+    private static Dictionary<string, string> ParseQuery(string query)
+    {
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (string pair in query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            int eq = pair.IndexOf('=');
+            string key = Uri.UnescapeDataString((eq < 0 ? pair : pair[..eq]).Replace('+', ' '));
+            string value = eq < 0 ? string.Empty : Uri.UnescapeDataString(pair[(eq + 1)..].Replace('+', ' '));
+            // A repeated parameter is ambiguous; treat it as a failed sign-in.
+            if (!result.TryAdd(key, value))
+            {
+                throw new InvalidOperationException("Sign-in didn’t finish. Try connecting again.");
+            }
+        }
+        return result;
+    }
+
     private static void ValidateTokenResponse(T3TokenResponse token)
     {
         if (string.IsNullOrWhiteSpace(token.AccessToken))

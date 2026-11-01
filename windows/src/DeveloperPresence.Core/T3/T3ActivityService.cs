@@ -18,7 +18,8 @@ public sealed class T3ActivityService : IT3ActivityService
     private const string MsgExpired = "Your T3 Code sign-in expired. Connect again to keep showing activity.";
     private const string MsgOpening = "Approve Read only access in your browser, then come back here. If T3 asks for a pairing code, create one in T3 Code under Settings → Sharing & access.";
     private const string MsgUnavailable = "T3 activity isn’t available right now, so only the app name is shown.";
-    public const string MsgNoWorkHere = "Connected. No running tasks were found here — add the environment where your tasks run.";
+    private const string MsgConnectingThroughT3 = "Connecting through T3 Code…";
+    public const string MsgNoWorkHere = "Connected. No tasks are running here right now.";
     public const string MsgAlreadyAdded = "This environment is already in the list.";
 
     private readonly ISettingsService _settingsService;
@@ -301,7 +302,18 @@ public sealed class T3ActivityService : IT3ActivityService
         return await ConnectEnvironmentAsync(env.Id, ct).ConfigureAwait(false);
     }
 
-    public async Task<bool> ConnectEnvironmentAsync(string environmentId, CancellationToken ct = default)
+    public Task<bool> ConnectEnvironmentAsync(string environmentId, CancellationToken ct = default) =>
+        ConnectEnvironmentCoreAsync(environmentId, MsgOpening, (uri, token) => _oauthClient.SignInAsync(uri, token), ct);
+
+    public Task<bool> ConnectEnvironmentWithPairingCodeAsync(string environmentId, string pairingCode, CancellationToken ct = default) =>
+        ConnectEnvironmentCoreAsync(environmentId, MsgConnectingThroughT3,
+            (uri, token) => _oauthClient.SignInWithPairingCodeAsync(uri, pairingCode, token), ct);
+
+    private async Task<bool> ConnectEnvironmentCoreAsync(
+        string environmentId,
+        string openingMessage,
+        Func<Uri, CancellationToken, Task<T3StoredToken>> signIn,
+        CancellationToken ct)
     {
         EnvState? state;
         lock (_stateLock) { _environments.TryGetValue(environmentId, out state); }
@@ -314,14 +326,14 @@ public sealed class T3ActivityService : IT3ActivityService
         var signInCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         state.SignInCts = signInCts;
         var token = signInCts.Token;
-        SetEnvStatus(state, T3ConnectionStatus.OpeningSignIn, MsgOpening);
+        SetEnvStatus(state, T3ConnectionStatus.OpeningSignIn, openingMessage);
         PublishStatus();
 
         bool StillCurrent() => authGen == Interlocked.Read(ref state.AuthGeneration) && IsTracked(state);
 
         try
         {
-            var storedToken = await _oauthClient.SignInAsync(mcpUri, token).ConfigureAwait(false);
+            var storedToken = await signIn(mcpUri, token).ConfigureAwait(false);
             await _authLock.WaitAsync(CancellationToken.None).ConfigureAwait(false);
             try
             {
@@ -473,6 +485,28 @@ public sealed class T3ActivityService : IT3ActivityService
         }).ConfigureAwait(false);
         SyncStructure(_settingsService.Settings);
         PublishStatus();
+    }
+
+    public async Task<bool> ChangeEnvironmentAddressAsync(string environmentId, string rawAddress, CancellationToken ct = default)
+    {
+        if (!T3UrlValidator.TryNormalizeT3Address(rawAddress, out var uri, out _)) return false;
+        string address = uri!.AbsoluteUri;
+        var env = _settingsService.Settings.T3Environments.FirstOrDefault(e => e.Id == environmentId);
+        if (env == null) return false;
+        if (string.Equals(env.Address, address, StringComparison.Ordinal)) return true;
+        if (_settingsService.Settings.T3Environments.Any(e => e.Id != environmentId && string.Equals(e.Address, address, StringComparison.Ordinal)))
+            return false;
+        // The old address's sign-in is useless once the entry moves; don't leave it behind.
+        try { await _credentialStore.DeleteCredentialAsync(CredentialTargetFor(env.Address), CredentialUsername, ct).ConfigureAwait(false); }
+        catch { }
+        await _settingsService.UpdateSettingsAsync(s =>
+        {
+            var current = s.T3Environments.FirstOrDefault(e => e.Id == environmentId);
+            if (current != null) current.Address = address;
+        }).ConfigureAwait(false);
+        SyncStructure(_settingsService.Settings);
+        PublishStatus();
+        return true;
     }
 
     public async Task<T3Snapshot?> PollOnceAsync(CancellationToken ct = default)
@@ -688,7 +722,7 @@ public sealed class T3ActivityService : IT3ActivityService
                     else
                     {
                         detail = $"Connected to {connected} of {states.Count} environments";
-                        if (connectedStates.All(s => s.HasPolled && !s.HasReturnedWork)) detail += ". " + MsgNoWorkHere;
+                        if (connectedStates.All(s => s.HasPolled && !s.HasReturnedWork)) detail += ". No tasks are running right now.";
                     }
                 }
                 else
