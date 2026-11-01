@@ -391,6 +391,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged, IDisposable
         _discordClientId = s.DiscordClientId;
         _showT3Activity = s.ShowT3Activity;
         _showAppIcons = s.ShowAppIcons;
+        _automaticUpdates = s.AutomaticUpdates;
         if (string.IsNullOrEmpty(_linkingAddress)) LinkingAddress = s.ComputerLinkAddress;
 
         OnPropertyChanged(nameof(EnableSharing));
@@ -400,6 +401,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged, IDisposable
         OnPropertyChanged(nameof(ShowT3Activity));
         OnPropertyChanged(nameof(PrivacyFooterText));
         OnPropertyChanged(nameof(ShowAppIcons));
+        OnPropertyChanged(nameof(AutomaticUpdates));
         ValidateClientId();
 
         ProcessMappings.Clear();
@@ -708,6 +710,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged, IDisposable
             _t3ActivityService.StatusChanged -= OnT3StatusChanged;
         }
         DisposePresenceControls();
+        DisposeUpdates();
     }
 
     private void Dispatch(Action action)

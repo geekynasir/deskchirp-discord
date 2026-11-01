@@ -16,6 +16,14 @@
                 <TextBlock Text="Open Discord and your developer app, then turn on sharing. Deskchirp connects to Discord automatically." TextWrapping="Wrap" />
             </StackPanel>
 
+            <InfoBar Title="Update ready" Severity="Informational" IsClosable="False"
+                IsOpen="{x:Bind ViewModel.IsUpdateReady, Mode=OneWay}"
+                Message="{x:Bind ViewModel.UpdateStatusText, Mode=OneWay}">
+                <InfoBar.ActionButton>
+                    <Button Content="Restart now" Command="{x:Bind ViewModel.RestartToUpdateCommand}" />
+                </InfoBar.ActionButton>
+            </InfoBar>
+
             <!-- Sharing Section -->
             <StackPanel Spacing="16">
                 <ToggleSwitch Header="Share on Discord" AutomationProperties.Name="Share on Discord"
@@ -446,6 +454,34 @@
                             </DataTemplate>
                         </ListView.ItemTemplate>
                     </ListView>
+                </StackPanel>
+            </Expander>
+
+            <!-- Updates Section -->
+            <Expander Header="Updates" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="{x:Bind ViewModel.AppVersionText, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                    <TextBlock Text="{x:Bind ViewModel.UpdateStatusText, Mode=OneWay}" TextWrapping="Wrap"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <ProgressBar Maximum="100" Value="{x:Bind ViewModel.UpdateProgress, Mode=OneWay}"
+                        AutomationProperties.Name="Update download progress"
+                        Visibility="{x:Bind BoolToVisibility(ViewModel.IsDownloadingUpdate), Mode=OneWay}" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="Check for updates" Command="{x:Bind ViewModel.CheckForUpdatesCommand}"
+                            IsEnabled="{x:Bind ViewModel.CanCheckForUpdates, Mode=OneWay}"
+                            Visibility="{x:Bind BoolToVisibility(ViewModel.CanUpdateAutomatically), Mode=OneWay}" />
+                        <Button Content="Restart to update" Style="{StaticResource AccentButtonStyle}"
+                            Command="{x:Bind ViewModel.RestartToUpdateCommand}"
+                            Visibility="{x:Bind BoolToVisibility(ViewModel.IsUpdateReady), Mode=OneWay}" />
+                    </StackPanel>
+                    <StackPanel Spacing="4" Visibility="{x:Bind BoolToVisibility(ViewModel.CanUpdateAutomatically), Mode=OneWay}">
+                        <ToggleSwitch Header="Download updates automatically" AutomationProperties.Name="Download updates automatically"
+                            IsOn="{x:Bind ViewModel.AutomaticUpdates, Mode=TwoWay}" />
+                        <TextBlock Text="Deskchirp asks GitHub Releases for new versions every few hours. Nothing about your activity is sent."
+                            TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+                    <HyperlinkButton Content="What’s new" Padding="0"
+                        NavigateUri="https://github.com/geekynasir/deskchirp-discord/releases" />
                 </StackPanel>
             </Expander>
 

@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using DeveloperPresence.App.Interop;
+using DeveloperPresence.App.Updates;
 using DeveloperPresence.App.ViewModels;
 using DeveloperPresence.Core.Credentials;
 using DeveloperPresence.Core.Discord;
@@ -26,6 +27,7 @@ public sealed partial class MainWindow : Window
     private readonly IForegroundDetector _foregroundDetector;
     private readonly PresenceCoordinator _coordinator;
     private readonly IComputerLinkService _computers;
+    private readonly AppUpdateService _updates;
 
     private readonly Win32.WndProcDelegate _wndProcDelegate;
     private readonly IntPtr _oldWndProc;
@@ -65,6 +67,11 @@ public sealed partial class MainWindow : Window
         {
             DispatcherQueue.TryEnqueue(() => action());
         }, _t3ActivityService, _computers, usageService: _usageService);
+
+        _updates = new AppUpdateService(new VelopackUpdateSource(), () => _settingsService.Settings.AutomaticUpdates);
+        ViewModel.AttachUpdates(_updates);
+        ViewModel.RestartForUpdateRequested += ExplicitQuit;
+        _updates.Start();
 
         // Initialize Native Tray Icon
         _trayIcon = new TrayIcon(
@@ -250,7 +257,9 @@ public sealed partial class MainWindow : Window
     private async void OnWindowClosed(object sender, WindowEventArgs args)
     {
         _coordinator.StateChanged -= OnCoordinatorStateChanged;
+        ViewModel.RestartForUpdateRequested -= ExplicitQuit;
         ViewModel.Dispose();
+        _updates.Dispose();
         _trayIcon.Dispose();
         _sessionNotifications.Dispose();
         try

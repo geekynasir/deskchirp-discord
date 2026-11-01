@@ -1,6 +1,6 @@
 # Set up Deskchirp for Discord
 
-These are unsigned preview builds. Windows has a setup wizard; Mac downloads are app bundles. CI compilation and automated tests do not verify real Discord display, desktop focus, lock/sleep behavior, or clean-machine installation. Sharing is off by default. macOS lock-state handling still needs native validation; pause or quit the companion before leaving it unattended.
+These are unsigned preview builds. Windows has a one-click installer; Mac downloads are app bundles. CI compilation and automated tests do not verify real Discord display, desktop focus, lock/sleep behavior, or clean-machine installation. Sharing is off by default. macOS lock-state handling still needs native validation; pause or quit the companion before leaving it unattended.
 
 Download your platform’s installer or app ZIP from [GitHub Releases](https://github.com/geekynasir/deskchirp-discord/releases). No GitHub sign-in is needed for public release downloads. Choose the latest preview, and use its `SHA256SUMS` to verify the files. GitHub’s automatic “Source code” downloads contain source, not ready-to-run apps.
 
@@ -12,11 +12,13 @@ The app has an ad-hoc development signature, not an Apple Developer ID signature
 
 ## Windows 10 build 19041 or newer / Windows 11 (x64)
 
-Download **`Deskchirp-0.1.0-preview.3-windows-x64-setup.exe`** and open it. Follow the setup wizard, then launch **Deskchirp** from Start. It installs for your Windows account, includes the required runtimes and offers an optional desktop shortcut. No administrator access or separate runtime download is needed. Windows may warn because this preview is unsigned.
+Download **`Deskchirp-0.1.0-preview.4-windows-x64-setup.exe`** and open it. There is no wizard: a Deskchirp window shows install progress for a few seconds, then the app opens. It installs for your Windows account, includes the required runtimes and adds **Deskchirp for Discord** to Start. No administrator access or separate runtime download is needed. Windows may warn because this preview is unsigned: choose **More info → Run anyway** if you trust the download.
 
-To update, quit Deskchirp from its tray menu and run the newer installer. To remove it, use **Windows Settings → Apps → Installed apps → Deskchirp for Discord → Uninstall**. Settings and saved sign-ins stay available for a later reinstall; disconnect T3 and unlink computers in the app first if you want to remove those saved connections.
+If you installed preview 3 or earlier, the new installer closes and removes that copy for you. Settings and saved sign-ins carry over.
 
-The **`windows-x64-portable.zip`** download is optional. Only portable users need to extract the whole folder and keep its files together.
+Updates are automatic. Deskchirp checks GitHub Releases every few hours, downloads new versions in the background, and shows **Update ready** with a **Restart now** button. If you don't restart, the update installs the next time Deskchirp opens. Turn this off, or check manually, under **Updates** in settings. To remove Deskchirp, use **Windows Settings → Apps → Installed apps → Deskchirp for Discord → Uninstall**. Settings and saved sign-ins stay available for a later reinstall; disconnect T3 and unlink computers in the app first if you want to remove those saved connections.
+
+The **`windows-x64-portable.zip`** download is optional. Only portable users need to extract the whole folder and keep its files together. Portable copies don't update themselves.
 
 The app lives in the notification area. Closing its settings hides the window when the tray icon is available. Use the tray menu to quit.
 

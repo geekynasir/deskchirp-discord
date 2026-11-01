@@ -130,12 +130,16 @@ jobs:
         with:
           dotnet-version: 8.0.x
       - name: Publish native WinUI application with runtimes
-        run: >-
-          dotnet publish windows/src/DeveloperPresence.App/DeveloperPresence.App.csproj
-          -c Release -p:Platform=x64 -r win-x64
-          --self-contained true -p:WindowsAppSDKSelfContained=true
-          -p:PublishSingleFile=false -p:PublishTrimmed=false
-          -o dist/windows-x64
+        shell: pwsh
+        run: |
+          $prefix, $suffix = (Get-Content VERSION -Raw).Trim() -split '-', 2
+          dotnet publish windows/src/DeveloperPresence.App/DeveloperPresence.App.csproj `
+            -c Release -p:Platform=x64 -r win-x64 `
+            --self-contained true -p:WindowsAppSDKSelfContained=true `
+            -p:PublishSingleFile=false -p:PublishTrimmed=false `
+            -p:VersionPrefix=$prefix -p:VersionSuffix=$suffix `
+            -o dist/windows-x64
+          if ($LASTEXITCODE -ne 0) { throw 'Publish failed.' }
       - name: Check executable and include instructions
         shell: pwsh
         run: |
@@ -146,15 +150,18 @@ jobs:
           Copy-Item docs/connect-t3.md dist/windows-x64/CONNECT-T3.md
           Copy-Item docs/computers.md dist/windows-x64/COMPUTERS.md
           Copy-Item -Recurse assets/discord dist/windows-x64/Discord-artwork
-      - name: Build Windows installer with bundled runtimes
+      - name: Build one-click installer and update feed
         shell: pwsh
         run: ./scripts/build-windows-installer.ps1
-      - name: Capture the setup wizard
-        shell: pwsh
-        run: ./scripts/capture-installer.ps1
-      - name: Verify installed app, shortcuts, upgrade and uninstall
+      - name: Verify preview 3 replacement, update, Start launch and uninstall
+        timeout-minutes: 10
         shell: pwsh
         run: ./scripts/test-windows-installer.ps1
+      - name: Capture the install window
+        continue-on-error: true
+        timeout-minutes: 4
+        shell: pwsh
+        run: ./scripts/capture-installer.ps1
       - uses: actions/upload-artifact@v4
         with:
           name: Deskchirp-windows-installer

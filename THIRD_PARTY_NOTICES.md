@@ -16,7 +16,7 @@ Windows builds use .NET 8, Windows App SDK, and WinUI 3. Self-contained download
 - [Windows App SDK MIT license](licenses/windowsappsdk-MIT.txt).
 - [WinUI MIT license](licenses/winui-MIT.txt).
 - App-local Microsoft Visual C++ runtime files, subject to [Microsoft’s runtime terms](licenses/visual-cpp-runtime.md).
-- Windows setup uses Inno Setup 6. Its installed compiler license is copied to `licenses/innosetup-license.txt` in the Windows download and installation. Inno Setup is copyright Jordan Russell and Martijn Laan; see https://jrsoftware.org/isinfo.php.
+- Windows setup and in-app updates use [Velopack](https://github.com/velopack/velopack) 1.2.161 ([MIT license](licenses/velopack-MIT.txt)), copyright Caelan Sayler and Velopack Ltd.
 
 Microsoft Windows SDK components and system libraries remain subject to Microsoft's applicable terms. The build uses `Microsoft.Windows.SDK.BuildTools`; it is a build dependency, not an independently licensed Deskchirp component. Development tests use xUnit and the Microsoft test SDK, which are not included in the desktop downloads. Swift, AppKit, SwiftUI, and Python use the licenses and platform terms of their respective distributions.
 
