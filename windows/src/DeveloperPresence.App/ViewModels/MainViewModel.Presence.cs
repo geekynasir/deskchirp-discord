@@ -235,6 +235,7 @@ public sealed partial class MainViewModel
 
     private void LoadPresenceControls(PresenceSettings s)
     {
+        s.NormalizeAndMigrate();
         _cardStyle = s.CardStyle;
         _usageMetric = s.UsageMetric;
         _usageScope = s.UsageScope;

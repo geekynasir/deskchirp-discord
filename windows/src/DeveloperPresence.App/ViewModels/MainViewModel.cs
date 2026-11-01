@@ -563,6 +563,7 @@ public sealed partial class MainViewModel : INotifyPropertyChanged, IDisposable
         _setupMessage = null;
         // Discover local T3 only when no environment is configured yet; otherwise sign in to the
         // first environment that isn't connected. Each environment also has its own Allow button.
+        _settingsService.Settings.NormalizeAndMigrate();
         var environments = _settingsService.Settings.T3Environments;
         var statuses = _t3ActivityService!.Environments;
         string? existing = environments
