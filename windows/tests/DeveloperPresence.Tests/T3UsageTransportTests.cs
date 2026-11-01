@@ -304,7 +304,7 @@ public partial class T3UsageTransportTests
         }
     }
 
-    private static async Task<(MockSettingsService, InMemoryCredentialStore, FakeSockets, Handler, T3UsageService)> UsageSetup()
+    private static async Task<(MockSettingsService, InMemoryCredentialStore, FakeSockets, Handler, T3UsageService)> UsageSetup(Func<DateTimeOffset>? clock = null)
     {
         var settings = new MockSettingsService();
         settings.Settings.T3Environments.Add(new T3Environment { Id = "env-a", Address = "https://remote.example:8443/mcp" });
@@ -319,7 +319,7 @@ public partial class T3UsageTransportTests
             }
         };
         var sockets = new FakeSockets();
-        var service = new T3UsageService(settings, store, new HttpClient(handler), sockets, null,
+        var service = new T3UsageService(settings, store, new HttpClient(handler), sockets, clock,
             TimeZoneInfo.FindSystemTimeZoneById("Asia/Karachi"));
         await service.InitializeAsync();
         return (settings, store, sockets, handler, service);
@@ -376,6 +376,24 @@ public partial class T3UsageTransportTests
         sockets.Connections.Clear();
         Assert.Null(await service.PollOnceAsync(new T3UsagePollRequest { Settings = settings.Settings }));
         Assert.Empty(sockets.Connections);
+    }
+
+    [Fact]
+    public async Task CredentialExpiringWhileRunningAsksToPairAgainAndIsDeleted()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var (_, store, _, _, service) = await UsageSetup(() => now);
+        await service.PairAsync("env-a", "AbC123xyz");
+        Assert.True(service.HasPermission("env-a"));
+        Assert.Equal(T3UsageText.Allowed, service.StatusFor("env-a"));
+
+        var changed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        service.Changed += () => changed.TrySetResult();
+        now = now.AddDays(31);
+        Assert.Equal(T3UsageText.PairAgain, service.StatusFor("env-a"));
+        Assert.False(service.HasPermission("env-a"));
+        await changed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Null(await store.ReadCredentialAsync("deskchirp-usage:https://remote.example:8443", T3UsageService.CredentialUsername));
     }
 
     [Fact]

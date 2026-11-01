@@ -101,6 +101,7 @@ public sealed class T3UsageService : IT3UsageService
     public bool HasPermission(string environmentId)
     {
         string? origin = OriginFor(environmentId);
+        if (origin != null) ExpireIfNeeded(origin);
         lock (_lock) { return origin != null && _credentials.TryGetValue(origin, out var c) && !c.IsExpired(_clock()); }
     }
 
@@ -108,6 +109,7 @@ public sealed class T3UsageService : IT3UsageService
     {
         string? origin = OriginFor(environmentId);
         if (origin == null) return null;
+        ExpireIfNeeded(origin);
         lock (_lock)
         {
             if (_status.TryGetValue(origin, out var status)) return status;
@@ -207,6 +209,33 @@ public sealed class T3UsageService : IT3UsageService
     {
         await ForgetAsync(origin, null).ConfigureAwait(false);
         Invalidate();
+    }
+
+    /// <summary>
+    /// A credential that expires while Deskchirp runs is dropped right away, the environment says to pair
+    /// again, and the stored copy is deleted unless a newer pairing has started or replaced it.
+    /// </summary>
+    private void ExpireIfNeeded(string origin)
+    {
+        lock (_lock)
+        {
+            if (!_credentials.TryGetValue(origin, out var credential) || !credential.IsExpired(_clock())) return;
+            _credentials.Remove(origin);
+            _status[origin] = T3UsageText.PairAgain;
+        }
+        _ = Task.Run(async () =>
+        {
+            await _credentialLock.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                bool replaced;
+                lock (_lock) { replaced = _credentials.ContainsKey(origin) || _pairing.ContainsKey(origin); }
+                if (!replaced) await _store.DeleteCredentialAsync(CredentialTargetFor(origin), CredentialUsername).ConfigureAwait(false);
+            }
+            catch { }
+            finally { _credentialLock.Release(); }
+            Changed?.Invoke();
+        });
     }
 
     private async Task ForgetAsync(string origin, string? status)

@@ -578,7 +578,7 @@ public sealed class T3ActivityService : IT3ActivityService
         }
         catch (T3AuthenticationException)
         {
-            if (!Current() && pollGen != Interlocked.Read(ref _pollGeneration)) return;
+            if (!Current()) return;
             lock (_stateLock) { state.Snapshot = null; SetEnvStatus(state, T3ConnectionStatus.SignInAgain, MsgExpired); }
             RebuildSnapshot();
             PublishStatus();
