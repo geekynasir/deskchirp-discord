@@ -10,4 +10,11 @@ public interface IT3McpClient : IAsyncDisposable
 {
     Task<T3CapabilitiesResult> GetCapabilitiesAsync(Uri mcpUri, string bearerToken, CancellationToken ct = default);
     Task<T3ThreadListResult> ListThreadsAsync(Uri mcpUri, string bearerToken, int? cursor = null, CancellationToken ct = default);
+
+    /// <summary>
+    /// Lists projects (t3_project_list, orchestration:read). Titles are for the local alias editor only.
+    /// The default returns no projects so older fakes keep working.
+    /// </summary>
+    Task<IReadOnlyList<T3ProjectListItem>> ListProjectsAsync(Uri mcpUri, string bearerToken, CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<T3ProjectListItem>>(Array.Empty<T3ProjectListItem>());
 }

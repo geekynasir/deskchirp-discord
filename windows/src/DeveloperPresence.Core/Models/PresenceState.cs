@@ -35,6 +35,11 @@ public sealed class PresenceState
     public T3ConnectionStatus T3ConnectionStatus { get; set; } = T3ConnectionStatus.NotConnected;
     public string T3StatusDetail { get; set; } = "Paste the T3 address, then connect.";
 
+    /// <summary>Every outgoing Discord field with its source, for the settings preview.</summary>
+    public IReadOnlyList<Privacy.PresencePreviewRow> PreviewRows { get; set; } = Array.Empty<Privacy.PresencePreviewRow>();
+    /// <summary>Fields longer than Discord's comfortable card width ("details", "state").</summary>
+    public IReadOnlyList<string> FitWarnings { get; set; } = Array.Empty<string>();
+
     /// <summary>
     /// Creates a thread-safe snapshot clone of the current presence state.
     /// </summary>
@@ -50,6 +55,8 @@ public sealed class PresenceState
         LastError = LastError,
         ComputerStatus = ComputerStatus,
         T3ConnectionStatus = T3ConnectionStatus,
-        T3StatusDetail = T3StatusDetail
+        T3StatusDetail = T3StatusDetail,
+        PreviewRows = PreviewRows,
+        FitWarnings = FitWarnings
     };
 }

@@ -51,6 +51,28 @@
                     <TextBlock Text="{x:Bind ViewModel.LastUpdateText, Mode=OneWay}"
                         Style="{StaticResource CaptionTextBlockStyle}"
                         Visibility="{x:Bind BoolToVisibility(ViewModel.HasLastUpdate), Mode=OneWay}" />
+                    <StackPanel Spacing="6" Visibility="{x:Bind BoolToVisibility(ViewModel.HasPreviewRows), Mode=OneWay}">
+                        <TextBlock Text="Everything Discord receives" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        <ItemsControl ItemsSource="{x:Bind ViewModel.PreviewRows, Mode=OneWay}" IsTabStop="False">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:PreviewRowItem">
+                                    <StackPanel Spacing="2" Padding="0,4" AutomationProperties.Name="{x:Bind AutomationName}">
+                                        <TextBlock TextWrapping="Wrap">
+                                            <Run Text="{x:Bind Label}" FontWeight="SemiBold" />
+                                            <Run Text=" · " />
+                                            <Run Text="{x:Bind SourceText}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        </TextBlock>
+                                        <TextBlock Text="{x:Bind Value}" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                                        <TextBlock Text="{x:Bind FitWarning}" TextWrapping="Wrap"
+                                            Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                                            Visibility="{x:Bind HasFitWarning}" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Text="Nothing else is sent." TextWrapping="Wrap"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
                 </StackPanel>
                 </Grid>
             </Border>
@@ -82,7 +104,253 @@
                         TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                         Visibility="{x:Bind BoolToVisibility(ViewModel.IsT3Connected), Mode=OneWay}" />
                 </StackPanel>
+
+                <!-- T3 environments (presence v3 §1) -->
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Environments" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                    <TextBlock Text="Add each computer where your T3 tasks run. Names stay on this PC and are never shared."
+                        TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <ListView ItemsSource="{x:Bind ViewModel.Environments}" SelectionMode="None"
+                        AutomationProperties.Name="Environments"
+                        Visibility="{x:Bind BoolToVisibility(ViewModel.HasEnvironments), Mode=OneWay}">
+                        <ListView.ItemTemplate>
+                            <DataTemplate x:DataType="vm:EnvironmentItem">
+                                <StackPanel Spacing="6" Padding="0,10">
+                                    <TextBox Header="Name" AutomationProperties.Name="Environment name" MaxLength="48"
+                                        Text="{x:Bind Label, Mode=TwoWay}" />
+                                    <TextBlock Text="{x:Bind Address}" TextWrapping="Wrap" IsTextSelectionEnabled="True"
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock Text="{x:Bind StatusText, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}"
+                                        AutomationProperties.LiveSetting="Polite" />
+                                    <TextBlock Text="{x:Bind Detail, Mode=OneWay}" TextWrapping="Wrap"
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <Button Content="{x:Bind AllowButtonText, Mode=OneWay}" Click="OnAllowEnvironmentClicked"
+                                            Visibility="{x:Bind IsAllowVisible, Mode=OneWay}"
+                                            AutomationProperties.Name="{x:Bind AllowAutomationName, Mode=OneWay}" />
+                                        <Button Content="Remove" Click="OnRemoveEnvironmentClicked"
+                                            AutomationProperties.Name="{x:Bind RemoveAutomationName, Mode=OneWay}" />
+                                    </StackPanel>
+                                    <TextBlock Text="Token usage" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                    <TextBlock Text="{x:Bind UsageStatusText, Mode=OneWay}" TextWrapping="Wrap"
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <Button Content="{x:Bind UsageButtonText, Mode=OneWay}" Click="OnToggleUsageClicked"
+                                        AutomationProperties.Name="{x:Bind UsageAutomationName, Mode=OneWay}" />
+                                    <StackPanel Spacing="6" Visibility="{x:Bind ShowPairing, Mode=OneWay}">
+                                        <TextBlock Text="{x:Bind UsageExplanation}" TextWrapping="Wrap" />
+                                        <TextBlock Text="{x:Bind PairCommandText}" TextWrapping="Wrap" IsTextSelectionEnabled="True"
+                                            FontFamily="Consolas" AutomationProperties.Name="Command to run on that computer" />
+                                        <TextBlock Text="{x:Bind PermissionWording}" TextWrapping="Wrap"
+                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        <PasswordBox Header="Pairing code or link" AutomationProperties.Name="Pairing code or link"
+                                            MaxLength="512" PasswordChanged="OnPairingInputChanged" />
+                                        <Button Content="Pair" Click="OnPairClicked" IsEnabled="{x:Bind CanPair, Mode=OneWay}"
+                                            AutomationProperties.Name="{x:Bind PairAutomationName}" />
+                                        <TextBlock Text="{x:Bind PairingMessage, Mode=OneWay}" TextWrapping="Wrap"
+                                            AutomationProperties.LiveSetting="Polite"
+                                            Visibility="{x:Bind HasPairingMessage, Mode=OneWay}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                    <TextBox Header="Add environment" AutomationProperties.Name="Add environment"
+                        Text="{x:Bind ViewModel.NewEnvironmentAddress, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                        PlaceholderText="Paste from T3 Code" />
+                    <TextBlock Text="In T3 Code on that computer, open Settings → Environments and choose Copy MCP URL."
+                        TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <Button Content="Add environment" Command="{x:Bind ViewModel.AddEnvironmentCommand}" />
+                    <TextBlock Text="{x:Bind ViewModel.AddEnvironmentError, Mode=OneWay}" TextWrapping="Wrap"
+                        AutomationProperties.LiveSetting="Polite"
+                        Visibility="{x:Bind BoolToVisibility(ViewModel.HasAddEnvironmentError), Mode=OneWay}" />
+                </StackPanel>
             </StackPanel>
+
+            <!-- Discord card (presence v3 §3–§6) -->
+            <StackPanel Spacing="16">
+                <TextBlock Text="Discord card" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                <StackPanel Spacing="4">
+                    <RadioButtons Header="Card shows" MaxColumns="3" AutomationProperties.Name="Card shows"
+                        SelectedIndex="{x:Bind ViewModel.CardStyleIndex, Mode=TwoWay}">
+                        <RadioButton Content="App only" />
+                        <RadioButton Content="Tasks and helpers" IsEnabled="{x:Bind ViewModel.IsWorkloadStyleEnabled, Mode=OneWay}" />
+                        <RadioButton Content="Token usage" IsEnabled="{x:Bind ViewModel.IsUsageStyleEnabled, Mode=OneWay}" />
+                    </RadioButtons>
+                    <TextBlock Text="{x:Bind ViewModel.CardStyleReason, Mode=OneWay}" TextWrapping="Wrap"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Visibility="{x:Bind BoolToVisibility(ViewModel.HasCardStyleReason), Mode=OneWay}" />
+                </StackPanel>
+
+                <!-- Usage options, only while Token usage is chosen -->
+                <StackPanel Spacing="12" Visibility="{x:Bind BoolToVisibility(ViewModel.IsUsageStyle), Mode=OneWay}">
+                    <ComboBox Header="Show" AutomationProperties.Name="Usage to show" HorizontalAlignment="Stretch"
+                        SelectedIndex="{x:Bind ViewModel.UsageMetricIndex, Mode=TwoWay}">
+                        <ComboBoxItem Content="Tokens" />
+                        <ComboBoxItem Content="How full the context window is" />
+                    </ComboBox>
+                    <StackPanel Spacing="4">
+                        <ComboBox Header="Count tokens for" AutomationProperties.Name="Count tokens for" HorizontalAlignment="Stretch"
+                            IsEnabled="{x:Bind ViewModel.IsScopeEditable, Mode=OneWay}"
+                            SelectedIndex="{x:Bind ViewModel.UsageScopeIndex, Mode=TwoWay}">
+                            <ComboBoxItem Content="Today" IsEnabled="{x:Bind ViewModel.IsTodayScopeEnabled, Mode=OneWay}" />
+                            <ComboBoxItem Content="This work session" IsEnabled="{x:Bind ViewModel.IsSessionScopeEnabled, Mode=OneWay}" />
+                            <ComboBoxItem Content="Pinned task" IsEnabled="{x:Bind ViewModel.IsPinnedScopeEnabled, Mode=OneWay}" />
+                        </ComboBox>
+                        <TextBlock Text="{x:Bind ViewModel.ScopeReason, Mode=OneWay}" TextWrapping="Wrap"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Visibility="{x:Bind BoolToVisibility(ViewModel.HasScopeReason), Mode=OneWay}" />
+                        <TextBlock Text="Today counts every tool on that computer, including use outside T3."
+                            TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+                    <StackPanel Spacing="12" Visibility="{x:Bind BoolToVisibility(ViewModel.ShowTokenOptions), Mode=OneWay}">
+                        <ComboBox Header="Which tokens" AutomationProperties.Name="Which tokens" HorizontalAlignment="Stretch"
+                            SelectedIndex="{x:Bind ViewModel.TokenCategoryIndex, Mode=TwoWay}">
+                            <ComboBoxItem Content="All tokens" />
+                            <ComboBoxItem Content="Input, including cached" />
+                            <ComboBoxItem Content="Output" />
+                        </ComboBox>
+                        <ComboBox Header="Number style" AutomationProperties.Name="Number style" HorizontalAlignment="Stretch"
+                            SelectedIndex="{x:Bind ViewModel.TokenRoundingIndex, Mode=TwoWay}">
+                            <ComboBoxItem Content="Short, like 842K" />
+                            <ComboBoxItem Content="Exact, like 842,112" />
+                        </ComboBox>
+                    </StackPanel>
+                    <StackPanel Spacing="4" Visibility="{x:Bind BoolToVisibility(ViewModel.ShowCostToggle), Mode=OneWay}">
+                        <ToggleSwitch Header="Show estimated API cost" AutomationProperties.Name="Show estimated API cost"
+                            IsOn="{x:Bind ViewModel.ShareEstimatedCost, Mode=TwoWay}" />
+                        <TextBlock Text="An estimate of what today’s tokens would cost at API prices. It isn’t what you paid."
+                            TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+                    <ComboBox Header="Pinned task" AutomationProperties.Name="Pinned task" HorizontalAlignment="Stretch"
+                        ItemsSource="{x:Bind ViewModel.TaskOptions}" DisplayMemberPath="Display"
+                        SelectedIndex="{x:Bind ViewModel.PinnedTaskIndex, Mode=TwoWay}" />
+                    <TextBlock Text="Task names appear only here, never on Discord."
+                        TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+
+                <ComboBox Header="Small badge" AutomationProperties.Name="Small badge" HorizontalAlignment="Stretch"
+                    SelectedIndex="{x:Bind ViewModel.SmallBadgeIndex, Mode=TwoWay}">
+                    <ComboBoxItem Content="Work status" />
+                    <ComboBoxItem Content="Agent tool" />
+                    <ComboBoxItem Content="None" />
+                </ComboBox>
+
+                <StackPanel Spacing="4">
+                    <ToggleSwitch Header="Share project alias" AutomationProperties.Name="Share project alias"
+                        IsOn="{x:Bind ViewModel.ShareProjectAlias, Mode=TwoWay}" />
+                    <TextBlock Text="Shows a name you write for the busiest project instead of the agent tool. Real project names are never shared."
+                        TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+                <StackPanel Spacing="4">
+                    <ToggleSwitch Header="Share model" AutomationProperties.Name="Share model"
+                        IsOn="{x:Bind ViewModel.ShareModel, Mode=TwoWay}" />
+                    <TextBlock Text="Adds the model of the most recent running task, such as claude-opus-5-5. Unusual names are left out."
+                        TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+                <ToggleSwitch Header="Show elapsed time" AutomationProperties.Name="Show elapsed time"
+                    IsOn="{x:Bind ViewModel.ShowElapsedTimer, Mode=TwoWay}" />
+                <ToggleSwitch Header="Playful wording" AutomationProperties.Name="Playful wording"
+                    IsOn="{x:Bind ViewModel.PlayfulWording, Mode=TwoWay}" />
+
+                <RadioButtons Header="When another app is active" AutomationProperties.Name="When another app is active"
+                    SelectedIndex="{x:Bind ViewModel.SelectionModeIndex, Mode=TwoWay}">
+                    <RadioButton Content="Keep T3 work visible" />
+                    <RadioButton Content="Show the active app" />
+                </RadioButtons>
+
+                <StackPanel Spacing="8">
+                    <ComboBox Header="Buttons" AutomationProperties.Name="Buttons" HorizontalAlignment="Stretch"
+                        SelectedIndex="{x:Bind ViewModel.ButtonsIndex, Mode=TwoWay}">
+                        <ComboBoxItem Content="None" />
+                        <ComboBoxItem Content="Get Deskchirp" />
+                        <ComboBoxItem Content="Get Deskchirp and View project" />
+                    </ComboBox>
+                    <TextBlock Text="{x:Bind ViewModel.ButtonsReason, Mode=OneWay}" TextWrapping="Wrap"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Visibility="{x:Bind BoolToVisibility(ViewModel.HasButtonsReason), Mode=OneWay}" />
+                    <StackPanel Spacing="4" Visibility="{x:Bind BoolToVisibility(ViewModel.ShowRepoUrlField), Mode=OneWay}">
+                        <TextBox Header="Public repository link" AutomationProperties.Name="Public repository link"
+                            Text="{x:Bind ViewModel.PublicRepoUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                            PlaceholderText="https://github.com/owner/repository" />
+                        <TextBlock Text="View project appears only while a project alias is shown."
+                            TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        <TextBlock Text="{x:Bind ViewModel.RepoUrlErrorText}" TextWrapping="Wrap"
+                            AutomationProperties.LiveSetting="Polite"
+                            Visibility="{x:Bind BoolToVisibility(ViewModel.ShowRepoUrlError), Mode=OneWay}" />
+                    </StackPanel>
+                </StackPanel>
+            </StackPanel>
+
+            <!-- Projects: aliases, exclusions, pinned project. Project names stay in this window. -->
+            <Expander Header="Projects" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Project names come from T3 Code and appear only here. Discord sees only the aliases you write."
+                        TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBlock Text="No projects yet. They appear after T3 activity is connected."
+                        TextWrapping="Wrap" Visibility="{x:Bind BoolToVisibility(ViewModel.ShowNoProjects), Mode=OneWay}" />
+                    <TextBlock Text="Aliases" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                    <ComboBox Header="Project" AutomationProperties.Name="Project for alias" HorizontalAlignment="Stretch"
+                        ItemsSource="{x:Bind ViewModel.ProjectOptions}" DisplayMemberPath="Display"
+                        SelectedIndex="{x:Bind ViewModel.AliasProjectIndex, Mode=TwoWay}" />
+                    <TextBox Header="Alias" AutomationProperties.Name="Alias" MaxLength="64"
+                        Text="{x:Bind ViewModel.NewAliasText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Text="{x:Bind ViewModel.AliasPreviewText, Mode=OneWay}" TextWrapping="Wrap"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <Button Content="Save alias" Command="{x:Bind ViewModel.AddAliasCommand}" />
+                    <ListView ItemsSource="{x:Bind ViewModel.Aliases}" SelectionMode="None" MaxHeight="220"
+                        AutomationProperties.Name="Saved aliases"
+                        Visibility="{x:Bind BoolToVisibility(ViewModel.HasAliases), Mode=OneWay}">
+                        <ListView.ItemTemplate>
+                            <DataTemplate x:DataType="vm:KeyedEntry">
+                                <Grid ColumnSpacing="12" Padding="0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Text="{x:Bind Display}" TextWrapping="Wrap" />
+                                        <TextBlock Text="{x:Bind Detail}" TextWrapping="Wrap"
+                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Content="Remove" Click="OnRemoveAliasClicked"
+                                        AutomationProperties.Name="{x:Bind RemoveAutomationName}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+
+                    <TextBlock Text="Excluded projects" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                    <TextBlock Text="Work in an excluded project, and its helpers, is left out of every count. Today’s token totals can’t skip projects, so they’re unavailable while any project is excluded."
+                        TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <ComboBox Header="Project" AutomationProperties.Name="Project to exclude" HorizontalAlignment="Stretch"
+                        ItemsSource="{x:Bind ViewModel.ProjectOptions}" DisplayMemberPath="Display"
+                        SelectedIndex="{x:Bind ViewModel.ExclusionProjectIndex, Mode=TwoWay}" />
+                    <Button Content="Exclude project" Command="{x:Bind ViewModel.AddExclusionCommand}" />
+                    <ListView ItemsSource="{x:Bind ViewModel.Exclusions}" SelectionMode="None" MaxHeight="220"
+                        AutomationProperties.Name="Excluded projects"
+                        Visibility="{x:Bind BoolToVisibility(ViewModel.HasExclusions), Mode=OneWay}">
+                        <ListView.ItemTemplate>
+                            <DataTemplate x:DataType="vm:KeyedEntry">
+                                <Grid ColumnSpacing="12" Padding="0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{x:Bind Display}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                    <Button Grid.Column="1" Content="Stop excluding" Click="OnRemoveExclusionClicked"
+                                        AutomationProperties.Name="{x:Bind RemoveAutomationName}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+
+                    <ComboBox Header="Pinned project" AutomationProperties.Name="Pinned project" HorizontalAlignment="Stretch"
+                        ItemsSource="{x:Bind ViewModel.PinnedProjectOptions}" DisplayMemberPath="Display"
+                        SelectedIndex="{x:Bind ViewModel.PinnedProjectIndex, Mode=TwoWay}" />
+                    <TextBlock Text="Counts only that project’s work while it has any."
+                        TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+            </Expander>
 
             <!-- Linked computers -->
             <Expander Header="Computers" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
@@ -122,14 +390,7 @@
 
             <Expander Header="Advanced" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                 <StackPanel Spacing="12">
-                <StackPanel Spacing="4">
-                    <TextBox Header="T3 address" AutomationProperties.Name="T3 address"
-                        Text="{x:Bind ViewModel.T3Address, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                        PlaceholderText="Paste from T3 Code" IsEnabled="{x:Bind ViewModel.IsT3AddressEditable, Mode=OneWay}" />
-                    <TextBlock Text="In T3 Code, open Settings → Environments and choose Copy MCP URL."
-                        TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                </StackPanel>
-                    <TextBlock Text="Leave the T3 address empty to find the local app. Enter an address only for a remote or custom installation."
+                    <TextBlock Text="With no environments, Allow T3 activity finds T3 Code on this PC. Add remote environments under T3 Code → Environments."
                         TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     <TextBox Header="Discord application ID" AutomationProperties.Name="Discord application ID"
                         Text="{x:Bind ViewModel.DiscordClientId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />

@@ -47,6 +47,13 @@ public sealed class T3Snapshot : IEquatable<T3Snapshot>
     public string Details { get; init; } = "Using T3 Code";
     public int TotalThreadsObserved { get; init; }
 
+    /// <summary>
+    /// Fresh per-environment metadata behind this combined snapshot (presence v3). Empty for
+    /// snapshots built only from workloads (older callers and tests); the formatter then uses
+    /// <see cref="WinningHarness"/> directly.
+    /// </summary>
+    public IReadOnlyList<T3EnvironmentSnapshot> Environments { get; init; } = Array.Empty<T3EnvironmentSnapshot>();
+
     public bool Equals(T3Snapshot? other)
     {
         if (other is null) return false;
@@ -58,6 +65,12 @@ public sealed class T3Snapshot : IEquatable<T3Snapshot>
 
         if (WinningHarness is null != (other.WinningHarness is null)) return false;
         if (WinningHarness != null && !WinningHarness.Equals(other.WinningHarness)) return false;
+
+        if (Environments.Count != other.Environments.Count) return false;
+        for (int i = 0; i < Environments.Count; i++)
+        {
+            if (!Environments[i].ContentEquals(other.Environments[i])) return false;
+        }
 
         if (Workloads.Count != other.Workloads.Count) return false;
         for (int i = 0; i < Workloads.Count; i++)
@@ -78,5 +91,36 @@ public sealed class T3Snapshot : IEquatable<T3Snapshot>
         if (a is null && b is null) return true;
         if (a is null || b is null) return false;
         return a.Equals(b);
+    }
+}
+
+/// <summary>
+/// One environment's decoded, privacy-filtered thread-list metadata from a single complete poll.
+/// Titles are kept only for the local pinned-task picker.
+/// </summary>
+public sealed class T3EnvironmentSnapshot
+{
+    public string EnvironmentId { get; init; } = string.Empty;
+    public DateTimeOffset Timestamp { get; init; } = DateTimeOffset.UtcNow;
+    /// <summary>providerInstanceId → driverKind. Display names are never decoded.</summary>
+    public IReadOnlyDictionary<string, string> Drivers { get; init; } = new Dictionary<string, string>();
+    public IReadOnlyList<T3ThreadListItem> Threads { get; init; } = Array.Empty<T3ThreadListItem>();
+    /// <summary>Project titles, for the local alias editor and pickers only.</summary>
+    public IReadOnlyList<T3ProjectListItem> Projects { get; init; } = Array.Empty<T3ProjectListItem>();
+
+    public bool ContentEquals(T3EnvironmentSnapshot other)
+    {
+        if (!string.Equals(EnvironmentId, other.EnvironmentId, StringComparison.Ordinal)) return false;
+        if (Threads.Count != other.Threads.Count || Drivers.Count != other.Drivers.Count) return false;
+        foreach (var (k, v) in Drivers)
+            if (!other.Drivers.TryGetValue(k, out var o) || !string.Equals(v, o, StringComparison.Ordinal)) return false;
+        for (int i = 0; i < Threads.Count; i++)
+        {
+            var a = Threads[i]; var b = other.Threads[i];
+            if (a.ThreadId != b.ThreadId || a.Status != b.Status || a.ProviderInstanceId != b.ProviderInstanceId ||
+                a.RelationshipToParent != b.RelationshipToParent || a.ParentThreadId != b.ParentThreadId ||
+                a.ProjectId != b.ProjectId || a.Model != b.Model || a.UpdatedAt != b.UpdatedAt) return false;
+        }
+        return true;
     }
 }

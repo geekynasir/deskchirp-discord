@@ -28,7 +28,7 @@ Decode these additional `t3_thread_list` fields; everything else stays ignored:
 | `createdAt`, `updatedAt` | Pinned-task picker ordering only |
 | `title` | **Local settings picker only.** Never logged, persisted beyond the in-memory picker, or published |
 
-Project names come from `t3_project_list` (add it to the allowlist; it requires only `orchestration:read`). Project titles appear only in the local alias editor/picker. Calls remain allowlisted: `orchestrator_capabilities`, `t3_thread_list`, `t3_project_list`.
+Project names come from `t3_project_list` (add it to the allowlist; it requires only `orchestration:read`). Project titles appear only in the local alias editor/picker. `t3_project_list` is called with `{}` (plus `cursor` while one is returned); read `projects[].projectId` (or `id`) and `title` (or `name`). Calls remain allowlisted: `orchestrator_capabilities`, `t3_thread_list`, `t3_project_list`.
 
 Exclusions apply before any aggregation: a thread whose `projectId` is excluded is dropped, and so is any helper whose `parentThreadId` resolves to an excluded thread.
 
@@ -101,7 +101,7 @@ Workload, playful:
 | Waiting | `{n} agent(s) on standby` |
 | Starting | `Warming up {n} agent(s)` |
 
-Usage, tokens: `{amount} tokens {scope}` where scope is `today`, `this session`, or `on this task`. Playful prefix: `Crunched {amount} tokens {scope}`. With cost: append ` · ~${cost} API est.`
+Usage, tokens: `{amount} tokens {scope}` (`1 token` when the amount is exactly one) where scope is `today`, `this session`, or `on this task`. Playful prefix: `Crunched {amount} tokens {scope}`. With cost: append ` · ~${cost} API est.`
 
 Usage, context: `{p}% of context used`; playful `Context tank {p}% full`. `p` = floor(used × 100 / max); omit when `max` is missing or zero.
 

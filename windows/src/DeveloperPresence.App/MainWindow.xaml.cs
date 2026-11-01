@@ -9,6 +9,7 @@ using DeveloperPresence.Core.Privacy;
 using DeveloperPresence.Core.Services;
 using DeveloperPresence.Core.T3;
 using DeveloperPresence.Core.Computers;
+using DeveloperPresence.Core.T3.Usage;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
@@ -20,6 +21,7 @@ public sealed partial class MainWindow : Window
     private readonly ISettingsService _settingsService;
     private readonly ICredentialStore _credentialStore;
     private readonly IT3ActivityService _t3ActivityService;
+    private readonly IT3UsageService _usageService;
     private readonly IDiscordIpcClient _discordClient;
     private readonly IForegroundDetector _foregroundDetector;
     private readonly PresenceCoordinator _coordinator;
@@ -55,13 +57,14 @@ public sealed partial class MainWindow : Window
         _discordClient = new DiscordIpcClient();
         _foregroundDetector = new ForegroundDetector();
         _computers = new ComputerLinkService(_settingsService, _credentialStore);
-        _coordinator = new PresenceCoordinator(_settingsService, _discordClient, _foregroundDetector, _t3ActivityService, _computers);
+        _usageService = new T3UsageService(_settingsService, _credentialStore);
+        _coordinator = new PresenceCoordinator(_settingsService, _discordClient, _foregroundDetector, _t3ActivityService, _computers, _usageService);
 
         // Instantiate ViewModel with UI thread dispatcher
         ViewModel = new MainViewModel(_settingsService, _coordinator, action =>
         {
             DispatcherQueue.TryEnqueue(() => action());
-        }, _t3ActivityService, _computers);
+        }, _t3ActivityService, _computers, usageService: _usageService);
 
         // Initialize Native Tray Icon
         _trayIcon = new TrayIcon(
@@ -201,6 +204,42 @@ public sealed partial class MainWindow : Window
         {
             ViewModel.RemoveMappingCommand.Execute(item);
         }
+    }
+
+    private void OnAllowEnvironmentClicked(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.DataContext is EnvironmentItem item) ViewModel.AllowEnvironment(item);
+    }
+
+    private void OnRemoveEnvironmentClicked(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.DataContext is EnvironmentItem item) ViewModel.RemoveEnvironment(item);
+    }
+
+    private void OnToggleUsageClicked(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.DataContext is EnvironmentItem item) ViewModel.ToggleUsage(item);
+    }
+
+    private void OnPairClicked(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.DataContext is EnvironmentItem item) ViewModel.PairEnvironment(item);
+    }
+
+    private void OnPairingInputChanged(object sender, RoutedEventArgs e)
+    {
+        // The pairing code stays in memory only until pairing finishes.
+        if (sender is PasswordBox box && box.DataContext is EnvironmentItem item) item.PairingInput = box.Password;
+    }
+
+    private void OnRemoveAliasClicked(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.DataContext is KeyedEntry entry) ViewModel.RemoveAlias(entry);
+    }
+
+    private void OnRemoveExclusionClicked(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.DataContext is KeyedEntry entry) ViewModel.RemoveExclusion(entry);
     }
 
     private void OnLinkingCodeChanged(object sender, RoutedEventArgs e)

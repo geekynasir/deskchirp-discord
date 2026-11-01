@@ -1,36 +1,73 @@
 using System.Text.Json;
 using DeveloperPresence.Core.Credentials;
 using DeveloperPresence.Core.Models;
+using DeveloperPresence.Core.Privacy;
 using DeveloperPresence.Core.Services;
 
 namespace DeveloperPresence.Core.T3;
 
+/// <summary>
+/// Reads read-only T3 activity from every configured environment (spec/presence-v3.md §1).
+/// Each environment has its own sign-in, poll lock, generation and snapshot. A failing
+/// environment contributes nothing and never invalidates the others.
+/// </summary>
 public sealed class T3ActivityService : IT3ActivityService
 {
+    private const string MsgNotConnected = "Deskchirp finds T3 Code on this computer. Allow access once to share task and helper counts.";
+    private const string MsgConnected = "T3 work stays visible while the app is minimized.";
+    private const string MsgExpired = "Your T3 Code sign-in expired. Connect again to keep showing activity.";
+    private const string MsgOpening = "Approve Read only access in your browser, then come back here. If T3 asks for a pairing code, create one in T3 Code under Settings → Sharing & access.";
+    private const string MsgUnavailable = "T3 activity isn’t available right now, so only the app name is shown.";
+    public const string MsgNoWorkHere = "Connected. No running tasks were found here — add the environment where your tasks run.";
+    public const string MsgAlreadyAdded = "This environment is already in the list.";
+
     private readonly ISettingsService _settingsService;
     private readonly ICredentialStore _credentialStore;
     private readonly IT3OAuthClient _oauthClient;
-    private readonly IT3McpClient _mcpClient;
+    private readonly Func<IT3McpClient> _mcpClientFactory;
+    private readonly IT3McpClient? _sharedMcpClient;
     private readonly T3LeaderTracker _leaderTracker = new();
-    private readonly SemaphoreSlim _pollLock = new(1, 1);
     private readonly SemaphoreSlim _authLock = new(1, 1);
     private readonly object _stateLock = new();
+    private readonly Dictionary<string, EnvState> _environments = new(StringComparer.Ordinal);
 
     private T3ConnectionStatus _connectionStatus = T3ConnectionStatus.NotConnected;
-    private string _statusDetail = "Deskchirp finds T3 Code on this computer. Allow access once to share task and helper counts.";
+    private string _statusDetail = MsgNotConnected;
     private T3Snapshot? _currentSnapshot;
-    private T3StoredToken? _storedToken;
-    private CancellationTokenSource? _signInCts;
     private long _pollGeneration;
-    private long _authGeneration;
     private bool _isDisposed;
-    private string _observedAddress;
 
+    /// <summary>Legacy single-environment credential (preview 3). Migrated to the per-address key.</summary>
     public const string CredentialTarget = "DeveloperPresence:T3Code";
     public const string CredentialUsername = "OAuthBearerToken";
     public const int MaxPollPages = 10;
     public const int MaxPollThreads = 1000;
     public static readonly TimeSpan SnapshotTtl = TimeSpan.FromSeconds(45);
+    public static readonly TimeSpan ProjectRefresh = TimeSpan.FromMinutes(5);
+
+    /// <summary>Per-environment credential key: the legacy target plus the normalized MCP URL.</summary>
+    public static string CredentialTargetFor(string normalizedMcpUri) => $"{CredentialTarget}:{normalizedMcpUri}";
+
+    private sealed class EnvState
+    {
+        public required string Id { get; init; }
+        public string Address { get; set; } = string.Empty;
+        public string Label { get; set; } = string.Empty;
+        public T3StoredToken? Token { get; set; }
+        public T3ConnectionStatus Status { get; set; } = T3ConnectionStatus.NotConnected;
+        public string Detail { get; set; } = MsgNotConnected;
+        public SemaphoreSlim PollLock { get; } = new(1, 1);
+        public long Generation;
+        public long AuthGeneration;
+        public CancellationTokenSource? SignInCts { get; set; }
+        public T3EnvironmentSnapshot? Snapshot { get; set; }
+        public bool HasReturnedWork { get; set; }
+        public bool HasPolled { get; set; }
+        public required IT3McpClient Client { get; init; }
+        public DateTimeOffset ProjectsFetchedAt { get; set; } = DateTimeOffset.MinValue;
+        public IReadOnlyList<T3PickerProject> Projects { get; set; } = Array.Empty<T3PickerProject>();
+        public IReadOnlyList<T3PickerTask> Tasks { get; set; } = Array.Empty<T3PickerTask>();
+    }
 
     public T3ConnectionStatus ConnectionStatus => _connectionStatus;
     public string StatusDetail => _statusDetail;
@@ -47,32 +84,113 @@ public sealed class T3ActivityService : IT3ActivityService
 
     public event Action<T3ConnectionStatus, string>? StatusChanged;
     public event Action<T3Snapshot?>? SnapshotUpdated;
+    public event Action? EnvironmentsChanged;
+
+    public IReadOnlyList<T3EnvironmentStatus> Environments
+    {
+        get
+        {
+            lock (_stateLock)
+            {
+                return OrderedStates().Select(e => new T3EnvironmentStatus
+                {
+                    EnvironmentId = e.Id, Address = e.Address, Label = e.Label, Status = e.Status, Detail = e.Detail,
+                    HasReturnedWork = e.HasReturnedWork
+                }).ToList();
+            }
+        }
+    }
+
+    public IReadOnlyList<T3PickerTask> PickerTasks
+    {
+        get { lock (_stateLock) { return OrderedStates().SelectMany(e => e.Tasks).ToList(); } }
+    }
+
+    public IReadOnlyList<T3PickerProject> PickerProjects
+    {
+        get { lock (_stateLock) { return OrderedStates().SelectMany(e => e.Projects).ToList(); } }
+    }
 
     public T3ActivityService(
         ISettingsService settingsService,
         ICredentialStore credentialStore,
         IT3OAuthClient? oauthClient = null,
-        IT3McpClient? mcpClient = null)
+        IT3McpClient? mcpClient = null,
+        Func<IT3McpClient>? mcpClientFactory = null)
     {
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
         _credentialStore = credentialStore ?? throw new ArgumentNullException(nameof(credentialStore));
         _oauthClient = oauthClient ?? new T3OAuthClient();
-        _mcpClient = mcpClient ?? new T3McpClient();
-        _observedAddress = _settingsService.Settings.T3Address;
+        _sharedMcpClient = mcpClient;
+        _mcpClientFactory = mcpClient != null ? () => mcpClient : mcpClientFactory ?? (() => new T3McpClient());
+        _settingsService.Settings.NormalizeAndMigrate();
+        SyncStructure(_settingsService.Settings);
         _settingsService.SettingsChanged += OnSettingsChanged;
+    }
+
+    private IEnumerable<EnvState> OrderedStates()
+    {
+        foreach (var env in _settingsService.Settings.T3Environments)
+            if (_environments.TryGetValue(env.Id, out var state)) yield return state;
+    }
+
+    /// <summary>Aligns per-environment state with settings. Returns environments that need their sign-in loaded.</summary>
+    private List<EnvState> SyncStructure(PresenceSettings settings)
+    {
+        var needsLoad = new List<EnvState>();
+        var removed = new List<EnvState>();
+        lock (_stateLock)
+        {
+            var ids = new HashSet<string>(settings.T3Environments.Select(e => e.Id), StringComparer.Ordinal);
+            foreach (var id in _environments.Keys.Where(id => !ids.Contains(id)).ToList())
+            {
+                removed.Add(_environments[id]);
+                _environments.Remove(id);
+            }
+            foreach (var env in settings.T3Environments)
+            {
+                string address = T3UrlValidator.TryNormalizeT3Address(env.Address, out var uri, out _) ? uri!.AbsoluteUri : env.Address;
+                if (!_environments.TryGetValue(env.Id, out var state))
+                {
+                    state = new EnvState { Id = env.Id, Address = address, Label = env.Label, Client = _mcpClientFactory() };
+                    _environments[env.Id] = state;
+                    needsLoad.Add(state);
+                }
+                else if (!string.Equals(state.Address, address, StringComparison.Ordinal))
+                {
+                    // Editing the address stops using the previous environment immediately.
+                    Interlocked.Increment(ref state.Generation);
+                    Interlocked.Increment(ref state.AuthGeneration);
+                    state.SignInCts?.Cancel();
+                    state.Address = address;
+                    state.Token = null;
+                    state.Snapshot = null;
+                    state.HasPolled = false;
+                    state.HasReturnedWork = false;
+                    state.Status = T3ConnectionStatus.NotConnected;
+                    state.Detail = MsgNotConnected;
+                    needsLoad.Add(state);
+                }
+                state.Label = env.Label;
+            }
+        }
+        foreach (var state in removed)
+        {
+            Interlocked.Increment(ref state.Generation);
+            Interlocked.Increment(ref state.AuthGeneration);
+            state.SignInCts?.Cancel();
+            if (_sharedMcpClient == null) _ = state.Client.DisposeAsync().AsTask();
+        }
+        if (removed.Count > 0 || needsLoad.Count > 0) RebuildSnapshot();
+        return needsLoad;
     }
 
     private void OnSettingsChanged(PresenceSettings settings)
     {
-        if (string.Equals(_observedAddress, settings.T3Address, StringComparison.Ordinal)) return;
-        _observedAddress = settings.T3Address;
-        Invalidate();
-        var saved = _storedToken;
-        if (saved == null) return;
-        bool matches = T3UrlValidator.TryNormalizeT3Address(settings.T3Address, out var selected, out _) &&
-                       string.Equals(selected!.AbsoluteUri, saved.McpUri, StringComparison.Ordinal);
-        SetStatus(matches && !saved.IsExpired ? T3ConnectionStatus.Connected : T3ConnectionStatus.NotConnected,
-            matches ? "T3 work stays visible while the app is minimized." : "Deskchirp finds T3 Code on this computer. Allow access once to share task and helper counts.");
+        if (settings.NormalizeAndMigrate()) { /* Saved with the next settings write. */ }
+        var needsLoad = SyncStructure(settings);
+        if (needsLoad.Count > 0) _ = LoadCredentialsAsync(needsLoad, CancellationToken.None);
+        PublishStatus();
     }
 
     public async Task InitializeAsync(CancellationToken ct = default)
@@ -80,330 +198,492 @@ public sealed class T3ActivityService : IT3ActivityService
         await _authLock.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            string? secret = await _credentialStore.ReadCredentialAsync(CredentialTarget, CredentialUsername, ct).ConfigureAwait(false);
-            if (!string.IsNullOrWhiteSpace(secret))
+            await MigrateLegacyCredentialAsync(ct).ConfigureAwait(false);
+        }
+        catch { }
+        finally { _authLock.Release(); }
+
+        List<EnvState> all;
+        lock (_stateLock) { all = _environments.Values.ToList(); }
+        await LoadCredentialsAsync(all, ct).ConfigureAwait(false);
+        PublishStatus();
+    }
+
+    private async Task MigrateLegacyCredentialAsync(CancellationToken ct)
+    {
+        string? legacy = await _credentialStore.ReadCredentialAsync(CredentialTarget, CredentialUsername, ct).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(legacy)) return;
+        var token = JsonSerializer.Deserialize<T3StoredToken>(legacy);
+        if (token == null || string.IsNullOrWhiteSpace(token.AccessToken)) return;
+        EnvState? owner;
+        lock (_stateLock) { owner = _environments.Values.FirstOrDefault(e => string.Equals(e.Address, token.McpUri, StringComparison.Ordinal)); }
+        if (owner == null) return;
+        string target = CredentialTargetFor(owner.Address);
+        if (string.IsNullOrWhiteSpace(await _credentialStore.ReadCredentialAsync(target, CredentialUsername, ct).ConfigureAwait(false)))
+            await _credentialStore.SaveCredentialAsync(target, CredentialUsername, legacy, ct).ConfigureAwait(false);
+        await _credentialStore.DeleteCredentialAsync(CredentialTarget, CredentialUsername, ct).ConfigureAwait(false);
+    }
+
+    private async Task LoadCredentialsAsync(IEnumerable<EnvState> states, CancellationToken ct)
+    {
+        foreach (var state in states)
+        {
+            long authGen = Interlocked.Read(ref state.AuthGeneration);
+            string address = state.Address;
+            T3StoredToken? token = null;
+            try
             {
-                var token = JsonSerializer.Deserialize<T3StoredToken>(secret);
-                if (token != null && !string.IsNullOrWhiteSpace(token.AccessToken))
+                string? secret = await _credentialStore.ReadCredentialAsync(CredentialTargetFor(address), CredentialUsername, ct).ConfigureAwait(false);
+                if (!string.IsNullOrWhiteSpace(secret)) token = JsonSerializer.Deserialize<T3StoredToken>(secret);
+            }
+            catch { token = null; }
+            lock (_stateLock)
+            {
+                if (authGen != Interlocked.Read(ref state.AuthGeneration) || state.Address != address) continue;
+                if (state.Status == T3ConnectionStatus.OpeningSignIn) continue;
+                if (token != null && !string.IsNullOrWhiteSpace(token.AccessToken) &&
+                    string.Equals(token.McpUri, address, StringComparison.Ordinal))
                 {
-                    _storedToken = token;
-                    if (token.IsExpired)
-                    {
-                        SetStatus(T3ConnectionStatus.SignInAgain, "Your T3 Code sign-in expired. Connect again to keep showing activity.");
-                    }
-                    else
-                    {
-                        SetStatus(T3ConnectionStatus.Connected, "T3 work stays visible while the app is minimized.");
-                    }
-                    return;
+                    state.Token = token;
+                    SetEnvStatus(state, token.IsExpired ? T3ConnectionStatus.SignInAgain : T3ConnectionStatus.Connected,
+                        token.IsExpired ? MsgExpired : MsgConnected);
+                }
+                else
+                {
+                    state.Token = null;
+                    SetEnvStatus(state, T3ConnectionStatus.NotConnected, MsgNotConnected);
                 }
             }
         }
-        catch { }
-        finally
-        {
-            _authLock.Release();
-        }
+        PublishStatus();
+    }
 
-        SetStatus(T3ConnectionStatus.NotConnected, "Deskchirp finds T3 Code on this computer. Allow access once to share task and helper counts.");
+    public async Task<string?> AddEnvironmentAsync(string rawAddress, CancellationToken ct = default)
+    {
+        if (!T3UrlValidator.TryNormalizeT3Address(rawAddress, out var uri, out var error)) return error ?? T3UrlValidator.MsgInvalidUrl;
+        string address = uri!.AbsoluteUri;
+        if (_settingsService.Settings.T3Environments.Any(e => string.Equals(e.Address, address, StringComparison.Ordinal)))
+            return MsgAlreadyAdded;
+        await _settingsService.UpdateSettingsAsync(s => s.T3Environments.Add(new T3Environment
+        {
+            Address = address, Label = PresenceSettings.DefaultLabel(address)
+        })).ConfigureAwait(false);
+        return null;
     }
 
     public async Task<bool> ConnectAsync(string rawAddress, CancellationToken ct = default)
     {
-        if (!T3UrlValidator.TryNormalizeT3Address(rawAddress, out var normalizedMcpUri, out var urlError))
+        if (!T3UrlValidator.TryNormalizeT3Address(rawAddress, out var normalized, out var urlError))
         {
             SetStatus(_connectionStatus, urlError ?? T3UrlValidator.MsgInvalidUrl);
             return false;
         }
+        string address = normalized!.AbsoluteUri;
+        var env = _settingsService.Settings.T3Environments.FirstOrDefault(e => string.Equals(e.Address, address, StringComparison.Ordinal));
+        if (env == null)
+        {
+            env = new T3Environment { Address = address, Label = PresenceSettings.DefaultLabel(address) };
+            var added = env;
+            await _settingsService.UpdateSettingsAsync(s =>
+            {
+                if (!s.T3Environments.Any(e => e.Address == address)) s.T3Environments.Add(added);
+            }).ConfigureAwait(false);
+            env = _settingsService.Settings.T3Environments.First(e => e.Address == address);
+        }
+        SyncStructure(_settingsService.Settings);
+        return await ConnectEnvironmentAsync(env.Id, ct).ConfigureAwait(false);
+    }
 
-        var priorStatus = _connectionStatus;
-        var priorToken = _storedToken;
+    public async Task<bool> ConnectEnvironmentAsync(string environmentId, CancellationToken ct = default)
+    {
+        EnvState? state;
+        lock (_stateLock) { _environments.TryGetValue(environmentId, out state); }
+        if (state == null || !Uri.TryCreate(state.Address, UriKind.Absolute, out var mcpUri)) return false;
 
-        // Separate auth generation: invalidates prior in-flight sign-in
-        long authGen = Interlocked.Increment(ref _authGeneration);
+        var priorStatus = state.Status;
+        var priorToken = state.Token;
+        long authGen = Interlocked.Increment(ref state.AuthGeneration);
+        state.SignInCts?.Cancel();
+        var signInCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        state.SignInCts = signInCts;
+        var token = signInCts.Token;
+        SetEnvStatus(state, T3ConnectionStatus.OpeningSignIn, MsgOpening);
+        PublishStatus();
 
-        _signInCts?.Cancel();
-        _signInCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        var token = _signInCts.Token;
-
-        SetStatus(T3ConnectionStatus.OpeningSignIn, "Approve Read only access in your browser, then come back here. If T3 asks for a pairing code, create one in T3 Code under Settings → Sharing & access.");
+        bool StillCurrent() => authGen == Interlocked.Read(ref state.AuthGeneration) && IsTracked(state);
 
         try
         {
-            var storedToken = await _oauthClient.SignInAsync(normalizedMcpUri!, token).ConfigureAwait(false);
-
-            // Serialization guard: check + save serialized with DisconnectAsync
+            var storedToken = await _oauthClient.SignInAsync(mcpUri, token).ConfigureAwait(false);
             await _authLock.WaitAsync(CancellationToken.None).ConfigureAwait(false);
             try
             {
-                if (authGen != Interlocked.Read(ref _authGeneration) || token.IsCancellationRequested)
+                if (!StillCurrent() || token.IsCancellationRequested) return false;
+                string target = CredentialTargetFor(state.Address);
+                await _credentialStore.SaveCredentialAsync(target, CredentialUsername, JsonSerializer.Serialize(storedToken), CancellationToken.None).ConfigureAwait(false);
+                if (!StillCurrent())
                 {
-                    // Disconnected or cancelled while SignInAsync was in flight: do not save!
-                    return false;
-                }
-
-                // Securely persist token to Credential Manager
-                string json = JsonSerializer.Serialize(storedToken);
-                await _credentialStore.SaveCredentialAsync(CredentialTarget, CredentialUsername, json, CancellationToken.None).ConfigureAwait(false);
-
-                if (authGen != Interlocked.Read(ref _authGeneration))
-                {
-                    if (priorToken != null)
-                        await _credentialStore.SaveCredentialAsync(CredentialTarget, CredentialUsername, JsonSerializer.Serialize(priorToken), CancellationToken.None).ConfigureAwait(false);
+                    if (priorToken != null && IsTracked(state))
+                        await _credentialStore.SaveCredentialAsync(target, CredentialUsername, JsonSerializer.Serialize(priorToken), CancellationToken.None).ConfigureAwait(false);
                     else
-                        await _credentialStore.DeleteCredentialAsync(CredentialTarget, CredentialUsername, CancellationToken.None).ConfigureAwait(false);
+                        await _credentialStore.DeleteCredentialAsync(target, CredentialUsername, CancellationToken.None).ConfigureAwait(false);
                     return false;
                 }
-
-                _storedToken = storedToken;
-                Invalidate();
-
-                // Persist normalized endpoint to settings (contains NO secrets)
-                await _settingsService.UpdateSettingsAsync(s => s.T3Address = normalizedMcpUri!.AbsoluteUri).ConfigureAwait(false);
-
+                lock (_stateLock)
+                {
+                    state.Token = storedToken;
+                    Interlocked.Increment(ref state.Generation);
+                    state.Snapshot = null;
+                    state.HasPolled = false;
+                    SetEnvStatus(state, T3ConnectionStatus.Connected, MsgConnected);
+                }
                 _leaderTracker.Reset();
-                SetStatus(T3ConnectionStatus.Connected, "T3 work stays visible while the app is minimized.");
+                RebuildSnapshot();
+                PublishStatus();
                 return true;
-            }
-            finally
-            {
-                _authLock.Release();
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            await _authLock.WaitAsync(CancellationToken.None).ConfigureAwait(false);
-            try
-            {
-            if (authGen != Interlocked.Read(ref _authGeneration)) return false;
-            // Cancelled or denied
-            if (priorStatus == T3ConnectionStatus.Connected && priorToken != null && !priorToken.IsExpired)
-            {
-                SetStatus(T3ConnectionStatus.Connected, "Sign-in was cancelled. Your existing connection wasn’t changed.");
-            }
-            else
-            {
-                SetStatus(T3ConnectionStatus.NotConnected, "Sign-in was cancelled.");
-            }
-            return false;
             }
             finally { _authLock.Release(); }
         }
+        catch (OperationCanceledException)
+        {
+            if (!StillCurrent()) { PublishStatus(); return false; }
+            bool keep = priorStatus == T3ConnectionStatus.Connected && priorToken is { IsExpired: false };
+            SetEnvStatus(state, keep ? T3ConnectionStatus.Connected : T3ConnectionStatus.NotConnected,
+                keep ? "Sign-in was cancelled. Your existing connection wasn’t changed." : "Sign-in was cancelled.");
+            PublishStatus();
+            return false;
+        }
         catch (Exception ex)
         {
-            await _authLock.WaitAsync(CancellationToken.None).ConfigureAwait(false);
-            try
-            {
-            if (authGen != Interlocked.Read(ref _authGeneration)) return false;
+            if (!StillCurrent()) { PublishStatus(); return false; }
             string msg = ex.Message.Contains("Check that you copied it with Copy MCP URL", StringComparison.OrdinalIgnoreCase) ||
                          ex.Message.Contains("didn’t respond like T3 Code", StringComparison.OrdinalIgnoreCase) ||
                          ex.Message.Contains("sent Deskchirp to a different address", StringComparison.OrdinalIgnoreCase)
                 ? ex.Message
                 : "Check that T3 Code is running and the address is right.";
-
-            if (priorStatus == T3ConnectionStatus.Connected && priorToken != null && !priorToken.IsExpired)
-            {
-                SetStatus(T3ConnectionStatus.Connected, "Sign-in didn’t finish. Your existing connection wasn’t changed.");
-            }
+            if (priorStatus == T3ConnectionStatus.Connected && priorToken is { IsExpired: false })
+                SetEnvStatus(state, T3ConnectionStatus.Connected, "Sign-in didn’t finish. Your existing connection wasn’t changed.");
             else
-            {
-                SetStatus(T3ConnectionStatus.CouldNotReach, msg);
-            }
+                SetEnvStatus(state, T3ConnectionStatus.CouldNotReach, msg);
+            PublishStatus();
             return false;
-            }
-            finally { _authLock.Release(); }
         }
     }
 
-    public async Task CancelSignInAsync()
+    private bool IsTracked(EnvState state)
     {
-        if (_connectionStatus == T3ConnectionStatus.OpeningSignIn)
+        lock (_stateLock) { return _environments.TryGetValue(state.Id, out var current) && ReferenceEquals(current, state); }
+    }
+
+    public Task CancelSignInAsync()
+    {
+        List<EnvState> opening;
+        lock (_stateLock) { opening = _environments.Values.Where(e => e.Status == T3ConnectionStatus.OpeningSignIn).ToList(); }
+        foreach (var state in opening)
         {
-            Interlocked.Increment(ref _authGeneration);
-            _signInCts?.Cancel();
-            SetStatus(_storedToken is { IsExpired: false } ? T3ConnectionStatus.Connected : T3ConnectionStatus.NotConnected,
-                _storedToken is { IsExpired: false }
-                    ? "Sign-in was cancelled. Your existing connection wasn’t changed."
-                    : "Sign-in was cancelled.");
-            await Task.CompletedTask;
+            Interlocked.Increment(ref state.AuthGeneration);
+            state.SignInCts?.Cancel();
+            bool keep = state.Token is { IsExpired: false };
+            SetEnvStatus(state, keep ? T3ConnectionStatus.Connected : T3ConnectionStatus.NotConnected,
+                keep ? "Sign-in was cancelled. Your existing connection wasn’t changed." : "Sign-in was cancelled.");
         }
+        PublishStatus();
+        return Task.CompletedTask;
     }
 
     public async Task DisconnectAsync(CancellationToken ct = default)
     {
-        Interlocked.Increment(ref _authGeneration);
+        List<EnvState> all;
+        lock (_stateLock) { all = _environments.Values.ToList(); }
+        foreach (var state in all)
+        {
+            Interlocked.Increment(ref state.AuthGeneration);
+            state.SignInCts?.Cancel();
+        }
         Invalidate();
-        _signInCts?.Cancel();
 
         await _authLock.WaitAsync(ct).ConfigureAwait(false);
         try
         {
+            bool failed = false;
             try { await _credentialStore.DeleteCredentialAsync(CredentialTarget, CredentialUsername, ct).ConfigureAwait(false); }
-            catch
+            catch { failed = true; }
+            foreach (var state in all)
             {
-                SetStatus(_storedToken is { IsExpired: false } ? T3ConnectionStatus.Connected : T3ConnectionStatus.NotConnected,
-                    "Couldn’t remove your saved sign-in. Try disconnecting again.");
-                return;
+                try
+                {
+                    await _credentialStore.DeleteCredentialAsync(CredentialTargetFor(state.Address), CredentialUsername, ct).ConfigureAwait(false);
+                    state.Token = null;
+                    state.HasPolled = false;
+                    state.HasReturnedWork = false;
+                    SetEnvStatus(state, T3ConnectionStatus.NotConnected, "To revoke access in T3 too, open T3 Code Settings → Sharing & access.");
+                }
+                catch
+                {
+                    failed = true;
+                    SetEnvStatus(state, state.Token is { IsExpired: false } ? T3ConnectionStatus.Connected : T3ConnectionStatus.NotConnected,
+                        "Couldn’t remove your saved sign-in. Try disconnecting again.");
+                }
             }
-            _storedToken = null;
             ClearSnapshot();
             _leaderTracker.Reset();
-            SetStatus(T3ConnectionStatus.NotConnected, "To revoke access in T3 too, open T3 Code Settings → Sharing & access.");
+            PublishStatus(failed ? "Couldn’t remove your saved sign-in. Try disconnecting again." : null);
         }
-        finally
+        finally { _authLock.Release(); }
+    }
+
+    public async Task RemoveEnvironmentAsync(string environmentId, CancellationToken ct = default)
+    {
+        EnvState? state;
+        lock (_stateLock) { _environments.TryGetValue(environmentId, out state); }
+        string? address = state?.Address ?? _settingsService.Settings.T3Environments.FirstOrDefault(e => e.Id == environmentId)?.Address;
+        if (state != null)
         {
-            _authLock.Release();
+            Interlocked.Increment(ref state.AuthGeneration);
+            Interlocked.Increment(ref state.Generation);
+            state.SignInCts?.Cancel();
         }
+        if (address != null)
+        {
+            await _credentialStore.DeleteCredentialAsync(CredentialTargetFor(address), CredentialUsername, ct).ConfigureAwait(false);
+        }
+        string prefix = environmentId + "/";
+        await _settingsService.UpdateSettingsAsync(s =>
+        {
+            s.T3Environments.RemoveAll(e => e.Id == environmentId);
+            foreach (var key in s.ProjectAliases.Keys.Where(k => k.StartsWith(prefix, StringComparison.Ordinal)).ToList()) s.ProjectAliases.Remove(key);
+            s.ExcludedProjects.RemoveWhere(k => k.StartsWith(prefix, StringComparison.Ordinal));
+            if (s.PinnedTask.StartsWith(prefix, StringComparison.Ordinal)) s.PinnedTask = string.Empty;
+            if (s.PinnedProject.StartsWith(prefix, StringComparison.Ordinal)) s.PinnedProject = string.Empty;
+        }).ConfigureAwait(false);
+        SyncStructure(_settingsService.Settings);
+        PublishStatus();
     }
 
     public async Task<T3Snapshot?> PollOnceAsync(CancellationToken ct = default)
     {
-        var pollToken = _storedToken;
-        if (_connectionStatus != T3ConnectionStatus.Connected || pollToken == null ||
-            !T3UrlValidator.TryNormalizeT3Address(_settingsService.Settings.T3Address, out var selectedEndpoint, out _) ||
-            !string.Equals(selectedEndpoint!.AbsoluteUri, pollToken.McpUri, StringComparison.Ordinal))
+        List<EnvState> targets;
+        lock (_stateLock)
         {
-            return null;
+            targets = OrderedStates().Where(e => e.Status == T3ConnectionStatus.Connected && e.Token != null).ToList();
         }
-
-        if (pollToken.IsExpired)
-        {
-            ClearSnapshot();
-            SetStatus(T3ConnectionStatus.SignInAgain, "Your T3 Code sign-in expired. Connect again to keep showing activity.");
-            return null;
-        }
-
-        if (!Uri.TryCreate(pollToken.McpUri, UriKind.Absolute, out var mcpUri))
-        {
-            return null;
-        }
-
-        if (!await _pollLock.WaitAsync(0, ct).ConfigureAwait(false))
-        {
-            // Do not overlap polls
-            return _currentSnapshot;
-        }
-
+        if (targets.Count == 0) return null;
         long pollGen = Interlocked.Read(ref _pollGeneration);
+        await Task.WhenAll(targets.Select(t => PollEnvironmentAsync(t, pollGen, ct))).ConfigureAwait(false);
+        if (pollGen != Interlocked.Read(ref _pollGeneration) || ct.IsCancellationRequested) return null;
+        return _currentSnapshot;
+    }
 
+    private async Task PollEnvironmentAsync(EnvState state, long pollGen, CancellationToken ct)
+    {
+        var token = state.Token;
+        if (token == null) return;
+        if (token.IsExpired)
+        {
+            lock (_stateLock) { state.Snapshot = null; SetEnvStatus(state, T3ConnectionStatus.SignInAgain, MsgExpired); }
+            RebuildSnapshot();
+            PublishStatus();
+            return;
+        }
+        if (!Uri.TryCreate(token.McpUri, UriKind.Absolute, out var mcpUri) ||
+            !string.Equals(token.McpUri, state.Address, StringComparison.Ordinal)) return;
+        if (!await state.PollLock.WaitAsync(0, ct).ConfigureAwait(false)) return; // no overlap per environment
+
+        long envGen = Interlocked.Read(ref state.Generation);
+        bool Current() => pollGen == Interlocked.Read(ref _pollGeneration) && envGen == Interlocked.Read(ref state.Generation) &&
+                          !ct.IsCancellationRequested && IsTracked(state);
         try
         {
-            var capabilities = await _mcpClient.GetCapabilitiesAsync(mcpUri, pollToken.AccessToken, ct).ConfigureAwait(false);
-
-            var allThreads = new List<T3ThreadListItem>();
-            int? nextCursor = null;
+            var capabilities = await state.Client.GetCapabilitiesAsync(mcpUri, token.AccessToken, ct).ConfigureAwait(false);
+            var threads = new List<T3ThreadListItem>();
+            int? cursor = null;
             int pages = 0;
-
             do
             {
                 ct.ThrowIfCancellationRequested();
-                pages++;
+                if (++pages > MaxPollPages) throw new InvalidOperationException(MsgUnavailable);
+                var page = await state.Client.ListThreadsAsync(mcpUri, token.AccessToken, cursor, ct).ConfigureAwait(false);
+                if (page.Threads != null) threads.AddRange(page.Threads);
+                if (threads.Count > MaxPollThreads) throw new InvalidOperationException(MsgUnavailable);
+                cursor = page.NextCursor;
+            } while (cursor.HasValue);
 
-                if (pages > MaxPollPages)
-                {
-                    // Capped pages exceeded: reject partial snapshot immediately
-                    ClearSnapshot();
-                    return null;
-                }
-
-                var listResult = await _mcpClient.ListThreadsAsync(mcpUri, pollToken.AccessToken, nextCursor, ct).ConfigureAwait(false);
-                if (listResult.Threads != null)
-                {
-                    allThreads.AddRange(listResult.Threads);
-                }
-
-                if (allThreads.Count > MaxPollThreads)
-                {
-                    // Capped rows exceeded: reject partial snapshot immediately
-                    ClearSnapshot();
-                    return null;
-                }
-
-                nextCursor = listResult.NextCursor;
-            } while (nextCursor.HasValue);
-
-            // Generation guard: stop late counts after disconnect, focus change, or pause
-            if (pollGen != Interlocked.Read(ref _pollGeneration) || ct.IsCancellationRequested)
+            IReadOnlyList<T3ProjectListItem>? projects = null;
+            if (DateTimeOffset.UtcNow - state.ProjectsFetchedAt >= ProjectRefresh)
             {
-                return null;
+                // Project titles serve only the local alias editor; a failure here never hides activity.
+                try { projects = await state.Client.ListProjectsAsync(mcpUri, token.AccessToken, ct).ConfigureAwait(false); }
+                catch (OperationCanceledException) { throw; }
+                catch (T3AuthenticationException) { throw; }
+                catch { projects = null; }
             }
+
+            if (!Current()) return;
+            var drivers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var p in capabilities.Providers)
+                if (!string.IsNullOrWhiteSpace(p.ProviderInstanceId)) drivers[p.ProviderInstanceId] = p.DriverKind ?? string.Empty;
+
+            // Titles stay in the in-memory picker only; the published snapshot carries none.
+            var pickerTasks = threads.Where(t => !string.IsNullOrWhiteSpace(t.ThreadId))
+                .GroupBy(t => t.ThreadId, StringComparer.Ordinal).Select(g => g.First())
+                .Select(t => new T3PickerTask(state.Id, t.ThreadId, t.Title, t.ProjectId, t.CreatedAtValue, t.UpdatedAtValue,
+                    string.Equals(t.RelationshipToParent, "subagent", StringComparison.OrdinalIgnoreCase)))
+                .OrderByDescending(t => t.UpdatedAt ?? t.CreatedAt ?? DateTimeOffset.MinValue).ToList();
+            var stripped = threads.Select(t => new T3ThreadListItem
+            {
+                ThreadId = t.ThreadId, ProviderInstanceId = t.ProviderInstanceId, Status = t.Status,
+                RelationshipToParent = t.RelationshipToParent, ParentThreadId = t.ParentThreadId, ProjectId = t.ProjectId,
+                Model = t.Model, CreatedAt = t.CreatedAt, UpdatedAt = t.UpdatedAt
+            }).ToList();
+            var now = DateTimeOffset.UtcNow;
+            var envSnapshot = new T3EnvironmentSnapshot { EnvironmentId = state.Id, Timestamp = now, Drivers = drivers, Threads = stripped };
+            bool hasWork = T3WorkloadView.Entries(new[] { envSnapshot }, null).Any(e => e.Phase != T3Phase.None);
 
             lock (_stateLock)
             {
-            if (pollGen != Interlocked.Read(ref _pollGeneration) || ct.IsCancellationRequested) return null;
-            var now = DateTimeOffset.UtcNow;
-            var workloads = T3WorkloadAggregator.AggregateThreads(capabilities.Providers, allThreads);
-            var winner = _leaderTracker.SelectLeader(workloads, now);
-            string? state = winner != null ? T3WorkloadAggregator.FormatState(winner) : null;
-            string details = winner != null ? $"T3 Code · {winner.HarnessName}" : "Using T3 Code";
-
-            var snapshot = new T3Snapshot
-            {
-                Timestamp = now,
-                IsValid = true,
-                Workloads = workloads,
-                WinningHarness = winner,
-                WinningState = state,
-                Details = details,
-                TotalThreadsObserved = allThreads.Count
-            };
-
-            bool changed = !T3Snapshot.AreEquivalent(_currentSnapshot, snapshot);
-            _currentSnapshot = snapshot;
-            if (changed)
-            {
-                SnapshotUpdated?.Invoke(snapshot);
+                if (!Current()) return;
+                state.Snapshot = envSnapshot;
+                state.Tasks = pickerTasks;
+                if (projects != null)
+                {
+                    state.ProjectsFetchedAt = now;
+                    state.Projects = projects.Select(p => new T3PickerProject(state.Id, p.ProjectId, p.Title)).ToList();
+                }
+                state.HasPolled = true;
+                if (hasWork) state.HasReturnedWork = true;
+                SetEnvStatus(state, T3ConnectionStatus.Connected, state.HasReturnedWork ? MsgConnected : MsgNoWorkHere);
             }
-            return snapshot;
-            }
+            RebuildSnapshot();
+            PublishStatus();
+            EnvironmentsChanged?.Invoke();
         }
         catch (T3AuthenticationException)
         {
-            if (pollGen != Interlocked.Read(ref _pollGeneration)) return null;
-            ClearSnapshot();
-            SetStatus(T3ConnectionStatus.SignInAgain, "Your T3 Code sign-in expired. Connect again to keep showing activity.");
-            return null;
+            if (!Current() && pollGen != Interlocked.Read(ref _pollGeneration)) return;
+            lock (_stateLock) { state.Snapshot = null; SetEnvStatus(state, T3ConnectionStatus.SignInAgain, MsgExpired); }
+            RebuildSnapshot();
+            PublishStatus();
         }
-        catch (OperationCanceledException)
-        {
-            return _currentSnapshot;
-        }
+        catch (OperationCanceledException) { }
         catch (Exception)
         {
-            if (pollGen != Interlocked.Read(ref _pollGeneration)) return null;
-            // Poll failure clears snapshot immediately (do not retain until TTL)
-            ClearSnapshot();
-            SetStatus(T3ConnectionStatus.Connected, "T3 activity isn’t available right now, so only the app name is shown.");
-            return null;
+            if (pollGen != Interlocked.Read(ref _pollGeneration) || envGen != Interlocked.Read(ref state.Generation)) return;
+            // A failed environment is dropped from the combined snapshot, never zeroed.
+            lock (_stateLock) { state.Snapshot = null; SetEnvStatus(state, T3ConnectionStatus.Connected, MsgUnavailable); }
+            RebuildSnapshot();
+            PublishStatus();
         }
         finally
         {
-            _pollLock.Release();
+            state.PollLock.Release();
         }
+    }
+
+    /// <summary>Combines every fresh environment snapshot. Stale environments are dropped, not zeroed.</summary>
+    private void RebuildSnapshot()
+    {
+        T3Snapshot? snapshot = null;
+        bool changed;
+        lock (_stateLock)
+        {
+            var now = DateTimeOffset.UtcNow;
+            var fresh = OrderedStates()
+                .Where(e => e.Snapshot != null && e.Status == T3ConnectionStatus.Connected && now - e.Snapshot.Timestamp <= SnapshotTtl)
+                .Select(e => e.Snapshot!).ToList();
+            if (fresh.Count > 0)
+            {
+                var settings = _settingsService.Settings;
+                var entries = T3WorkloadView.Entries(fresh, settings.ExcludedProjects);
+                var workloads = T3WorkloadView.Aggregate(entries);
+                var winner = _leaderTracker.SelectLeader(workloads, now);
+                snapshot = new T3Snapshot
+                {
+                    Timestamp = fresh.Max(e => e.Timestamp),
+                    IsValid = true,
+                    Environments = fresh,
+                    Workloads = workloads,
+                    WinningHarness = winner,
+                    WinningState = winner != null ? T3WorkloadAggregator.FormatState(winner) : null,
+                    Details = winner != null ? $"T3 Code · {winner.HarnessName}" : ActivityFormatter.HeadlineT3Code,
+                    TotalThreadsObserved = entries.Count
+                };
+            }
+            changed = !T3Snapshot.AreEquivalent(_currentSnapshot, snapshot);
+            _currentSnapshot = snapshot;
+        }
+        if (changed) SnapshotUpdated?.Invoke(snapshot);
     }
 
     public void ClearSnapshot()
     {
+        bool had;
         lock (_stateLock)
         {
-            if (_currentSnapshot == null) return;
+            foreach (var env in _environments.Values) env.Snapshot = null;
+            had = _currentSnapshot != null;
             _currentSnapshot = null;
-            SnapshotUpdated?.Invoke(null);
         }
+        if (had) SnapshotUpdated?.Invoke(null);
     }
 
     /// <summary>
     /// Invalidates active polling and clears snapshots on focus, pause, or eligibility changes.
-    /// Does NOT kill or invalidate an in-flight OAuth sign-in.
+    /// Does NOT kill or invalidate an in-flight sign-in.
     /// </summary>
     public void Invalidate()
     {
+        Interlocked.Increment(ref _pollGeneration);
+        ClearSnapshot();
+        _leaderTracker.Reset();
+    }
+
+    private static void SetEnvStatus(EnvState state, T3ConnectionStatus status, string detail)
+    {
+        state.Status = status;
+        state.Detail = detail;
+    }
+
+    /// <summary>Recomputes the combined status line, e.g. “Connected to 2 of 3 environments”.</summary>
+    private void PublishStatus(string? overrideDetail = null)
+    {
+        T3ConnectionStatus status;
+        string detail;
         lock (_stateLock)
         {
-            Interlocked.Increment(ref _pollGeneration);
-            ClearSnapshot();
-            _leaderTracker.Reset();
+            var states = OrderedStates().ToList();
+            if (states.Count == 0)
+            {
+                status = T3ConnectionStatus.NotConnected;
+                detail = _statusDetail is var d && d.StartsWith("To revoke", StringComparison.Ordinal) ? d : MsgNotConnected;
+            }
+            else
+            {
+                var opening = states.FirstOrDefault(s => s.Status == T3ConnectionStatus.OpeningSignIn);
+                int connected = states.Count(s => s.Status == T3ConnectionStatus.Connected);
+                if (opening != null) { status = T3ConnectionStatus.OpeningSignIn; detail = opening.Detail; }
+                else if (connected > 0)
+                {
+                    status = T3ConnectionStatus.Connected;
+                    var connectedStates = states.Where(s => s.Status == T3ConnectionStatus.Connected).ToList();
+                    if (states.Count == 1) detail = connectedStates[0].Detail;
+                    else
+                    {
+                        detail = $"Connected to {connected} of {states.Count} environments";
+                        if (connectedStates.All(s => s.HasPolled && !s.HasReturnedWork)) detail += ". " + MsgNoWorkHere;
+                    }
+                }
+                else
+                {
+                    var first = states.FirstOrDefault(s => s.Status == T3ConnectionStatus.SignInAgain)
+                                ?? states.FirstOrDefault(s => s.Status == T3ConnectionStatus.CouldNotReach)
+                                ?? states[0];
+                    status = first.Status;
+                    detail = first.Detail;
+                }
+            }
         }
+        SetStatus(status, overrideDetail ?? detail);
+        EnvironmentsChanged?.Invoke();
     }
 
     private void SetStatus(T3ConnectionStatus status, string detail)
@@ -421,13 +701,17 @@ public sealed class T3ActivityService : IT3ActivityService
         if (_isDisposed) return;
         _isDisposed = true;
         _settingsService.SettingsChanged -= OnSettingsChanged;
-
-        Interlocked.Increment(ref _authGeneration);
+        List<EnvState> all;
+        lock (_stateLock) { all = _environments.Values.ToList(); }
+        foreach (var state in all)
+        {
+            Interlocked.Increment(ref state.AuthGeneration);
+            state.SignInCts?.Cancel();
+            state.SignInCts?.Dispose();
+        }
         Invalidate();
-        _signInCts?.Cancel();
-        _signInCts?.Dispose();
-        await _mcpClient.DisposeAsync().ConfigureAwait(false);
-        _pollLock.Dispose();
+        if (_sharedMcpClient != null) await _sharedMcpClient.DisposeAsync().ConfigureAwait(false);
+        else foreach (var state in all) await state.Client.DisposeAsync().ConfigureAwait(false);
         _authLock.Dispose();
     }
 }

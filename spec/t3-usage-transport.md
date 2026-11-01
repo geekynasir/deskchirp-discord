@@ -60,7 +60,7 @@ client_os=macOS|Windows
 
 - `activeProviderThreadId`
 - `providerThreads[].id`, `.contextUsage.{usedTokens,maxTokens}`
-- `providerTurns[].{providerThreadId,startedAt,tokenUsage.{usedTokens,maxTokens,updatedAt},turnTokenUsage}`
+- `providerTurns[].{providerThreadId,startedAt,tokenUsage.{usedTokens,maxTokens,updatedAt},turnTokenUsage.{usageStatus,inputTokens,cachedInputTokens,cacheCreationTokens,outputTokens}}`
 
 Ignore every other key, including the timeline. The response carries conversation text, so never log or store it, and drop the raw bytes once decoded.
 

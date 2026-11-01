@@ -4,6 +4,7 @@ using DeveloperPresence.Core.Models;
 using DeveloperPresence.Core.Privacy;
 using DeveloperPresence.Core.T3;
 using DeveloperPresence.Core.Computers;
+using DeveloperPresence.Core.T3.Usage;
 
 namespace DeveloperPresence.Core.Services;
 
@@ -19,6 +20,13 @@ public sealed class PresenceCoordinator : IAsyncDisposable
     private readonly IForegroundDetector _foregroundDetector;
     private readonly IT3ActivityService? _t3ActivityService;
     private readonly IComputerLinkService? _computers;
+    private readonly IT3UsageService? _usageService;
+    private readonly WorkSessionTimer _timer = new();
+    private readonly T3LeaderTracker _cardLeader = new();
+    private string? _aliasProject;
+    private CancellationTokenSource? _usagePollCts;
+    private DateTimeOffset _lastUsagePollTimestamp = DateTimeOffset.MinValue;
+    private bool _wasUsageEligible;
 
     private readonly SemaphoreSlim _evalLock = new(1, 1);
     private readonly SemaphoreSlim _triggerSignal = new(0, 1);
@@ -78,13 +86,16 @@ public sealed class PresenceCoordinator : IAsyncDisposable
         IDiscordIpcClient discordClient,
         IForegroundDetector foregroundDetector,
         IT3ActivityService? t3ActivityService,
-        IComputerLinkService? computers = null)
+        IComputerLinkService? computers = null,
+        IT3UsageService? usageService = null)
     {
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
         _discordClient = discordClient ?? throw new ArgumentNullException(nameof(discordClient));
         _foregroundDetector = foregroundDetector ?? throw new ArgumentNullException(nameof(foregroundDetector));
         _t3ActivityService = t3ActivityService;
         _computers = computers;
+        _usageService = usageService;
+        if (_usageService != null) _usageService.Changed += OnUsageChanged;
         _discordClient.PublishAllowed = () => !_settingsService.Settings.FollowComputers || _computers?.CanPublish == true;
         if (_computers != null) _computers.Changed += OnComputerChanged;
 
@@ -113,6 +124,10 @@ public sealed class PresenceCoordinator : IAsyncDisposable
         {
             await _t3ActivityService.InitializeAsync(ct).ConfigureAwait(false);
         }
+        if (_usageService != null)
+        {
+            await _usageService.InitializeAsync(ct).ConfigureAwait(false);
+        }
 
         _loopCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         _isStarted = true;
@@ -130,6 +145,7 @@ public sealed class PresenceCoordinator : IAsyncDisposable
         _isStarted = false;
         _computers?.UpdateContext(false, null);
         InvalidateOperation();
+        StopActivityClocks();
         if (_wasT3Eligible)
         {
             _wasT3Eligible = false;
@@ -176,6 +192,7 @@ public sealed class PresenceCoordinator : IAsyncDisposable
         _isSessionLocked = true;
         _computers?.UpdateContext(false, null);
         InvalidateOperation();
+        StopActivityClocks();
         if (_wasT3Eligible)
         {
             _wasT3Eligible = false;
@@ -214,6 +231,7 @@ public sealed class PresenceCoordinator : IAsyncDisposable
         _isSystemSuspended = true;
         _computers?.UpdateContext(false, null);
         InvalidateOperation();
+        StopActivityClocks();
         if (_wasT3Eligible)
         {
             _wasT3Eligible = false;
@@ -319,6 +337,7 @@ public sealed class PresenceCoordinator : IAsyncDisposable
             {
                 _computers?.UpdateContext(false, null);
                 Interlocked.Increment(ref _currentGeneration);
+                StopActivityClocks();
                 if (_wasT3Eligible)
                 {
                     _wasT3Eligible = false;
@@ -349,6 +368,8 @@ public sealed class PresenceCoordinator : IAsyncDisposable
                     s.OutgoingHeadline = ActivityFormatter.HeadlineNone;
                     s.OutgoingState = null;
                     s.ActivityNote = null;
+                    s.PreviewRows = Array.Empty<PresencePreviewRow>();
+                    s.FitWarnings = Array.Empty<string>();
                     s.StatusMessage = !settings.EnableSharing ? "Sharing disabled" :
                                       settings.IsPaused ? "Presence paused" :
                                       _isSessionLocked ? "Session locked" :
@@ -396,6 +417,7 @@ public sealed class PresenceCoordinator : IAsyncDisposable
                 _wasT3Eligible = false;
                 CancelT3Poll();
                     _t3ActivityService?.Invalidate();
+                _timer.EndSession();
             }
             else if (isT3Eligible)
             {
@@ -409,6 +431,12 @@ public sealed class PresenceCoordinator : IAsyncDisposable
                 BeginT3Poll();
             }
             SupportedApp displayedApp = ChooseDisplayedApp(focusedApp, t3Running, settings);
+            var now = DateTimeOffset.UtcNow;
+            _timer.ObserveShownApp(displayedApp, now);
+            var t3Snapshot = _t3ActivityService?.ConnectionStatus == T3ConnectionStatus.Connected ? _t3ActivityService.CurrentSnapshot : null;
+            bool freshWork = isT3Eligible && PresenceCardFormatter.HasFreshUnfinishedWork(settings, t3Snapshot, now);
+            _timer.Observe(freshWork, now);
+            UpdateUsagePolling(isT3Eligible, settings, t3Snapshot);
             if (displayedApp == SupportedApp.None)
             {
                 // Keep a linked standby connection for account identity. Unsupported apps
@@ -424,79 +452,54 @@ public sealed class PresenceCoordinator : IAsyncDisposable
                     s.OutgoingHeadline = ActivityFormatter.HeadlineNone;
                     s.OutgoingState = null;
                     s.ActivityNote = null;
+                    s.PreviewRows = Array.Empty<PresencePreviewRow>();
+                    s.FitWarnings = Array.Empty<string>();
                     s.StatusMessage = "No supported developer app in foreground";
                 });
                 return;
             }
 
-            // Handle T3 Code polling and rich workload formatting
-            DiscordActivity? activity = null;
-            string headline;
-            string? outgoingState = null;
-            string? activityNote = null;
-
-            if (displayedApp == SupportedApp.T3Code)
+            // One allowlisted formatter builds every card (spec/presence-v3.md §5).
+            bool richAllowed = settings.SelectionMode == SelectionMode.KeepBackgroundVisible ||
+                focusedApp == SupportedApp.T3Code ||
+                (focusedApp == SupportedApp.None &&
+                 !_foregroundDetector.IsAppRunning(SupportedApp.Claude, settings.ProcessMappings) &&
+                 !_foregroundDetector.IsAppRunning(SupportedApp.Codex, settings.ProcessMappings));
+            bool t3Connected = _t3ActivityService?.ConnectionStatus == T3ConnectionStatus.Connected;
+            if (displayedApp == SupportedApp.T3Code && settings.ShowT3Activity && t3Connected &&
+                now - _lastT3PollTimestamp >= TimeSpan.FromSeconds(15))
             {
-                if (settings.ShowT3Activity)
-                {
-                    if (_t3ActivityService != null && _t3ActivityService.ConnectionStatus == T3ConnectionStatus.Connected)
-                    {
-                        // Poll no more often than every 15 seconds while awake and T3 is foreground, including on failures
-                        var now = DateTimeOffset.UtcNow;
-                        if ((now - _lastT3PollTimestamp) >= TimeSpan.FromSeconds(15))
-                        {
-                            _lastT3PollTimestamp = now;
-                            BeginT3Poll();
-                        }
-
-                        var snapshot = _t3ActivityService.CurrentSnapshot;
-                        bool isValid = snapshot != null && snapshot.IsValid && (DateTimeOffset.UtcNow - snapshot.Timestamp) <= T3ActivityService.SnapshotTtl;
-
-                        if (isValid && snapshot!.WinningHarness != null)
-                        {
-                            activity = ActivityFormatter.FormatT3Activity(snapshot, true, false, true, settings.ShowAppIcons);
-                            headline = activity?.Details ?? ActivityFormatter.HeadlineT3Code;
-                            outgoingState = activity?.State;
-                            activityNote = null;
-                        }
-                        else if (isValid && snapshot!.WinningHarness == null)
-                        {
-                            activity = ActivityFormatter.FormatT3Activity(null, true, false, false, settings.ShowAppIcons);
-                            headline = ActivityFormatter.HeadlineT3Code;
-                            outgoingState = null;
-                            activityNote = "No tasks right now, so only the app name is shown.";
-                        }
-                        else
-                        {
-                            activity = ActivityFormatter.FormatT3Activity(null, true, false, false, settings.ShowAppIcons);
-                            headline = ActivityFormatter.HeadlineT3Code;
-                            outgoingState = null;
-                            activityNote = "T3 activity isn’t available right now, so only the app name is shown.";
-                        }
-                    }
-                    else
-                    {
-                        activity = ActivityFormatter.FormatT3Activity(null, true, false, false, settings.ShowAppIcons);
-                        headline = ActivityFormatter.HeadlineT3Code;
-                        outgoingState = null;
-                        activityNote = "Connect T3 Code to show agent activity.";
-                    }
-                }
-                else
-                {
-                    activity = ActivityFormatter.FormatT3Activity(null, true, false, false, settings.ShowAppIcons);
-                    headline = ActivityFormatter.HeadlineT3Code;
-                    outgoingState = null;
-                    activityNote = null;
-                }
+                // Poll no more often than every 15 seconds, including on failures
+                _lastT3PollTimestamp = now;
+                BeginT3Poll();
             }
-            else
+            var card = PresenceCardFormatter.Format(new PresenceCardInput
             {
-                // Claude / Codex desktop: T3 activity is never published to other apps
-                activity = ActivityFormatter.FormatActivity(displayedApp, true, false);
-                headline = ActivityFormatter.GetHeadline(displayedApp);
-                outgoingState = null;
-                activityNote = null;
+                Settings = settings,
+                Snapshot = isT3Eligible && t3Connected ? t3Snapshot : null,
+                Usage = _usageService?.CurrentSnapshot,
+                UsagePermitted = _usageService?.HasAnyPermission == true,
+                Timer = _timer.State,
+                App = displayedApp,
+                Now = now,
+                RichAllowed = richAllowed,
+                Leader = _cardLeader,
+                PreviousAliasProject = _aliasProject
+            });
+            _aliasProject = card.AliasProjectKey ?? _aliasProject;
+            DiscordActivity? activity = card.Activity;
+            string headline = activity?.Details ?? ActivityFormatter.GetHeadline(displayedApp);
+            string? outgoingState = activity?.State;
+            string? activityNote = null;
+            if (displayedApp == SupportedApp.T3Code && settings.ShowT3Activity && settings.CardStyle != CardStyle.AppOnly)
+            {
+                bool fresh = PresenceCardFormatter.IsSnapshotFresh(t3Snapshot, now);
+                activityNote = !t3Connected ? "Connect T3 Code to show agent activity."
+                    : !richAllowed ? "T3 work shows while T3 Code is the active app."
+                    : card.IsRich && settings.CardStyle == CardStyle.Usage && !card.UsageShown ? T3UsageText.Unavailable
+                    : card.IsRich ? null
+                    : fresh ? "No tasks right now, so only the app name is shown."
+                    : "T3 activity isn’t available right now, so only the app name is shown.";
             }
 
             activity = DiscordArtwork.Apply(activity, displayedApp, settings.ShowAppIcons);
@@ -506,6 +509,8 @@ public sealed class PresenceCoordinator : IAsyncDisposable
                 s.OutgoingHeadline = headline;
                 s.OutgoingState = outgoingState;
                 s.ActivityNote = activityNote;
+                s.PreviewRows = card.Rows;
+                s.FitWarnings = card.FitWarnings;
             });
 
             // Ensure Discord IPC connection is active
@@ -618,13 +623,82 @@ public sealed class PresenceCoordinator : IAsyncDisposable
 
     private SupportedApp ChooseDisplayedApp(SupportedApp foreground, bool t3Running, PresenceSettings settings)
     {
-        var snapshot = _t3ActivityService?.CurrentSnapshot;
-        var age = snapshot == null ? TimeSpan.MaxValue : DateTimeOffset.UtcNow - snapshot.Timestamp;
-        bool hasWork = settings.ShowT3Activity && snapshot?.IsValid == true &&
-            snapshot.WinningHarness?.TotalActive > 0 &&
-            age >= TimeSpan.Zero && age <= T3ActivityService.SnapshotTtl;
+        if (settings.SelectionMode == SelectionMode.FollowActiveApp)
+        {
+            // The active supported app always wins; T3 shows when nothing else is active.
+            return foreground != SupportedApp.None ? foreground : t3Running ? SupportedApp.T3Code : SupportedApp.None;
+        }
+        // keepBackgroundVisible: fresh unfinished T3 work wins over another foreground app.
+        bool hasWork = settings.CardStyle != CardStyle.AppOnly &&
+            PresenceCardFormatter.HasFreshUnfinishedWork(settings, _t3ActivityService?.CurrentSnapshot, DateTimeOffset.UtcNow);
         return t3Running && (hasWork || foreground == SupportedApp.None) ? SupportedApp.T3Code : foreground;
     }
+
+    /// <summary>Usage polls run every 60 seconds only while the usage card is chosen and eligible.</summary>
+    private void UpdateUsagePolling(bool t3Eligible, PresenceSettings settings, T3Snapshot? snapshot)
+    {
+        if (_usageService == null) return;
+        bool eligible = t3Eligible && settings.CardStyle == CardStyle.Usage &&
+            _t3ActivityService?.ConnectionStatus == T3ConnectionStatus.Connected && _usageService.HasAnyPermission;
+        if (!eligible)
+        {
+            if (_wasUsageEligible)
+            {
+                _wasUsageEligible = false;
+                CancelUsagePoll();
+                _usageService.Invalidate();
+                _lastUsagePollTimestamp = DateTimeOffset.MinValue;
+            }
+            return;
+        }
+        _wasUsageEligible = true;
+        var now = DateTimeOffset.UtcNow;
+        // Session usage needs both a session and fresh work; wait for them rather than spending the interval.
+        if (PresenceCardFormatter.EffectiveScope(settings) == UsageScope.Session && (_timer.WorkSessionStart == null || snapshot == null)) return;
+        if (now - _lastUsagePollTimestamp < T3UsageService.PollInterval) return;
+        _lastUsagePollTimestamp = now;
+        var request = new T3UsagePollRequest { Settings = settings, Snapshot = snapshot, WorkSessionStart = _timer.WorkSessionStart };
+        CancellationTokenSource source;
+        lock (_operationLock)
+        {
+            if (_usagePollCts != null) return;
+            source = CancellationTokenSource.CreateLinkedTokenSource(_loopCts?.Token ?? CancellationToken.None);
+            _usagePollCts = source;
+        }
+        _ = UsagePollInBackgroundAsync(source, request);
+    }
+
+    private async Task UsagePollInBackgroundAsync(CancellationTokenSource source, T3UsagePollRequest request)
+    {
+        try { await _usageService!.PollOnceAsync(request, source.Token).ConfigureAwait(false); }
+        catch { /* Usage stays unavailable; the card falls back to the workload line. */ }
+        finally
+        {
+            lock (_operationLock) { if (ReferenceEquals(_usagePollCts, source)) _usagePollCts = null; }
+            source.Dispose();
+        }
+    }
+
+    private void CancelUsagePoll()
+    {
+        lock (_operationLock) { _usagePollCts?.Cancel(); }
+    }
+
+    /// <summary>Activity sharing stopped: end the work session and stop usage.</summary>
+    private void StopActivityClocks()
+    {
+        _timer.Reset();
+        _cardLeader.Reset();
+        if (_wasUsageEligible)
+        {
+            _wasUsageEligible = false;
+            CancelUsagePoll();
+            _usageService?.Invalidate();
+            _lastUsagePollTimestamp = DateTimeOffset.MinValue;
+        }
+    }
+
+    private void OnUsageChanged() => TriggerImmediateEvaluation();
 
     private void OnDiscordStatusChanged(PresenceConnectionStatus status, string? message)
     {
@@ -699,6 +773,13 @@ public sealed class PresenceCoordinator : IAsyncDisposable
         InvalidateOperation();
         CancelT3Poll();
         _t3ActivityService?.Invalidate();
+        _cardLeader.Reset();
+        // Changed exclusions, pins or scope must never reuse numbers computed under the old settings.
+        CancelUsagePoll();
+        _usageService?.Invalidate();
+        _lastUsagePollTimestamp = DateTimeOffset.MinValue;
+        _lastT3PollTimestamp = DateTimeOffset.MinValue;
+        if (!settings.ShowT3Activity) _timer.EndSession();
         // Capture and close the old socket now, before a worker can create its replacement.
         _ = ClearAndDropConnectionAsync();
         TriggerImmediateEvaluation();
@@ -762,6 +843,11 @@ public sealed class PresenceCoordinator : IAsyncDisposable
         _discordClient.StatusChanged -= OnDiscordStatusChanged;
         _settingsService.SettingsChanged -= OnSettingsChanged;
         if (_computers != null) _computers.Changed -= OnComputerChanged;
+        if (_usageService != null)
+        {
+            _usageService.Changed -= OnUsageChanged;
+            await _usageService.DisposeAsync().ConfigureAwait(false);
+        }
 
         if (_t3ActivityService != null)
         {
