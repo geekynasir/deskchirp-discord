@@ -53,6 +53,9 @@ public sealed class PresenceSettings
     public bool ShowAppIcons { get; set; } = true;
     public int ArtworkDefaultsVersion { get; set; } = 0;
 
+    /// <summary>Installed copies check GitHub Releases for new versions and download them in the background.</summary>
+    public bool AutomaticUpdates { get; set; } = true;
+
     public bool FollowComputers { get; set; } = false;
     public string ComputerLinkAddress { get; set; } = string.Empty;
 

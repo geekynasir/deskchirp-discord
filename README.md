@@ -23,19 +23,19 @@ App detection alone does not establish agent activity. T3 counts come from fresh
 
 ## Download
 
-Get **[v0.1.0-preview.3 from GitHub Releases](https://github.com/geekynasir/deskchirp-discord/releases/tag/v0.1.0-preview.3)**.
+Get **[v0.1.0-preview.4 from GitHub Releases](https://github.com/geekynasir/deskchirp-discord/releases/tag/v0.1.0-preview.4)**.
 
 | Computer | Download |
 | --- | --- |
-| Apple Silicon Mac | [macOS arm64](https://github.com/geekynasir/deskchirp-discord/releases/download/v0.1.0-preview.3/Deskchirp-0.1.0-preview.3-macos-arm64.zip) |
-| Intel Mac | [macOS x86_64](https://github.com/geekynasir/deskchirp-discord/releases/download/v0.1.0-preview.3/Deskchirp-0.1.0-preview.3-macos-x86_64.zip) |
-| Windows PC | [Windows installer](https://github.com/geekynasir/deskchirp-discord/releases/download/v0.1.0-preview.3/Deskchirp-0.1.0-preview.3-windows-x64-setup.exe) |
+| Apple Silicon Mac | [macOS arm64](https://github.com/geekynasir/deskchirp-discord/releases/download/v0.1.0-preview.4/Deskchirp-0.1.0-preview.4-macos-arm64.zip) |
+| Intel Mac | [macOS x86_64](https://github.com/geekynasir/deskchirp-discord/releases/download/v0.1.0-preview.4/Deskchirp-0.1.0-preview.4-macos-x86_64.zip) |
+| Windows PC | [Windows installer](https://github.com/geekynasir/deskchirp-discord/releases/download/v0.1.0-preview.4/Deskchirp-0.1.0-preview.4-windows-x64-setup.exe) |
 
-Downloads include setup guides, license notices and build information. Verify them with the release’s `SHA256SUMS`. The Windows setup wizard installs the app and its runtimes for your account, adds a Start shortcut, and supports uninstalling from Installed Apps. Mac downloads are app bundles. These preview downloads are not publisher-signed. Read [setup](docs/trying-builds.md) before opening one. The optional [private linking service](coordination/README.md) has a separate source download on the same release page. The app needs Discord desktop; its public application ID is included.
+Downloads include setup guides, license notices and build information. Verify them with the release’s `SHA256SUMS`. The Windows installer is one click: it installs the app and its runtimes for your account in a few seconds, adds a Start shortcut, and opens Deskchirp. Installed copies download new versions in the background and offer **Restart to update**. Uninstall from Installed Apps. Mac downloads are app bundles. These preview downloads are not publisher-signed. Read [setup](docs/trying-builds.md) before opening one. The optional [private linking service](coordination/README.md) has a separate source download on the same release page. The app needs Discord desktop; its public application ID is included.
 
 T3 Code stays visible while minimized. Its unfinished work takes priority; otherwise the active supported developer app wins. If no supported app is active and T3 is still open, the card shows **Using T3 Code**. Closing T3 clears its task counts. Pause, screen lock, sleep and linked-computer grants still control sharing.
 
-CI tests both Mac architectures, the portable C# core and settings, the linking service, and real HTTP handoff. It builds the native apps and exercises Windows installation, Start launch, version upgrade and uninstall. Real Discord display and clean-machine checks remain in [verification status](docs/validation.md).
+CI tests both Mac architectures, the portable C# core and settings, the linking service, and real HTTP handoff. It builds the native apps and exercises Windows installation, replacing a preview 3 install, Start launch, an in-place update and uninstall. Real Discord display and clean-machine checks remain in [verification status](docs/validation.md).
 
 ## Development
 

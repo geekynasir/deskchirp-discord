@@ -289,7 +289,7 @@ public final class T3UsageClient: @unchecked Sendable {
         transport: HTTPTransporting = URLSessionHTTPTransport.shared,
         connector: T3WebSocketConnecting = URLSessionWebSocketConnector.shared,
         keychain: KeychainManaging = KeychainService.shared,
-        appVersion: String = "0.1.0-preview.3",
+        appVersion: String = "0.1.0-preview.4",
         timeZone: TimeZone = .current,
         pollTimeout: TimeInterval = T3UsageClient.pollTimeoutSeconds
     ) {

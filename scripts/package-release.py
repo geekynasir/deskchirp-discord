@@ -87,6 +87,26 @@ def package(artifacts, output, version, commit, run_url):
     shutil.copyfile(installer, published_installer)
     archives.append(published_installer)
     print(published_installer.name, published_installer.stat().st_size, "bytes")
+    # Installed copies update from the Velopack feed, which merges releases.win.json from every
+    # GitHub release. Each release lists only its own full package and any delta to it.
+    feed = installer_dir / "feed"
+    releases = json.loads((feed / "releases.win.json").read_text(encoding="utf-8-sig"))
+    current = [asset for asset in releases.get("Assets", []) if asset.get("Version") == version]
+    if not any(asset.get("Type") == "Full" for asset in current):
+        raise ValueError("The update feed has no full package for this version")
+    for asset in current:
+        name = asset["FileName"]
+        safe_name(name)
+        if "/" in name or not re.fullmatch(r"Deskchirp-[0-9A-Za-z.-]+-(full|delta)\.nupkg", name):
+            raise ValueError("Unexpected update package name: " + name)
+        package_file = feed / name
+        if hashlib.sha256(package_file.read_bytes()).hexdigest().upper() != asset["SHA256"].upper():
+            raise ValueError("Update package checksum does not match the feed: " + name)
+        shutil.copyfile(package_file, output / name)
+        archives.append(output / name)
+        print(name, package_file.stat().st_size, "bytes")
+    (output / "releases.win.json").write_text(json.dumps({"Assets": current}, indent=2) + "\n", encoding="utf-8")
+    archives.append(output / "releases.win.json")
     artwork = output / f"Deskchirp-{version}-artwork.zip"
     root = Path(__file__).resolve().parent.parent
     with zipfile.ZipFile(artwork, "w", compression=zipfile.ZIP_DEFLATED) as pack:

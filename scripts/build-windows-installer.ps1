@@ -1,16 +1,23 @@
-# Self-contained, per-user installer. Build tools and CRT come from the hosted VS toolchain.
+# One-click, per-user installer and update feed, built with Velopack.
+# Output: Deskchirp-<version>-windows-x64-setup.exe plus feed/ (releases.win.json and packages)
+# that installed copies download updates from on GitHub Releases.
 param(
     [string]$PayloadDir = 'dist/windows-x64',
-    [string]$InstallerDir = 'dist/windows-installer'
+    [string]$InstallerDir = 'dist/windows-installer',
+    [string]$Version = '',
+    # Fixtures skip delta generation, which downloads the previous release.
+    [switch]$NoDelta
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
-$version = (Get-Content (Join-Path $root 'VERSION') -Raw).Trim()
-if ($version -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$') { throw 'Invalid release version.' }
+$vpkVersion = '1.2.161'  # Keep in step with the Velopack package in DeveloperPresence.App.csproj.
+$repoUrl = 'https://github.com/geekynasir/deskchirp-discord'
+if (!$Version) { $Version = (Get-Content (Join-Path $root 'VERSION') -Raw).Trim() }
+if ($Version -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$') { throw 'Invalid release version.' }
 $payload = (Resolve-Path $PayloadDir).Path
 New-Item $InstallerDir -ItemType Directory -Force | Out-Null
 $output = (Resolve-Path $InstallerDir).Path
-foreach ($file in @('Deskchirp.exe', 'Deskchirp.dll', 'coreclr.dll', 'Microsoft.ui.xaml.dll', 'LICENSE', 'THIRD_PARTY_NOTICES.md')) {
+foreach ($file in @('Deskchirp.exe', 'Deskchirp.dll', 'coreclr.dll', 'Microsoft.ui.xaml.dll', 'Velopack.dll', 'LICENSE', 'THIRD_PARTY_NOTICES.md')) {
     if (!(Test-Path (Join-Path $payload $file))) { throw "Missing application file: $file" }
 }
 
@@ -34,18 +41,37 @@ Copy-Item (Join-Path $root 'licenses/visual-cpp-runtime.md') (Join-Path $payload
 
 $sourceSha = (& git -C $root rev-parse HEAD).Trim()
 $runUrl = if ($env:GITHUB_RUN_ID) { "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID" } else { '' }
-@{ name = 'Deskchirp for Discord'; version = $version; commit = $sourceSha; platform = 'windows-x64'; build = $runUrl;
+@{ name = 'Deskchirp for Discord'; version = $Version; commit = $sourceSha; platform = 'windows-x64'; build = $runUrl;
    source = "https://github.com/geekynasir/deskchirp-discord/tree/$sourceSha" } |
     ConvertTo-Json | Set-Content (Join-Path $payload 'BUILD-INFO.json') -Encoding utf8NoBOM
 
-$compiler = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6/ISCC.exe'
-if (!(Test-Path $compiler)) { throw 'Inno Setup 6 is required to build the Windows installer.' }
-Copy-Item (Join-Path (Split-Path $compiler -Parent) 'License.txt') (Join-Path $payload 'licenses/innosetup-license.txt')
-$numericVersion = ($version -split '-')[0] + '.0'
-Write-Host "Inno Setup $((Get-Item $compiler).VersionInfo.ProductVersion)"
-& $compiler "/DAppNumericVersion=$numericVersion" "/DAppVersion=$version" "/DPayloadDir=$payload" "/DInstallerDir=$output" (Join-Path $root 'windows/installer/Deskchirp.iss')
-if ($LASTEXITCODE -ne 0) { throw "Installer compilation failed: $LASTEXITCODE" }
-$setup = Join-Path $output "Deskchirp-$version-windows-x64-setup.exe"
-if (!(Test-Path $setup)) { throw 'The installer was not produced.' }
+$tools = Join-Path $root 'dist/tools'
+$vpk = Join-Path $tools 'vpk.exe'
+if (!(Test-Path $vpk)) {
+    & dotnet tool install vpk --version $vpkVersion --tool-path $tools
+    if ($LASTEXITCODE -ne 0) { throw 'Could not install the Velopack CLI.' }
+}
+
+$feed = Join-Path $output 'feed'
+Remove-Item $feed -Recurse -Force -ErrorAction SilentlyContinue
+New-Item $feed -ItemType Directory | Out-Null
+if (!$NoDelta) {
+    # Small delta updates from the newest published version. The first Velopack release has none.
+    & $vpk download github --repoUrl $repoUrl --channel win --pre --outputDir $feed
+    if ($LASTEXITCODE -ne 0) { Write-Host 'No previous Velopack release; publishing a full package only.' }
+}
+
+& $vpk pack --packId Deskchirp --packVersion $Version --packDir $payload --mainExe Deskchirp.exe `
+    --packTitle 'Deskchirp for Discord' --packAuthors geekynasir --channel win --outputDir $feed `
+    --icon (Join-Path $root 'assets/brand/deskchirp.ico') `
+    --splashImage (Join-Path $root 'assets/brand/setup-splash.png') --splashProgressColor '#80F1CF' `
+    --shortcuts StartMenuRoot --exclude '.*\.pdb|settings.*\.png'
+if ($LASTEXITCODE -ne 0) { throw "Velopack packaging failed: $LASTEXITCODE" }
+
+$setup = Join-Path $output "Deskchirp-$Version-windows-x64-setup.exe"
+Copy-Item (Join-Path $feed 'Deskchirp-win-Setup.exe') $setup -Force
+foreach ($file in @('releases.win.json', "Deskchirp-$Version-full.nupkg")) {
+    if (!(Test-Path (Join-Path $feed $file))) { throw "The update feed is missing $file." }
+}
 Copy-Item (Join-Path $payload 'BUILD-INFO.json') (Join-Path $output 'BUILD-INFO.json')
 Write-Host "Built $setup"
