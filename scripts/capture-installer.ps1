@@ -11,6 +11,11 @@ public class SetupCapture {
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr window);
 }
 '@
+# Runs after the install test on a disposable CI machine. The uninstaller finishes deleting its
+# own folder after it exits; wait for that so setup shows a fresh install, not "already installed".
+$install = Join-Path $env:LOCALAPPDATA 'Deskchirp'
+for ($attempt = 0; $attempt -lt 30 -and (Test-Path $install); $attempt++) { Start-Sleep -Seconds 1 }
+if (Test-Path $install) { Get-ChildItem $install -Recurse | Select-Object -First 20 | Out-Host; throw 'A previous install is still present.' }
 $setup = Start-Process -FilePath "dist/windows-installer/Deskchirp-$version-windows-x64-setup.exe" -PassThru
 $captured = $false
 try {
