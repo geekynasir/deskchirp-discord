@@ -187,9 +187,10 @@ public sealed class T3DesktopFollower : IAsyncDisposable
         if (!force && !HasWork(settings)) return;
 
         var catalog = _catalog.Read();
+        // An unreadable catalog, for example one T3 Code is still writing, is read again next pass.
+        if (catalog.Status == T3DesktopCatalogStatus.Unreadable) { SetNote(MsgUnreadable); return; }
         _lastCatalogWrite = writeTime;
         if (catalog.Status == T3DesktopCatalogStatus.NotFound) { SetNote(string.Empty); return; }
-        if (catalog.Status == T3DesktopCatalogStatus.Unreadable) { SetNote(MsgUnreadable); return; }
 
         var byId = catalog.Environments.ToDictionary(e => e.EnvironmentId, StringComparer.Ordinal);
         await AddAndAdoptAsync(catalog.Environments, ct).ConfigureAwait(false);
@@ -209,8 +210,9 @@ public sealed class T3DesktopFollower : IAsyncDisposable
         {
             foreach (var env in settings.T3Environments.Where(e => e.IsFromT3Desktop))
             {
-                var status = statuses.FirstOrDefault(s => s.EnvironmentId == env.Id)?.Status;
-                if (NeedsSignIn(status) && !(_retryAt.TryGetValue(env.Id, out var at) && now < at)) return true;
+                var envStatus = statuses.FirstOrDefault(s => s.EnvironmentId == env.Id);
+                var status = envStatus?.Status;
+                if ((NeedsSignIn(status) || envStatus?.Unreachable == true) && !(_retryAt.TryGetValue(env.Id, out var at) && now < at)) return true;
                 if (status == T3ConnectionStatus.Connected && wantsUsage && _usageService?.HasPermission(env.Id) == false &&
                     !settings.T3DesktopUsageDeclined.Contains(env.T3DesktopEnvironmentId) &&
                     !(_usageRetryAt.TryGetValue(env.Id, out var usageAt) && now < usageAt)) return true;
@@ -285,15 +287,18 @@ public sealed class T3DesktopFollower : IAsyncDisposable
         foreach (var (id, address, desktop) in followed)
         {
             ct.ThrowIfCancellationRequested();
-            var status = _activityService.Environments.FirstOrDefault(s => s.EnvironmentId == id)?.Status;
-            if (!NeedsSignIn(status))
+            var envStatus = _activityService.Environments.FirstOrDefault(s => s.EnvironmentId == id);
+            var status = envStatus?.Status;
+            // Signed in but the address stopped answering, for example after leaving the LAN: try T3 Code's other routes.
+            bool moveOnly = !NeedsSignIn(status) && envStatus?.Unreachable == true && desktop.Routes.Any(r => r.McpAddress != address);
+            if (!NeedsSignIn(status) && !moveOnly)
             {
-                if (status == T3ConnectionStatus.Connected) SetProblem(id, null);
+                if (status == T3ConnectionStatus.Connected && envStatus?.Unreachable != true) SetProblem(id, null);
                 continue;
             }
             lock (_lock) { if (_retryAt.TryGetValue(id, out var at) && _clock() < at) continue; }
 
-            string? problem = await ConnectOneAsync(id, address, desktop, ct).ConfigureAwait(false);
+            string? problem = await ConnectOneAsync(id, address, desktop, moveOnly, ct).ConfigureAwait(false);
             lock (_lock)
             {
                 if (problem == null) _retryAt.Remove(id);
@@ -303,10 +308,15 @@ public sealed class T3DesktopFollower : IAsyncDisposable
         }
     }
 
-    /// <summary>Tries T3 Code's routes for this environment, the current address first. Returns a problem, or null once connected.</summary>
-    private async Task<string?> ConnectOneAsync(string id, string address, T3DesktopEnvironment desktop, CancellationToken ct)
+    /// <summary>
+    /// Tries T3 Code's routes for this environment, the current address first, or only the others when
+    /// <paramref name="otherRoutesOnly"/>. Returns a problem, or null once connected.
+    /// </summary>
+    private async Task<string?> ConnectOneAsync(string id, string address, T3DesktopEnvironment desktop, bool otherRoutesOnly, CancellationToken ct)
     {
-        var routes = desktop.Routes.OrderBy(r => r.McpAddress == address ? 0 : 1).ToList();
+        var routes = desktop.Routes
+            .Where(r => !otherRoutesOnly || r.McpAddress != address)
+            .OrderBy(r => r.McpAddress == address ? 0 : 1).ToList();
         string problem = MsgUnreachable;
         foreach (var route in routes)
         {
@@ -322,9 +332,19 @@ public sealed class T3DesktopFollower : IAsyncDisposable
                 };
                 continue;
             }
-            if (route.McpAddress != address &&
-                !await _activityService.ChangeEnvironmentAddressAsync(id, route.McpAddress, ct).ConfigureAwait(false))
-                continue;
+            // The user may have pressed Disconnect while the code was being minted.
+            if (!IsEnabled(_settingsService.Settings)) return null;
+            if (route.McpAddress != address)
+            {
+                // Token access is saved per address; drop it while the old address is still known.
+                // Following pairs it again on the new address unless the user declined it.
+                if (_usageService?.HasPermission(id) == true)
+                {
+                    try { await _usageService.RemoveTokenAccessAsync(id, ct).ConfigureAwait(false); } catch { }
+                }
+                if (!await _activityService.ChangeEnvironmentAddressAsync(id, route.McpAddress, ct).ConfigureAwait(false))
+                    continue;
+            }
             if (await _activityService.ConnectEnvironmentWithPairingCodeAsync(id, minted.Code, ct).ConfigureAwait(false)) return null;
             address = route.McpAddress;
             problem = MsgSignInFailed;
@@ -345,7 +365,7 @@ public sealed class T3DesktopFollower : IAsyncDisposable
         foreach (var (id, address, desktop) in candidates)
         {
             ct.ThrowIfCancellationRequested();
-            if (_usageService.HasPermission(id)) continue;
+            if (UsageDeclined(id) || _usageService.HasPermission(id)) continue;
             if (_activityService.Environments.FirstOrDefault(s => s.EnvironmentId == id)?.Status != T3ConnectionStatus.Connected) continue;
             lock (_lock) { if (_usageRetryAt.TryGetValue(id, out var at) && _clock() < at) continue; }
             var route = desktop.Routes.FirstOrDefault(r => r.McpAddress == address);
@@ -353,6 +373,8 @@ public sealed class T3DesktopFollower : IAsyncDisposable
 
             bool paired = false;
             var minted = await _pairing.MintCodeAsync(route, UsageScopes, ct).ConfigureAwait(false);
+            // The user may have removed token access, or turned following off, while the code was minted.
+            if (UsageDeclined(id) || !IsEnabled(_settingsService.Settings)) continue;
             if (minted.Outcome == T3DesktopPairingOutcome.Success && minted.Code != null)
             {
                 var result = await _usageService.PairAsync(id, minted.Code, ct).ConfigureAwait(false);
@@ -364,6 +386,14 @@ public sealed class T3DesktopFollower : IAsyncDisposable
                 else _usageRetryAt[id] = _clock() + FailureBackoff;
             }
         }
+    }
+
+    /// <summary>Checks current settings, not a snapshot taken before an await. A removed environment counts as declined.</summary>
+    private bool UsageDeclined(string environmentId)
+    {
+        var settings = _settingsService.Settings;
+        var env = settings.T3Environments.FirstOrDefault(e => e.Id == environmentId);
+        return env == null || settings.T3DesktopUsageDeclined.Contains(env.T3DesktopEnvironmentId);
     }
 
     private string BuildNote(IReadOnlyList<T3DesktopEnvironment> environments)

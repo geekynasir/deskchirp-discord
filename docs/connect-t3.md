@@ -23,6 +23,8 @@ Some connections can’t be followed yet: ones that only go through T3 Connect, 
 - Removing an environment marked **From T3 Code** keeps it out of the list until you turn following off and on again.
 - Removing token access for one keeps token usage off for it.
 - Turn off **Use T3 Code’s connections** to stop reading the catalog. Environments it already added stay until you remove them.
+- **Disconnect** also turns following off, so nothing signs back in. Turn the switch on again to reconnect them.
+- If an environment’s address stops answering, for example when you leave the network it was on, Deskchirp switches to another address T3 Code has for it.
 
 ### Adding an environment by hand
 

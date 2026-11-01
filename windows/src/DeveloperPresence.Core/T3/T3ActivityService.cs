@@ -64,6 +64,8 @@ public sealed class T3ActivityService : IT3ActivityService
         public T3EnvironmentSnapshot? Snapshot { get; set; }
         public bool HasReturnedWork { get; set; }
         public bool HasPolled { get; set; }
+        /// <summary>Signed in, but the last poll couldn't reach the address.</summary>
+        public bool Unreachable { get; set; }
         public required IT3McpClient Client { get; init; }
         public DateTimeOffset ProjectsFetchedAt { get; set; } = DateTimeOffset.MinValue;
         public IReadOnlyList<T3PickerProject> Projects { get; set; } = Array.Empty<T3PickerProject>();
@@ -98,7 +100,8 @@ public sealed class T3ActivityService : IT3ActivityService
                 return OrderedStates().Select(e => new T3EnvironmentStatus
                 {
                     EnvironmentId = e.Id, Address = e.Address, Label = e.Label, Status = e.Status, Detail = e.Detail,
-                    HasReturnedWork = e.HasReturnedWork, ProjectCatalogLoaded = e.ProjectCatalog != null
+                    HasReturnedWork = e.HasReturnedWork, ProjectCatalogLoaded = e.ProjectCatalog != null,
+                    Unreachable = e.Unreachable
                 }).ToList();
             }
         }
@@ -618,11 +621,16 @@ public sealed class T3ActivityService : IT3ActivityService
             PublishStatus();
         }
         catch (OperationCanceledException) { }
-        catch (Exception)
+        catch (Exception ex)
         {
             if (pollGen != Interlocked.Read(ref _pollGeneration) || envGen != Interlocked.Read(ref state.Generation)) return;
             // A failed environment is dropped from the combined snapshot, never zeroed.
-            lock (_stateLock) { state.Snapshot = null; SetEnvStatus(state, T3ConnectionStatus.Connected, MsgUnavailable); }
+            lock (_stateLock)
+            {
+                state.Snapshot = null;
+                SetEnvStatus(state, T3ConnectionStatus.Connected, MsgUnavailable);
+                state.Unreachable = ex is HttpRequestException or TimeoutException;
+            }
             RebuildSnapshot();
             PublishStatus();
         }
@@ -694,6 +702,7 @@ public sealed class T3ActivityService : IT3ActivityService
     {
         state.Status = status;
         state.Detail = detail;
+        state.Unreachable = false;
     }
 
     /// <summary>Recomputes the combined status line, e.g. “Connected to 2 of 3 environments”.</summary>

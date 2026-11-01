@@ -339,14 +339,17 @@ public class T3DesktopFollowTests : IDisposable
     {
         public Dictionary<string, T3DesktopPairingOutcome> Outcomes { get; } = new();
         public List<(string Address, string Token, string Scopes)> Calls { get; } = new();
+        /// <summary>Runs while a code is being minted, standing in for the user acting meanwhile.</summary>
+        public Func<T3DesktopRoute, Task>? During { get; set; }
 
-        public Task<T3DesktopPairingResult> MintCodeAsync(T3DesktopRoute route, IReadOnlyList<string> scopes, CancellationToken ct = default)
+        public async Task<T3DesktopPairingResult> MintCodeAsync(T3DesktopRoute route, IReadOnlyList<string> scopes, CancellationToken ct = default)
         {
             Calls.Add((route.McpAddress, route.DesktopToken, string.Join(" ", scopes)));
+            if (During != null) await During(route);
             var outcome = Outcomes.GetValueOrDefault(route.McpAddress, T3DesktopPairingOutcome.Success);
-            return Task.FromResult(outcome == T3DesktopPairingOutcome.Success
+            return outcome == T3DesktopPairingOutcome.Success
                 ? new T3DesktopPairingResult(outcome, scopes.Count > 1 ? "USAGECODE234" : "READCODE2345")
-                : new T3DesktopPairingResult(outcome));
+                : new T3DesktopPairingResult(outcome);
         }
     }
 
@@ -370,7 +373,10 @@ public class T3DesktopFollowTests : IDisposable
 
     private sealed class NullMcp : IT3McpClient
     {
-        public Task<T3CapabilitiesResult> GetCapabilitiesAsync(Uri uri, string token, CancellationToken ct = default) => Task.FromResult(new T3CapabilitiesResult());
+        /// <summary>Addresses that stop answering.</summary>
+        public HashSet<string> Down { get; } = new();
+        public Task<T3CapabilitiesResult> GetCapabilitiesAsync(Uri uri, string token, CancellationToken ct = default) =>
+            Down.Contains(uri.AbsoluteUri) ? throw new HttpRequestException("Couldn’t reach T3 Code.") : Task.FromResult(new T3CapabilitiesResult());
         public Task<T3ThreadListResult> ListThreadsAsync(Uri uri, string token, int? cursor = null, CancellationToken ct = default) => Task.FromResult(new T3ThreadListResult());
         public Task<IReadOnlyList<T3ProjectListItem>> ListProjectsAsync(Uri uri, string token, CancellationToken ct = default) =>
             Task.FromResult<IReadOnlyList<T3ProjectListItem>>(Array.Empty<T3ProjectListItem>());
@@ -394,8 +400,10 @@ public class T3DesktopFollowTests : IDisposable
             Allowed.Add(environmentId);
             return Task.FromResult(new T3PairingResult(T3PairingOutcome.Success, T3UsageText.Allowed));
         }
+        public Action? OnRemove { get; set; }
         public Task RemoveTokenAccessAsync(string environmentId, CancellationToken ct = default)
         {
+            OnRemove?.Invoke();
             Removed.Add(environmentId);
             Allowed.Remove(environmentId);
             return Task.CompletedTask;
@@ -413,6 +421,7 @@ public class T3DesktopFollowTests : IDisposable
         public FakePairing Pairing { get; } = new();
         public HeadlessOAuth OAuth { get; } = new();
         public FakeUsage Usage { get; } = new();
+        public NullMcp Mcp { get; } = new();
         public DateTimeOffset Now { get; set; } = new(2026, 11, 1, 12, 0, 0, TimeSpan.Zero);
         public T3ActivityService Activity { get; }
         public T3DesktopFollower Follower { get; }
@@ -421,7 +430,7 @@ public class T3DesktopFollowTests : IDisposable
         {
             Settings.Settings.ShowT3Activity = true;
             setup?.Invoke(Settings.Settings);
-            Activity = new T3ActivityService(Settings, Store, OAuth, new NullMcp());
+            Activity = new T3ActivityService(Settings, Store, OAuth, Mcp);
             Follower = new T3DesktopFollower(Settings, Activity, Usage, Catalog, Pairing, () => Now);
         }
 
@@ -643,6 +652,125 @@ public class T3DesktopFollowTests : IDisposable
 
         Assert.Single(rig.Settings.Settings.T3Environments);
         Assert.Equal($"T3 Code also has “Phone hotspot box”, which {T3DesktopCatalogReader.MsgRelayOnly}.", rig.Follower.Note);
+    }
+
+    [Fact]
+    public async Task AnUnreadableCatalogIsReadAgainWithoutAnotherChange()
+    {
+        await using var rig = new Rig();
+        await rig.Activity.InitializeAsync();
+        rig.Catalog.Result = T3DesktopCatalogResult.Unreadable;
+        await rig.Follower.SyncOnceAsync();
+        Assert.Equal(T3DesktopFollower.MsgUnreadable, rig.Follower.Note);
+
+        // T3 Code lets go of the file; its timestamp stays the same.
+        rig.Catalog.Result = new T3DesktopCatalogResult(T3DesktopCatalogStatus.Read, new[] { Env("env-vps", "VPS", Vps) });
+        await rig.Follower.SyncOnceAsync();
+
+        Assert.Single(rig.Settings.Settings.T3Environments);
+        Assert.Equal(string.Empty, rig.Follower.Note);
+    }
+
+    [Fact]
+    public async Task AConnectedRouteThatStopsAnsweringMovesToT3CodesOtherRoute()
+    {
+        await using var rig = new Rig();
+        await rig.Activity.InitializeAsync();
+        rig.Catalog.Set(Env("env-vps", "VPS", VpsLan, Vps));
+        await rig.Follower.SyncOnceAsync();
+        Assert.Equal(VpsLan, rig.Settings.Settings.T3Environments.Single().Address);
+
+        // The PC leaves the LAN: still signed in, but polls can't reach the address.
+        rig.Mcp.Down.Add(VpsLan);
+        await rig.Activity.PollOnceAsync();
+        Assert.True(rig.StatusOf(VpsLan).Unreachable);
+
+        await rig.Follower.SyncOnceAsync();
+
+        Assert.Equal(Vps, rig.Settings.Settings.T3Environments.Single().Address);
+        Assert.Equal(T3ConnectionStatus.Connected, rig.StatusOf(Vps).Status);
+        Assert.False(rig.StatusOf(Vps).Unreachable);
+        Assert.Null(await rig.Store.ReadCredentialAsync(T3ActivityService.CredentialTargetFor(VpsLan), T3ActivityService.CredentialUsername));
+    }
+
+    [Fact]
+    public async Task OtherFailedPollsDontMoveTheEntry()
+    {
+        await using var rig = new Rig();
+        await rig.Activity.InitializeAsync();
+        rig.Catalog.Set(Env("env-vps", "VPS", Vps));
+        await rig.Follower.SyncOnceAsync();
+
+        // Only one route: an unreachable poll has nowhere to go and nothing is minted.
+        rig.Mcp.Down.Add(Vps);
+        await rig.Activity.PollOnceAsync();
+        int calls = rig.Pairing.Calls.Count;
+        await rig.Follower.SyncOnceAsync();
+
+        Assert.Equal(calls, rig.Pairing.Calls.Count);
+        Assert.Equal(T3ConnectionStatus.Connected, rig.StatusOf(Vps).Status);
+    }
+
+    [Fact]
+    public async Task MovingAnEntryDropsTokenAccessSavedForTheOldAddress()
+    {
+        await using var rig = new Rig(s => s.CardStyle = CardStyle.Usage);
+        await rig.Activity.InitializeAsync();
+        rig.Catalog.Set(Env("env-vps", "VPS", VpsLan, Vps));
+        await rig.Follower.SyncOnceAsync();
+        string id = rig.Settings.Settings.T3Environments.Single().Id;
+        Assert.True(rig.Usage.HasPermission(id));
+
+        string? addressWhenRemoved = null;
+        rig.Usage.OnRemove = () => addressWhenRemoved = rig.Settings.Settings.T3Environments.Single().Address;
+        rig.Mcp.Down.Add(VpsLan);
+        await rig.Activity.PollOnceAsync();
+        await rig.Follower.SyncOnceAsync();
+
+        // Removed while the entry still pointed at the old address, then allowed again on the new one.
+        Assert.Equal(VpsLan, addressWhenRemoved);
+        Assert.Equal(new[] { id }, rig.Usage.Removed);
+        Assert.Equal(2, rig.Usage.Paired.Count);
+        Assert.True(rig.Usage.HasPermission(id));
+    }
+
+    [Theory]
+    [InlineData(Vps)]    // Before the laptop's turn comes.
+    [InlineData(Laptop)] // While the laptop's own code is being minted.
+    public async Task TokenAccessRemovedDuringAutomaticPairingIsntRestored(string declineWhileMinting)
+    {
+        await using var rig = new Rig();
+        await rig.Activity.InitializeAsync();
+        rig.Catalog.Set(Env("env-vps", "VPS", Vps), Env("env-laptop", "Laptop", Laptop));
+        await rig.Follower.SyncOnceAsync();
+        var ids = rig.Settings.Settings.T3Environments.Select(e => e.Id).ToList();
+
+        // The user switches the card to usage, then removes token access for the laptop mid-pass.
+        rig.Pairing.During = async route =>
+        {
+            if (route.McpAddress != declineWhileMinting) return;
+            rig.Pairing.During = null;
+            await rig.Settings.UpdateSettingsAsync(s => T3DesktopFollower.MarkUsageDeclined(s, ids[1]));
+        };
+        await rig.Settings.UpdateSettingsAsync(s => s.CardStyle = CardStyle.Usage);
+        await rig.Follower.SyncOnceAsync();
+
+        Assert.Equal(new[] { (ids[0], "USAGECODE234") }, rig.Usage.Paired);
+        Assert.False(rig.Usage.HasPermission(ids[1]));
+    }
+
+    [Fact]
+    public async Task TurningFollowingOffMidPassStopsTheSignIn()
+    {
+        await using var rig = new Rig();
+        await rig.Activity.InitializeAsync();
+        rig.Catalog.Set(Env("env-vps", "VPS", Vps));
+        rig.Pairing.During = _ => rig.Settings.UpdateSettingsAsync(s => s.FollowT3DesktopConnections = false);
+
+        await rig.Follower.SyncOnceAsync();
+
+        Assert.Empty(rig.OAuth.Calls);
+        Assert.NotEqual(T3ConnectionStatus.Connected, rig.StatusOf(Vps).Status);
     }
 
     [Fact]

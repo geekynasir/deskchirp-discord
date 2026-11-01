@@ -15,6 +15,8 @@ public sealed class T3EnvironmentStatus
     public bool HasReturnedWork { get; init; }
     /// <summary>True once t3_project_list has answered for this environment.</summary>
     public bool ProjectCatalogLoaded { get; init; }
+    /// <summary>True while connected but the last poll couldn't reach the address.</summary>
+    public bool Unreachable { get; init; }
 }
 
 /// <summary>Thread metadata for the local pinned-task picker. Titles never leave settings.</summary>
