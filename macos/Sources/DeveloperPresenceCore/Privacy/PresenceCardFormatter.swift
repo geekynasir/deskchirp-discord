@@ -153,7 +153,6 @@ public enum PresenceCardFormatter {
         let load = self.workload(settings: settings, snapshot: snapshot, now: now, snapshotTTLSeconds: snapshotTTLSeconds)
         let work = load.work
         let counts = load.counts
-        let pinnedPresent = load.pinnedProjectPresent
 
         let tool: String
         if let preferred = featuredTool, publicToolNames.contains(preferred), (counts[preferred]?.totalWork ?? 0) > 0 {
@@ -173,7 +172,7 @@ public enum PresenceCardFormatter {
 
         // Details: alias (if shared and available) or the public tool name.
         let projectKey: String?
-        if pinnedPresent {
+        if !settings.pinnedProject.isEmpty {
             projectKey = settings.pinnedProject
         } else {
             projectKey = T3WorkAggregator.featuredProject(work, tool: tool, previous: previousProjectKey)
@@ -194,7 +193,10 @@ public enum PresenceCardFormatter {
         var largeText = "T3 Code"
         var showsUsage = false
         if settings.cardStyle == .usage,
-           let usageLine = usageText(settings: settings, usage: usage, now: now) {
+           let usageLine = usageText(
+               settings: settings, usage: usage, now: now,
+               pinnedTaskVisible: T3UsageService.isPinnedTaskVisible(settings.pinnedTask, work: load.visible),
+               workSessionStart: timer.workSessionStart) {
             state = usageLine.text
             stateSource = .t3Usage
             largeText = "T3 Code · \(usageLine.definition)"
@@ -247,14 +249,15 @@ public enum PresenceCardFormatter {
         snapshot: T3CombinedSnapshot?,
         now: Date,
         snapshotTTLSeconds: TimeInterval = 45.0
-    ) -> (work: [T3WorkThread], counts: [String: T3DriverCounts], pinnedProjectPresent: Bool) {
-        guard let snapshot = snapshot else { return ([], [:], false) }
+    ) -> (work: [T3WorkThread], counts: [String: T3DriverCounts], pinnedProjectPresent: Bool, visible: [T3WorkThread]) {
+        guard let snapshot = snapshot else { return ([], [:], false, []) }
         let allWork = T3WorkAggregator.workThreads(
             snapshot: snapshot, excludedProjects: settings.excludedProjects,
             maxAgeSeconds: snapshotTTLSeconds, now: now)
+        // A pinned project always restricts the counts; no matching unfinished work → no fresh work.
         let pinnedPresent = isPinnedProjectPresent(settings.pinnedProject, work: allWork, snapshot: snapshot)
-        let work = pinnedPresent ? allWork.filter { $0.projectKey == settings.pinnedProject } : allWork
-        return (work, T3WorkAggregator.toolCounts(work), pinnedPresent)
+        let work = settings.pinnedProject.isEmpty ? allWork : allWork.filter { $0.projectKey == settings.pinnedProject }
+        return (work, T3WorkAggregator.toolCounts(work), pinnedPresent, allWork)
     }
 
     private static func isPinnedProjectPresent(_ pinned: String, work: [T3WorkThread], snapshot: T3CombinedSnapshot) -> Bool {
@@ -370,7 +373,16 @@ public enum PresenceCardFormatter {
     }
 
     /// The usage state line, or nil when the value is unavailable, stale, partial, or would use excluded data.
-    static func usageText(settings: PresenceSettings, usage: T3UsageSnapshot?, now: Date) -> (text: String, definition: String)? {
+    /// - Parameters:
+    ///   - pinnedTaskVisible: the pinned task is in the exclusion-filtered snapshot.
+    ///   - workSessionStart: the current work session; session usage from another session is never shown.
+    static func usageText(
+        settings: PresenceSettings,
+        usage: T3UsageSnapshot?,
+        now: Date,
+        pinnedTaskVisible: Bool,
+        workSessionStart: Date?
+    ) -> (text: String, definition: String)? {
         guard let usage = usage, usage.isFresh(now: now) else { return nil }
         let scope = effectiveScope(settings)
         let value: T3UsageValue?
@@ -380,9 +392,12 @@ public enum PresenceCardFormatter {
             guard settings.excludedProjects.isEmpty else { return nil }
             value = usage.today
         case .session:
+            guard let current = workSessionStart, let measured = usage.sessionStart,
+                  abs(current.timeIntervalSince(measured)) < 1 else { return nil }
             value = usage.session
         case .pinnedTask:
-            guard !settings.pinnedTask.isEmpty else { return nil }
+            // An excluded (or helper-of-excluded) or vanished pinned task never shows usage.
+            guard !settings.pinnedTask.isEmpty, pinnedTaskVisible else { return nil }
             if let key = usage.pinnedTaskKey, key != settings.pinnedTask { return nil }
             value = usage.pinnedTask
         }

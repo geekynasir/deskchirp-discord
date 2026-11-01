@@ -334,9 +334,27 @@ public struct PresenceControlsView: View {
                     set: { value in coordinator.updateControls { $0.pinnedProject = value } }
                 )) {
                     Text("None").tag("")
+                    if !settings.pinnedProject.isEmpty && !choices.contains(where: { $0.id == settings.pinnedProject }) {
+                        Text("Pinned project (not seen recently)").tag(settings.pinnedProject)
+                    }
                     ForEach(choices) { choice in
                         Text("\(choice.title) (\(choice.environmentLabel))").tag(choice.id)
                     }
+                }
+            }
+            if coordinator.pinnedProjectNotFound {
+                Label(PresenceAvailability.pinnedProjectNotFoundText, systemImage: "exclamationmark.circle")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if !settings.pinnedProject.isEmpty {
+                HStack {
+                    Text("Only work in the pinned project is counted.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer()
+                    Button("Unpin Project") { coordinator.updateControls { $0.pinnedProject = "" } }
                 }
             }
 

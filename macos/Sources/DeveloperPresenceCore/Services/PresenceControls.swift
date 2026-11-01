@@ -105,6 +105,18 @@ public enum PresenceAvailability {
         settings.cardStyle == .usage && settings.usageMetric == .tokens && settings.usageScope == .today
     }
 
+    public static let pinnedProjectNotFoundText = "Pinned project not found"
+
+    /// True when a pinned project is missing from every connected environment's project list.
+    /// - Parameter catalogs: environment ID → project list, for connected environments whose list is known.
+    ///   With no known list the answer is unknown, so this returns false.
+    public static func pinnedProjectNotFound(_ pinnedProject: String, catalogs: [String: [T3ProjectInfo]]) -> Bool {
+        guard !pinnedProject.isEmpty, !catalogs.isEmpty else { return false }
+        return !catalogs.contains { environmentId, projects in
+            projects.contains { "\(environmentId)/\($0.projectId)" == pinnedProject }
+        }
+    }
+
     public static func repoButtonReason(_ settings: PresenceSettings) -> String? {
         guard settings.shareProjectAlias else { return repoButtonReason }
         return PresenceCardFormatter.isValidPublicRepoUrl(settings.publicRepoUrl) ? nil : PresenceCardFormatter.invalidRepoText

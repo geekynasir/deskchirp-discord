@@ -441,6 +441,73 @@ final class T3UsageTests: XCTestCase {
         XCTAssertEqual(service.status(environmentId: "b", origin: "https://other.example"), .pairAgain)
     }
 
+    /// Review fix 6: a slow environment must not hold up a healthy one. The slow environment only answers
+    /// after the fast one has connected, which can only happen when the polls run concurrently.
+    func testUsagePollsEnvironmentsConcurrently() async throws {
+        let summary = summaryJSON
+        func answering() -> ScriptedConnection {
+            ScriptedConnection { tag, id, _ in
+                guard let id = id, tag == "server.getUsageSummary" else { return [] }
+                return [#"{"_tag":"Exit","requestId":"\#(id)","exit":{"_tag":"Success","value":\#(summary)}}"#]
+            }
+        }
+        let connector = HostGatedConnector(slowHost: "slow.example", fast: answering(), slow: answering())
+        let keychain = MockKeychain()
+        for host in ["slow.example", "fast.example"] {
+            try keychain.saveCredential(T3StoredCredential(accessToken: "t", expiresAt: Date().addingTimeInterval(3600)),
+                                        forService: KeychainService.defaultService, account: "deskchirp-usage:https://\(host)")
+        }
+        let transport = MockHTTPTransport(handler: { request in
+            (Data(#"{"orchestrationProtocolVersion":2}"#.utf8),
+             HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+        })
+        let service = T3UsageService(client: T3UsageClient(transport: transport, connector: connector, keychain: keychain))
+        let requests = [
+            T3UsageEnvironmentRequest(environmentId: "slow", origin: "https://slow.example", plan: T3UsagePollPlan(needsToday: true)),
+            T3UsageEnvironmentRequest(environmentId: "fast", origin: "https://fast.example", plan: T3UsagePollPlan(needsToday: true))
+        ]
+        let snapshot = await service.poll(requests: requests, pinnedTaskKey: nil, sessionStart: nil)
+        let today = try XCTUnwrap(snapshot?.today)
+        XCTAssertFalse(today.tokensPartial, "Both environments answered")
+        XCTAssertEqual(today.tokens?.total, 2 * 842_001)
+    }
+
+    /// Review fix 7: removing an environment while its pairing exchange is pending must not let the
+    /// exchange store the credential afterwards.
+    func testRemovalDuringPendingPairingWins() async throws {
+        let keychain = MockKeychain()
+        let entered = Flag()
+        let gate = DispatchSemaphore(value: 0)
+        let transport = MockHTTPTransport(handler: { request in
+            entered.set()
+            _ = gate.wait(timeout: .now() + 5)
+            return (Data(#"{"access_token":"late","token_type":"Bearer","expires_in":600,"scope":"orchestration:read diagnostics:read"}"#.utf8),
+                    HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+        })
+        let service = T3UsageService(client: T3UsageClient(transport: transport, connector: MockConnector(), keychain: keychain))
+        let origin = self.origin
+        let pairing = Task { try await service.pair(environmentId: "e", origin: origin, input: "PAIRCODE42") }
+
+        for _ in 0..<250 where !entered.isSet { try await Task.sleep(nanoseconds: 20_000_000) }
+        XCTAssertTrue(entered.isSet)
+        try service.removeAccess(environmentId: "e", origin: origin)
+        gate.signal()
+
+        do {
+            try await pairing.value
+            XCTFail("The superseded pairing must not succeed")
+        } catch let error as T3UsageError {
+            XCTAssertEqual(error, .pairingCancelled)
+        }
+        XCTAssertNil(try keychain.loadCredential(forService: KeychainService.defaultService, account: "deskchirp-usage:\(origin)"))
+        XCTAssertEqual(service.status(environmentId: "e", origin: origin), .notAllowed)
+
+        // A fresh pairing after removal works again.
+        gate.signal()
+        try await service.pair(environmentId: "e", origin: origin, input: "PAIRCODE43")
+        XCTAssertEqual(service.status(environmentId: "e", origin: origin), .allowed)
+    }
+
     func testPlansCapProjectionsAndApplyScope() {
         var settings = PresenceSettings(t3Environments: [])
         settings.cardStyle = .usage
@@ -469,4 +536,30 @@ final class RequestBox: @unchecked Sendable {
     private var stored: URLRequest?
     func set(_ request: URLRequest) { lock.lock(); stored = request; lock.unlock() }
     var request: URLRequest? { lock.lock(); defer { lock.unlock() }; return stored }
+}
+
+/// Connects `slowHost` only once the other host has connected (or gives up after 2 s).
+final class HostGatedConnector: T3WebSocketConnecting, @unchecked Sendable {
+    private let slowHost: String
+    private let fast: ScriptedConnection
+    private let slow: ScriptedConnection
+    private let fastConnected = Flag()
+
+    init(slowHost: String, fast: ScriptedConnection, slow: ScriptedConnection) {
+        self.slowHost = slowHost
+        self.fast = fast
+        self.slow = slow
+    }
+
+    func connect(request: URLRequest, maxMessageBytes: Int) async throws -> T3WebSocketConnection {
+        guard request.url?.host == slowHost else {
+            fastConnected.set()
+            return fast
+        }
+        for _ in 0..<100 where !fastConnected.isSet {
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        guard fastConnected.isSet else { throw T3UsageError.unreachable }
+        return slow
+    }
 }

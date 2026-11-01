@@ -318,6 +318,18 @@ public final class T3UsageClient: @unchecked Sendable {
     /// Exchanges a pairing code and stores `{accessToken, expiresAt}`. Never sends a DPoP header.
     @discardableResult
     public func pair(origin: String, input: String, clientOS: String = "macOS", now: Date = Date()) async throws -> T3StoredCredential {
+        let credential = try await exchange(origin: origin, input: input, clientOS: clientOS, now: now)
+        try saveCredential(credential, origin: origin)
+        return credential
+    }
+
+    public func saveCredential(_ credential: T3StoredCredential, origin: String) throws {
+        try keychain.saveCredential(credential, forService: T3UsagePairing.keychainService,
+                                    account: T3UsagePairing.keychainAccount(origin: origin))
+    }
+
+    /// The pairing exchange alone; the caller decides whether the result may still be stored.
+    public func exchange(origin: String, input: String, clientOS: String = "macOS", now: Date = Date()) async throws -> T3StoredCredential {
         let code = try T3UsagePairing.parseCode(input, environmentOrigin: origin)
         guard let url = URL(string: "\(origin)/oauth/token") else { throw T3UsageError.unreachable }
         var request = URLRequest(url: url)
@@ -358,10 +370,7 @@ public final class T3UsageClient: @unchecked Sendable {
         let scopes = ((json["scope"] as? String) ?? "").split(separator: " ").map(String.init)
         guard scopes.contains("diagnostics:read") else { throw T3UsageError.missingDiagnosticsScope }
 
-        let credential = T3StoredCredential(accessToken: token, expiresAt: now.addingTimeInterval(TimeInterval(expiresIn)))
-        try keychain.saveCredential(credential, forService: T3UsagePairing.keychainService,
-                                    account: T3UsagePairing.keychainAccount(origin: origin))
-        return credential
+        return T3StoredCredential(accessToken: token, expiresAt: now.addingTimeInterval(TimeInterval(expiresIn)))
     }
 
     static func formEncode(_ parameters: [(String, String)]) -> Data {

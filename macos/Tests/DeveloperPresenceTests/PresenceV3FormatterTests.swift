@@ -88,7 +88,9 @@ final class PresenceV3FormatterTests: XCTestCase {
                     observedAt: now,
                     today: makeUsageValue(rawUsage["today"] as? [String: Any]),
                     session: makeUsageValue(rawUsage["session"] as? [String: Any]),
-                    pinnedTask: makeUsageValue(rawUsage["pinnedTask"] as? [String: Any]))
+                    pinnedTask: makeUsageValue(rawUsage["pinnedTask"] as? [String: Any]),
+                    // Fixture usage belongs to the current work session.
+                    sessionStart: Date(timeIntervalSince1970: TimeInterval(workStart)))
             }
             let card = PresenceCardFormatter.format(
                 settings: settings,

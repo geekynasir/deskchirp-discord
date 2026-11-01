@@ -15,6 +15,7 @@ public enum T3UsageError: LocalizedError, Equatable {
     case timedOut
     case unexpectedChunk
     case valueUnavailable
+    case pairingCancelled
 
     public var errorDescription: String? {
         switch self {
@@ -28,6 +29,8 @@ public enum T3UsageError: LocalizedError, Equatable {
             return "Pair again to keep showing tokens"
         case .unsupportedVersion:
             return "This T3 version isn’t supported for token usage."
+        case .pairingCancelled:
+            return "Pairing was cancelled."
         case .unreachable, .invalidResponse, .messageTooLarge, .timedOut, .unexpectedChunk, .valueUnavailable:
             return "Couldn’t read token usage from T3 Code right now."
         }

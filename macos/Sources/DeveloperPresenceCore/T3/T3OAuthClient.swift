@@ -35,6 +35,12 @@ public final class T3OAuthClient: @unchecked Sendable {
         self.browserOpener = browserOpener
     }
 
+    /// A client with its own sign-in state (loopback listener and generation) for another environment,
+    /// so cancelling one environment's sign-in never cancels another's.
+    public func makeIndependentClient() -> T3OAuthClient {
+        T3OAuthClient(transport: transport, loopbackServer: injectedLoopback, browserOpener: browserOpener)
+    }
+
     public func cancel() {
         authLock.lock()
         generation += 1

@@ -56,13 +56,13 @@ public final class T3ActivityService: @unchecked Sendable {
         self.snapshotTTLSeconds = snapshotTTLSeconds
     }
 
-    /// A service for another T3 environment sharing transport, Keychain and sign-in flow,
-    /// with its own MCP session, status, snapshot and timer.
+    /// A service for another T3 environment sharing transport and Keychain, with its own sign-in client,
+    /// MCP session, status, snapshot and timer.
     public func makeSibling() -> T3ActivityService {
         T3ActivityService(
             transport: transport,
             keychain: keychain,
-            oauthClient: oauthClient,
+            oauthClient: oauthClient.makeIndependentClient(),
             mcpClient: T3McpClient(transport: transport),
             winnerSelector: T3WinnerSelector(),
             pollIntervalSeconds: pollIntervalSeconds,

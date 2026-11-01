@@ -333,6 +333,16 @@ public final class PresenceCoordinator: ObservableObject {
         return choices
     }
 
+    /// Settings show `Pinned project not found` when the pin is missing from every connected catalog.
+    public var pinnedProjectNotFound: Bool {
+        var catalogs: [String: [T3ProjectInfo]] = [:]
+        for environment in settings.t3Environments where environmentStatus(environment.id) == .connected {
+            guard let service = t3Services[environment.id], service.currentSnapshot != nil else { continue }
+            catalogs[environment.id] = service.latestProjects
+        }
+        return PresenceAvailability.pinnedProjectNotFound(settings.pinnedProject, catalogs: catalogs)
+    }
+
     /// Top-level tasks, newest first, for the pinned-task picker.
     public var taskChoices: [TaskChoice] {
         var rows: [(TaskChoice, String)] = []
@@ -646,8 +656,13 @@ public final class PresenceCoordinator: ObservableObject {
         let load = PresenceCardFormatter.workload(settings: settings, snapshot: combined, now: now)
         let allowed = settings.t3Environments.filter { usageStatus($0.id).isAllowed }
         let sessionStart = workClock.workSessionStart
-        let requests = T3UsageService.plans(settings: settings, work: load.work, allowedEnvironments: allowed, sessionStart: sessionStart)
-        guard !requests.isEmpty else { return }
+        // Exclusion-filtered threads before the pinned-project restriction (the plan applies it for session).
+        let requests = T3UsageService.plans(settings: settings, work: load.visible, allowedEnvironments: allowed, sessionStart: sessionStart)
+        guard !requests.isEmpty else {
+            // Nothing to measure now (for example the work session ended): never keep an older value around.
+            usageSnapshot = nil
+            return
+        }
         let pinnedKey = settings.pinnedTask.isEmpty ? nil : settings.pinnedTask
         let generation = usageGeneration
         let service = usageService

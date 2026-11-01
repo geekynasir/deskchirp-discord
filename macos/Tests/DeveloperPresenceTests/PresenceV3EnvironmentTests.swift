@@ -99,6 +99,97 @@ final class PresenceV3EnvironmentTests: XCTestCase {
         XCTAssertFalse(outgoing.contains { $0.contains("PRIVATE") })
     }
 
+    /// Review fix 5/6: an environment that is signing in (and whose requests hang) must not stop a connected
+    /// environment from polling and contributing. Eligibility is per environment, not an aggregate status.
+    func testConnectedEnvironmentKeepsPollingWhileAnotherSignsIn() throws {
+        let keychain = MockKeychain()
+        let toolLog = ToolLog()
+        let mcp = mcpHandler(threadsJSON: """
+        [{"threadId":"t1","providerInstanceId":"claude-1","status":"running"}]
+        """, toolLog: toolLog)
+        let gate = DispatchSemaphore(value: 0)
+        let entered = Flag()
+        let transport = MockHTTPTransport(handler: { request in
+            if request.url?.host == "signing.example" {
+                entered.set()
+                _ = gate.wait(timeout: .now() + 5)
+                throw HTTPTransportError.invalidResponse
+            }
+            return try mcp(request)
+        })
+        let connected = try connectedService(origin: "https://remote.example", transport: transport, keychain: keychain)
+        let signing = connected.makeSibling()
+        signing.handleEndpointChange(address: "https://signing.example")
+        let signInTask = Task { try? await signing.connect(address: "https://signing.example") }
+        defer {
+            gate.signal()
+            signInTask.cancel()
+            connected.updateEligibility(isEligibleToPoll: false)
+            signing.updateEligibility(isEligibleToPoll: false)
+        }
+        waitUntil { entered.isSet && signing.connectionStatus == .openingSignIn }
+        XCTAssertEqual(signing.connectionStatus, .openingSignIn)
+
+        connected.updateEligibility(isEligibleToPoll: true)
+        signing.updateEligibility(isEligibleToPoll: true)
+        waitUntil { connected.environmentSnapshot(environmentId: "remote") != nil }
+
+        XCTAssertNotNil(connected.environmentSnapshot(environmentId: "remote"), "The connected environment still contributes")
+        XCTAssertEqual(signing.connectionStatus, .openingSignIn)
+        XCTAssertNil(signing.environmentSnapshot(environmentId: "signing"))
+    }
+
+    /// Review fix A: each environment has its own sign-in client, so disconnecting or changing one
+    /// environment never cancels another environment's pending sign-in.
+    func testDisconnectingOneEnvironmentKeepsAnotherSignInAlive() throws {
+        let keychain = MockKeychain()
+        let gate = DispatchSemaphore(value: 0)
+        let entered = Flag()
+        let transport = MockHTTPTransport(handler: { request in
+            let ok: (String, Int) -> (Data, HTTPURLResponse) = { body, status in
+                (Data(body.utf8), HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil,
+                                                  headerFields: ["Content-Type": "application/json"])!)
+            }
+            guard request.url?.host == "signing.example" else { throw HTTPTransportError.invalidResponse }
+            switch request.url?.path ?? "" {
+            case "/.well-known/oauth-protected-resource/mcp":
+                entered.set()
+                _ = gate.wait(timeout: .now() + 5)
+                return ok(#"{"resource":"https://signing.example/mcp","authorization_servers":["https://signing.example"],"scopes_supported":["orchestration:read"]}"#, 200)
+            case "/.well-known/oauth-authorization-server":
+                return ok(#"{"issuer":"https://signing.example","code_challenge_methods_supported":["S256"],"authorization_endpoint":"https://signing.example/oauth/mcp/authorize","token_endpoint":"https://signing.example/oauth/mcp/token","registration_endpoint":"https://signing.example/oauth/mcp/register"}"#, 200)
+            case "/oauth/mcp/register":
+                return ok(#"{"client_id":"client-1"}"#, 201)
+            case "/oauth/mcp/token":
+                return ok(#"{"access_token":"signed-in","token_type":"Bearer","expires_in":3600,"scope":"orchestration:read"}"#, 200)
+            default:
+                throw HTTPTransportError.invalidResponse
+            }
+        })
+        let oauth = T3OAuthClient(transport: transport, keychain: keychain,
+                                  loopbackServer: MockOAuthLoopbackServer(), browserOpener: MockBrowserOpener())
+        let first = T3ActivityService(transport: transport, keychain: keychain, oauthClient: oauth,
+                                      mcpClient: T3McpClient(transport: transport))
+        first.handleEndpointChange(address: "https://first.example")
+        let second = first.makeSibling()
+        second.handleEndpointChange(address: "https://signing.example")
+
+        let signIn = Task { try? await second.connect(address: "https://signing.example") }
+        defer { gate.signal(); signIn.cancel() }
+        waitUntil { entered.isSet }
+        XCTAssertTrue(entered.isSet)
+
+        // Changing and disconnecting the other environment must not touch this sign-in.
+        first.handleEndpointChange(address: "https://first.example")
+        first.disconnect()
+        gate.signal()
+
+        waitUntil(timeout: 5) { second.connectionStatus == .connected }
+        XCTAssertEqual(second.connectionStatus, .connected)
+        XCTAssertEqual(try keychain.loadCredential(forService: KeychainService.defaultService,
+                                                   account: "https://signing.example/mcp")?.accessToken, "signed-in")
+    }
+
     func testStaleEnvironmentsAreDroppedNotZeroed() {
         let now = Date()
         let providers = [T3ProviderInfo(providerInstanceId: "c", driverKind: "codex")]
@@ -220,4 +311,11 @@ final class ToolLog: @unchecked Sendable {
     private var storage: [String] = []
     func append(_ name: String) { lock.lock(); storage.append(name); lock.unlock() }
     var names: [String] { lock.lock(); defer { lock.unlock() }; return storage }
+}
+
+final class Flag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = false
+    func set() { lock.lock(); value = true; lock.unlock() }
+    var isSet: Bool { lock.lock(); defer { lock.unlock() }; return value }
 }
