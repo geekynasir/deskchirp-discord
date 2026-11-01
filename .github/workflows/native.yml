@@ -154,10 +154,12 @@ jobs:
         shell: pwsh
         run: ./scripts/build-windows-installer.ps1
       - name: Verify preview 3 replacement, update, Start launch and uninstall
+        timeout-minutes: 10
         shell: pwsh
         run: ./scripts/test-windows-installer.ps1
       - name: Capture the install window
         continue-on-error: true
+        timeout-minutes: 4
         shell: pwsh
         run: ./scripts/capture-installer.ps1
       - uses: actions/upload-artifact@v4

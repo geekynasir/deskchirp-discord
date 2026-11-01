@@ -11,9 +11,18 @@ $shortcut = Join-Path ([Environment]::GetFolderPath('Programs')) 'Deskchirp for 
 $legacyKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{F5C10229-3D01-49BF-9655-BF2D2564B917}_is1'
 $legacyFolder = Join-Path $env:LOCALAPPDATA 'Programs/Deskchirp'
 
+# Start-Process -Wait would also wait for the Deskchirp window setup opens, so wait for the program alone.
+function Invoke-Program([string]$file, [string[]]$arguments, [string]$what) {
+    $process = Start-Process -FilePath $file -ArgumentList $arguments -PassThru
+    $null = $process.Handle  # Keeps the exit code readable after exit.
+    if (!$process.WaitForExit(180000)) {
+        if (Test-Path 'dist/installer-smoke.log') { Get-Content 'dist/installer-smoke.log' -Tail 40 | Out-Host }
+        throw "$what did not finish within 3 minutes."
+    }
+    if ($process.ExitCode -ne 0) { throw "$what failed: $($process.ExitCode)" }
+}
 function Invoke-Setup([string]$installer) {
-    $process = Start-Process -FilePath $installer -ArgumentList '--silent', '--log', (Join-Path $PWD 'dist/installer-smoke.log') -Wait -PassThru
-    if ($process.ExitCode -ne 0) { throw "Installer failed: $($process.ExitCode)" }
+    Invoke-Program $installer @('--silent', '--log', (Join-Path $PWD 'dist/installer-smoke.log')) 'Setup'
 }
 function Stop-Deskchirp {
     Get-Process -Name Deskchirp -ErrorAction SilentlyContinue | Stop-Process -Force
@@ -45,8 +54,8 @@ function Wait-InstalledVersion([string]$expected, [string]$step) {
 # 1. Someone on preview 3 installed the old wizard. Installing must replace it, not add a second copy.
 $legacySetup = Join-Path $PWD 'dist/legacy-preview-3-setup.exe'
 Invoke-WebRequest 'https://github.com/geekynasir/deskchirp-discord/releases/download/v0.1.0-preview.3/Deskchirp-0.1.0-preview.3-windows-x64-setup.exe' -OutFile $legacySetup
-$legacy = Start-Process -FilePath $legacySetup -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-' -Wait -PassThru
-if ($legacy.ExitCode -ne 0 -or !(Test-Path $legacyKey)) { throw 'Could not install the preview 3 fixture.' }
+Invoke-Program $legacySetup @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-') 'Preview 3 setup'
+if (!(Test-Path $legacyKey)) { throw 'Could not install the preview 3 fixture.' }
 
 # 2. Install an older one-click version first so the real build arrives as an update.
 $fixtureVersion = '0.0.1-update-check'
@@ -67,8 +76,7 @@ Set-Content $sentinel 'keep user settings'
 try {
     # 4. Apply the real build the way the in-app updater does.
     $package = (Resolve-Path "dist/windows-installer/feed/Deskchirp-$version-full.nupkg").Path
-    $update = Start-Process -FilePath (Join-Path $install 'Update.exe') -ArgumentList '--silent', 'apply', '--package', "`"$package`"" -Wait -PassThru
-    if ($update.ExitCode -ne 0) { throw "Update failed: $($update.ExitCode)" }
+    Invoke-Program (Join-Path $install 'Update.exe') @('--silent', 'apply', '--package', "`"$package`"") 'Update'
     Stop-Deskchirp
     Wait-InstalledVersion $version 'Update'
     if (!(Test-Path $sentinel)) { throw 'Update removed user settings.' }
@@ -121,8 +129,7 @@ public class InstallerCapture {
     # 7. Uninstall with the command Windows Installed Apps uses.
     $quiet = (Get-UninstallEntry).QuietUninstallString
     if ($quiet -notmatch '^"([^"]+)"\s*(.*)$') { throw "Unexpected uninstall command: $quiet" }
-    $remove = Start-Process -FilePath $Matches[1] -ArgumentList $Matches[2] -Wait -PassThru
-    if ($remove.ExitCode -ne 0) { throw "Uninstall failed: $($remove.ExitCode)" }
+    Invoke-Program $Matches[1] @($Matches[2]) 'Uninstall'
     for ($attempt = 0; $attempt -lt 15 -and (Test-Path (Join-Path $app 'Deskchirp.exe')); $attempt++) { Start-Sleep -Seconds 1 }
     if ((Test-Path (Join-Path $app 'Deskchirp.exe')) -or (Test-Path $shortcut) -or (Get-UninstallEntry)) { throw 'Uninstall left the app, shortcut or registration behind.' }
     if (!(Test-Path $sentinel)) { throw 'Uninstall removed user settings.' }
