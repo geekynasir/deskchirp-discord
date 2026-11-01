@@ -25,7 +25,14 @@ function Get-UninstallEntry {
         ForEach-Object { Get-ItemProperty $_.PSPath } |
         Where-Object { $_.DisplayName -eq 'Deskchirp for Discord' -and $_.PSChildName -notlike '{F5C10229*' } | Select-Object -First 1
 }
-function Get-InstalledVersion { (Get-UninstallEntry).DisplayVersion }
+# Installed Apps shows only the numeric part (0.1.0); the installed build info has the full version.
+function Get-InstalledVersion {
+    $info = Join-Path $app 'BUILD-INFO.json'
+    if (!(Test-Path $info)) { return $null }
+    $full = (Get-Content $info -Raw | ConvertFrom-Json).version
+    if ((Get-UninstallEntry).DisplayVersion -ne ($full -split '-')[0]) { return "$full (Installed Apps: $((Get-UninstallEntry).DisplayVersion))" }
+    $full
+}
 function Wait-InstalledVersion([string]$expected, [string]$step) {
     for ($attempt = 0; $attempt -lt 30 -and (Get-InstalledVersion) -ne $expected; $attempt++) { Start-Sleep -Seconds 1 }
     if ((Get-InstalledVersion) -eq $expected) { return }
