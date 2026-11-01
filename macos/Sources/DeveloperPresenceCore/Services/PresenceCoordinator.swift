@@ -241,6 +241,13 @@ public final class PresenceCoordinator: ObservableObject {
         }
     }
 
+    /// Cancels only this environment's pending browser sign-in.
+    public func cancelEnvironmentSignIn(id: String) {
+        guard let service = t3Services[id] else { return }
+        service.cancelSignIn()
+        evaluatePresence(immediate: false)
+    }
+
     public func disconnectEnvironment(id: String) {
         guard let service = t3Services[id] else { return }
         service.disconnect()

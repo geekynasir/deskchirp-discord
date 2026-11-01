@@ -398,6 +398,7 @@ public sealed class PresenceCoordinator : IAsyncDisposable
                 if (_computers?.CanPublish != true)
                 {
                     if (_wasT3Eligible) { _wasT3Eligible = false; CancelT3Poll(); _t3ActivityService?.Invalidate(); }
+                    StopActivityClocks();
                     if (_lastSentActivity != null || _lastSentApp != SupportedApp.None)
                         await ClearAndDropConnectionAsync().ConfigureAwait(false);
                     _lastSentApp = SupportedApp.None; _lastSentActivity = null;
@@ -436,7 +437,13 @@ public sealed class PresenceCoordinator : IAsyncDisposable
             var t3Snapshot = _t3ActivityService?.AnyEnvironmentConnected == true ? _t3ActivityService.CurrentSnapshot : null;
             bool freshWork = isT3Eligible && PresenceCardFormatter.HasFreshUnfinishedWork(settings, t3Snapshot, now);
             _timer.Observe(freshWork, now);
-            UpdateUsagePolling(isT3Eligible, settings, t3Snapshot);
+            // Rich T3 data may appear on the card (spec/presence-v3.md §4); usage is polled only for a visible usage card.
+            bool richAllowed = settings.SelectionMode == SelectionMode.KeepBackgroundVisible ||
+                focusedApp == SupportedApp.T3Code ||
+                (focusedApp == SupportedApp.None &&
+                 !_foregroundDetector.IsAppRunning(SupportedApp.Claude, settings.ProcessMappings) &&
+                 !_foregroundDetector.IsAppRunning(SupportedApp.Codex, settings.ProcessMappings));
+            UpdateUsagePolling(isT3Eligible && displayedApp == SupportedApp.T3Code && richAllowed, settings, t3Snapshot);
             if (displayedApp == SupportedApp.None)
             {
                 // Keep a linked standby connection for account identity. Unsupported apps
@@ -459,12 +466,6 @@ public sealed class PresenceCoordinator : IAsyncDisposable
                 return;
             }
 
-            // One allowlisted formatter builds every card (spec/presence-v3.md §5).
-            bool richAllowed = settings.SelectionMode == SelectionMode.KeepBackgroundVisible ||
-                focusedApp == SupportedApp.T3Code ||
-                (focusedApp == SupportedApp.None &&
-                 !_foregroundDetector.IsAppRunning(SupportedApp.Claude, settings.ProcessMappings) &&
-                 !_foregroundDetector.IsAppRunning(SupportedApp.Codex, settings.ProcessMappings));
             bool t3Connected = _t3ActivityService?.AnyEnvironmentConnected == true;
             if (displayedApp == SupportedApp.T3Code && settings.ShowT3Activity && t3Connected &&
                 now - _lastT3PollTimestamp >= TimeSpan.FromSeconds(15))

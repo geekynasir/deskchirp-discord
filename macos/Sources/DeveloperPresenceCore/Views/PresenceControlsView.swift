@@ -513,7 +513,7 @@ public struct EnvironmentsView: View {
             HStack {
                 switch status {
                 case .openingSignIn:
-                    Button("Cancel") { coordinator.cancelT3SignIn() }
+                    Button("Cancel") { coordinator.cancelEnvironmentSignIn(id: environment.id) }
                         .accessibilityLabel("Cancel sign-in for \(environment.label)")
                 case .connected:
                     Button("Disconnect") { coordinator.disconnectEnvironment(id: environment.id) }

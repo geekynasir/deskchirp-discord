@@ -710,7 +710,8 @@ public sealed partial class MainViewModel
             var tasks = new List<PickerOption> { new(string.Empty, "No pinned task") };
             if (_t3ActivityService != null)
             {
-                tasks.AddRange(_t3ActivityService.PickerTasks.Where(t => !t.IsHelper).Take(50).Select(t =>
+                tasks.AddRange(_t3ActivityService.PickerTasks.Where(t => !t.IsHelper)
+                    .OrderByDescending(t => t.UpdatedAt ?? t.CreatedAt ?? DateTimeOffset.MinValue).Take(50).Select(t =>
                     new PickerOption(T3WorkloadView.Key(t.EnvironmentId, t.ThreadId),
                         $"{(string.IsNullOrWhiteSpace(t.Title) ? "Untitled task" : t.Title!.Trim())} · {EnvironmentLabel(t.EnvironmentId)}")));
             }
