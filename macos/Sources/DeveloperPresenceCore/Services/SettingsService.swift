@@ -28,6 +28,8 @@ public final class SettingsService: SettingsServicing, @unchecked Sendable {
         public static let showAppIcons = "developer_presence_show_app_icons"
         public static let followComputers = "developer_presence_follow_computers"
         public static let computerLinkAddress = "developer_presence_computer_link_address"
+        /// JSON blob holding the presence controls v3 fields (spec/presence-v3.md §3).
+        public static let presenceControlsV3 = "developer_presence_controls_v3"
     }
 
     public init(userDefaults: UserDefaults = .standard) {
@@ -59,7 +61,7 @@ public final class SettingsService: SettingsServicing, @unchecked Sendable {
                 userDefaults.set(1, forKey: artworkVersionKey)
             } else { showAppIcons = userDefaults.bool(forKey: Keys.showAppIcons) }
 
-            return PresenceSettings(
+            var settings = PresenceSettings(
                 enableSharing: enableSharing,
                 isPaused: isPaused,
                 discordClientId: discordClientId,
@@ -69,9 +71,45 @@ public final class SettingsService: SettingsServicing, @unchecked Sendable {
                 t3Address: t3Address,
                 showAppIcons: showAppIcons,
                 followComputers: userDefaults.bool(forKey: Keys.followComputers),
-                computerLinkAddress: userDefaults.string(forKey: Keys.computerLinkAddress) ?? ""
+                computerLinkAddress: userDefaults.string(forKey: Keys.computerLinkAddress) ?? "",
+                t3Environments: []
             )
+
+            if let data = userDefaults.data(forKey: Keys.presenceControlsV3),
+               let saved = try? JSONDecoder().decode(PresenceSettings.self, from: data) {
+                Self.copyControls(from: saved, to: &settings)
+            } else {
+                // First launch on v3: the legacy address becomes the first environment. Persist the
+                // migrated list right away so the random environment ID stays stable.
+                settings.t3Environments = PresenceSettings.migratedEnvironments(legacyAddress: t3Address)
+                if let data = try? JSONEncoder().encode(settings) {
+                    userDefaults.set(data, forKey: Keys.presenceControlsV3)
+                }
+            }
+            return settings
         }
+    }
+
+    private static func copyControls(from source: PresenceSettings, to target: inout PresenceSettings) {
+        target.t3Environments = source.t3Environments
+        target.cardStyle = source.cardStyle
+        target.usageMetric = source.usageMetric
+        target.usageScope = source.usageScope
+        target.tokenCategory = source.tokenCategory
+        target.tokenRounding = source.tokenRounding
+        target.smallBadge = source.smallBadge
+        target.shareProjectAlias = source.shareProjectAlias
+        target.projectAliases = source.projectAliases
+        target.shareModel = source.shareModel
+        target.shareEstimatedCost = source.shareEstimatedCost
+        target.showElapsedTimer = source.showElapsedTimer
+        target.playfulWording = source.playfulWording
+        target.buttons = source.buttons
+        target.publicRepoUrl = source.publicRepoUrl
+        target.excludedProjects = source.excludedProjects
+        target.pinnedTask = source.pinnedTask
+        target.pinnedProject = source.pinnedProject
+        target.selectionMode = source.selectionMode
     }
 
     public func saveSettings(_ settings: PresenceSettings) {
@@ -90,6 +128,9 @@ public final class SettingsService: SettingsServicing, @unchecked Sendable {
             userDefaults.set(settings.showAppIcons, forKey: Keys.showAppIcons)
             userDefaults.set(settings.followComputers, forKey: Keys.followComputers)
             userDefaults.set(settings.computerLinkAddress, forKey: Keys.computerLinkAddress)
+            if let data = try? JSONEncoder().encode(settings) {
+                userDefaults.set(data, forKey: Keys.presenceControlsV3)
+            }
         }
     }
 }

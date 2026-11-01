@@ -1,0 +1,1909 @@
+{
+  "description": "Synthetic data. Strings containing PRIVATE are bait and must never appear in any output field. Settings omitted from a case use the spec defaults with sharing, Show T3 activity and app icons on. Expected keys absent from a case are not checked; null means the field must be absent. Asset values are keys before URL resolution. largeText/smallText compare the hover text. A case passes 'now' = workSessionStart + 600 and all snapshots are fresh unless marked partial.",
+  "workSessionStart": 1793500000,
+  "appShownStart": 1793500600,
+  "providers": [
+    {
+      "providerInstanceId": "personal-claude",
+      "driverKind": "claudeAgent",
+      "displayName": "PRIVATE account routing"
+    },
+    {
+      "providerInstanceId": "work-codex",
+      "driverKind": "codex",
+      "displayName": "PRIVATE organization"
+    }
+  ],
+  "compactNumbers": [
+    [
+      0,
+      "0"
+    ],
+    [
+      999,
+      "999"
+    ],
+    [
+      1000,
+      "1K"
+    ],
+    [
+      1049,
+      "1K"
+    ],
+    [
+      1050,
+      "1.1K"
+    ],
+    [
+      1234,
+      "1.2K"
+    ],
+    [
+      99949,
+      "99.9K"
+    ],
+    [
+      99950,
+      "100K"
+    ],
+    [
+      842112,
+      "842K"
+    ],
+    [
+      999999,
+      "1M"
+    ],
+    [
+      1234567,
+      "1.2M"
+    ],
+    [
+      12500000,
+      "12.5M"
+    ],
+    [
+      150000000,
+      "150M"
+    ],
+    [
+      3400000000,
+      "3.4B"
+    ]
+  ],
+  "exactNumbers": [
+    [
+      0,
+      "0"
+    ],
+    [
+      999,
+      "999"
+    ],
+    [
+      1000,
+      "1,000"
+    ],
+    [
+      842112,
+      "842,112"
+    ],
+    [
+      1234567,
+      "1,234,567"
+    ]
+  ],
+  "costs": [
+    [
+      0.004,
+      "~$0.00"
+    ],
+    [
+      1.8413,
+      "~$1.84"
+    ],
+    [
+      9.994,
+      "~$9.99"
+    ],
+    [
+      9.996,
+      "~$10"
+    ],
+    [
+      23.4,
+      "~$23"
+    ],
+    [
+      23.5,
+      "~$24"
+    ]
+  ],
+  "cases": [
+    {
+      "name": "Running work from two environments is combined and deduplicated",
+      "settings": {},
+      "environments": [
+        {
+          "id": "env-a",
+          "threads": [
+            {
+              "threadId": "a1",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            }
+          ],
+          "projects": [
+            {
+              "projectId": "p-orbit",
+              "title": "PRIVATE project name"
+            },
+            {
+              "projectId": "p-secret",
+              "title": "PRIVATE client work"
+            }
+          ]
+        },
+        {
+          "id": "env-b",
+          "threads": [
+            {
+              "threadId": "b1",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            },
+            {
+              "threadId": "b2",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            },
+            {
+              "threadId": "b2",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            },
+            {
+              "threadId": "b3",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": "subagent",
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": "b1",
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            },
+            {
+              "threadId": "b4",
+              "providerInstanceId": "personal-claude",
+              "status": "completed",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            }
+          ],
+          "projects": [
+            {
+              "projectId": "p-orbit",
+              "title": "PRIVATE project name"
+            },
+            {
+              "projectId": "p-secret",
+              "title": "PRIVATE client work"
+            }
+          ]
+        }
+      ],
+      "usage": null,
+      "expected": {
+        "details": "T3 Code · Claude Code",
+        "state": "3 tasks · 1 helper",
+        "timestampsStart": 1793500000,
+        "largeImage": "t3_code",
+        "largeText": "T3 Code",
+        "smallImage": "status_working",
+        "smallText": "Working"
+      }
+    },
+    {
+      "name": "Same thread id in different environments counts twice",
+      "settings": {},
+      "environments": [
+        {
+          "id": "env-a",
+          "threads": [
+            {
+              "threadId": "same",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            }
+          ],
+          "projects": [
+            {
+              "projectId": "p-orbit",
+              "title": "PRIVATE project name"
+            },
+            {
+              "projectId": "p-secret",
+              "title": "PRIVATE client work"
+            }
+          ]
+        },
+        {
+          "id": "env-b",
+          "threads": [
+            {
+              "threadId": "same",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            }
+          ],
+          "projects": [
+            {
+              "projectId": "p-orbit",
+              "title": "PRIVATE project name"
+            },
+            {
+              "projectId": "p-secret",
+              "title": "PRIVATE client work"
+            }
+          ]
+        }
+      ],
+      "usage": null,
+      "expected": {
+        "details": "T3 Code · Claude Code",
+        "state": "2 tasks",
+        "smallImage": "status_working"
+      }
+    },
+    {
+      "name": "Playful running wording counts tasks and helpers",
+      "settings": {
+        "playfulWording": true
+      },
+      "environments": [
+        {
+          "id": "env-a",
+          "threads": [
+            {
+              "threadId": "a1",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            }
+          ],
+          "projects": [
+            {
+              "projectId": "p-orbit",
+              "title": "PRIVATE project name"
+            },
+            {
+              "projectId": "p-secret",
+              "title": "PRIVATE client work"
+            }
+          ]
+        },
+        {
+          "id": "env-b",
+          "threads": [
+            {
+              "threadId": "b1",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            },
+            {
+              "threadId": "b2",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            },
+            {
+              "threadId": "b2",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            },
+            {
+              "threadId": "b3",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": "subagent",
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": "b1",
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            },
+            {
+              "threadId": "b4",
+              "providerInstanceId": "personal-claude",
+              "status": "completed",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            }
+          ],
+          "projects": [
+            {
+              "projectId": "p-orbit",
+              "title": "PRIVATE project name"
+            },
+            {
+              "projectId": "p-secret",
+              "title": "PRIVATE client work"
+            }
+          ]
+        }
+      ],
+      "usage": null,
+      "expected": {
+        "state": "Herding 4 agents"
+      }
+    },
+    {
+      "name": "Playful waiting wording is singular and makes no attention claim",
+      "settings": {
+        "playfulWording": true
+      },
+      "environments": [
+        {
+          "id": "env-a",
+          "threads": [
+            {
+              "threadId": "w1",
+              "providerInstanceId": "personal-claude",
+              "status": "waiting",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            }
+          ],
+          "projects": [
+            {
+              "projectId": "p-orbit",
+              "title": "PRIVATE project name"
+            },
+            {
+              "projectId": "p-secret",
+              "title": "PRIVATE client work"
+            }
+          ]
+        }
+      ],
+      "usage": null,
+      "expected": {
+        "details": "T3 Code · Claude Code",
+        "state": "1 agent on standby",
+        "smallImage": "status_attention",
+        "smallText": "Waiting"
+      }
+    },
+    {
+      "name": "Playful starting wording",
+      "settings": {
+        "playfulWording": true
+      },
+      "environments": [
+        {
+          "id": "env-a",
+          "threads": [
+            {
+              "threadId": "s1",
+              "providerInstanceId": "personal-claude",
+              "status": "starting",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            },
+            {
+              "threadId": "s2",
+              "providerInstanceId": "personal-claude",
+              "status": "queued",
+              "relationshipToParent": "subagent",
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": "s1",
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            }
+          ],
+          "projects": [
+            {
+              "projectId": "p-orbit",
+              "title": "PRIVATE project name"
+            },
+            {
+              "projectId": "p-secret",
+              "title": "PRIVATE client work"
+            }
+          ]
+        }
+      ],
+      "usage": null,
+      "expected": {
+        "state": "Warming up 2 agents",
+        "smallImage": "status_working",
+        "smallText": "Starting"
+      }
+    },
+    {
+      "name": "Shared alias replaces the tool name in details",
+      "settings": {
+        "shareProjectAlias": true,
+        "projectAliases": {
+          "env-a/p-orbit": "Orbit Notes"
+        }
+      },
+      "environments": [
+        {
+          "id": "env-a",
+          "threads": [
+            {
+              "threadId": "a1",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            },
+            {
+              "threadId": "a2",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            }
+          ],
+          "projects": [
+            {
+              "projectId": "p-orbit",
+              "title": "PRIVATE project name"
+            },
+            {
+              "projectId": "p-secret",
+              "title": "PRIVATE client work"
+            }
+          ]
+        }
+      ],
+      "usage": null,
+      "expected": {
+        "details": "T3 Code · Orbit Notes",
+        "state": "2 tasks",
+        "forbidden": [
+          "PRIVATE"
+        ]
+      }
+    },
+    {
+      "name": "Alias set but not shared stays private",
+      "settings": {
+        "shareProjectAlias": false,
+        "projectAliases": {
+          "env-a/p-orbit": "Orbit Notes"
+        }
+      },
+      "environments": [
+        {
+          "id": "env-a",
+          "threads": [
+            {
+              "threadId": "a1",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            }
+          ],
+          "projects": [
+            {
+              "projectId": "p-orbit",
+              "title": "PRIVATE project name"
+            },
+            {
+              "projectId": "p-secret",
+              "title": "PRIVATE client work"
+            }
+          ]
+        }
+      ],
+      "usage": null,
+      "expected": {
+        "details": "T3 Code · Claude Code",
+        "forbidden": [
+          "Orbit"
+        ]
+      }
+    },
+    {
+      "name": "Excluded projects and their helpers are removed before counting",
+      "settings": {
+        "excludedProjects": [
+          "env-a/p-secret"
+        ]
+      },
+      "environments": [
+        {
+          "id": "env-a",
+          "threads": [
+            {
+              "threadId": "a1",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            },
+            {
+              "threadId": "x1",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-secret",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            },
+            {
+              "threadId": "x2",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": "subagent",
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": "x1",
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            },
+            {
+              "threadId": "x3",
+              "providerInstanceId": "work-codex",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-secret",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            },
+            {
+              "threadId": "x4",
+              "providerInstanceId": "work-codex",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-secret",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            }
+          ],
+          "projects": [
+            {
+              "projectId": "p-orbit",
+              "title": "PRIVATE project name"
+            },
+            {
+              "projectId": "p-secret",
+              "title": "PRIVATE client work"
+            }
+          ]
+        }
+      ],
+      "usage": null,
+      "expected": {
+        "details": "T3 Code · Claude Code",
+        "state": "1 task"
+      }
+    },
+    {
+      "name": "Pinned project restricts counts",
+      "settings": {
+        "pinnedProject": "env-a/p-secret"
+      },
+      "environments": [
+        {
+          "id": "env-a",
+          "threads": [
+            {
+              "threadId": "a1",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            },
+            {
+              "threadId": "a2",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            },
+            {
+              "threadId": "x1",
+              "providerInstanceId": "work-codex",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-secret",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            }
+          ],
+          "projects": [
+            {
+              "projectId": "p-orbit",
+              "title": "PRIVATE project name"
+            },
+            {
+              "projectId": "p-secret",
+              "title": "PRIVATE client work"
+            }
+          ]
+        }
+      ],
+      "usage": null,
+      "expected": {
+        "details": "T3 Code · Codex",
+        "state": "1 task",
+        "smallImage": "status_working"
+      }
+    },
+    {
+      "name": "Shared model comes from the most recently updated running task of the featured tool",
+      "settings": {
+        "shareModel": true
+      },
+      "environments": [
+        {
+          "id": "env-a",
+          "threads": [
+            {
+              "threadId": "a1",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-sonnet-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T09:00:00Z",
+              "title": "PRIVATE prompt title"
+            },
+            {
+              "threadId": "a2",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T11:00:00Z",
+              "title": "PRIVATE prompt title"
+            },
+            {
+              "threadId": "h",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": "subagent",
+              "projectId": "p-orbit",
+              "model": "claude-haiku-5-5",
+              "parentThreadId": "a1",
+              "updatedAt": "2026-10-31T12:00:00Z",
+              "title": "PRIVATE prompt title"
+            }
+          ],
+          "projects": [
+            {
+              "projectId": "p-orbit",
+              "title": "PRIVATE project name"
+            },
+            {
+              "projectId": "p-secret",
+              "title": "PRIVATE client work"
+            }
+          ]
+        }
+      ],
+      "usage": null,
+      "expected": {
+        "state": "2 tasks · 1 helper · claude-opus-5-5"
+      }
+    },
+    {
+      "name": "Unsafe model labels are omitted",
+      "settings": {
+        "shareModel": true
+      },
+      "environments": [
+        {
+          "id": "env-a",
+          "threads": [
+            {
+              "threadId": "a1",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "PRIVATE <script>",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            }
+          ],
+          "projects": [
+            {
+              "projectId": "p-orbit",
+              "title": "PRIVATE project name"
+            },
+            {
+              "projectId": "p-secret",
+              "title": "PRIVATE client work"
+            }
+          ]
+        }
+      ],
+      "usage": null,
+      "expected": {
+        "state": "1 task",
+        "forbidden": [
+          "PRIVATE",
+          "script"
+        ]
+      }
+    },
+    {
+      "name": "Provider badge shows the featured tool",
+      "settings": {
+        "smallBadge": "provider"
+      },
+      "environments": [
+        {
+          "id": "env-a",
+          "threads": [
+            {
+              "threadId": "c1",
+              "providerInstanceId": "work-codex",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            }
+          ],
+          "projects": [
+            {
+              "projectId": "p-orbit",
+              "title": "PRIVATE project name"
+            },
+            {
+              "projectId": "p-secret",
+              "title": "PRIVATE client work"
+            }
+          ]
+        }
+      ],
+      "usage": null,
+      "expected": {
+        "smallImage": "harness_codex",
+        "smallText": "Codex"
+      }
+    },
+    {
+      "name": "No badge when the user picks none",
+      "settings": {
+        "smallBadge": "none"
+      },
+      "environments": [
+        {
+          "id": "env-a",
+          "threads": [
+            {
+              "threadId": "a1",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            }
+          ],
+          "projects": [
+            {
+              "projectId": "p-orbit",
+              "title": "PRIVATE project name"
+            },
+            {
+              "projectId": "p-secret",
+              "title": "PRIVATE client work"
+            }
+          ]
+        }
+      ],
+      "usage": null,
+      "expected": {
+        "smallImage": null,
+        "smallText": null
+      }
+    },
+    {
+      "name": "App only ignores work and uses the app clock",
+      "settings": {
+        "cardStyle": "appOnly"
+      },
+      "environments": [
+        {
+          "id": "env-a",
+          "threads": [
+            {
+              "threadId": "a1",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            }
+          ],
+          "projects": [
+            {
+              "projectId": "p-orbit",
+              "title": "PRIVATE project name"
+            },
+            {
+              "projectId": "p-secret",
+              "title": "PRIVATE client work"
+            }
+          ]
+        },
+        {
+          "id": "env-b",
+          "threads": [
+            {
+              "threadId": "b1",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            },
+            {
+              "threadId": "b2",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            },
+            {
+              "threadId": "b2",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            },
+            {
+              "threadId": "b3",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": "subagent",
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": "b1",
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            },
+            {
+              "threadId": "b4",
+              "providerInstanceId": "personal-claude",
+              "status": "completed",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            }
+          ],
+          "projects": [
+            {
+              "projectId": "p-orbit",
+              "title": "PRIVATE project name"
+            },
+            {
+              "projectId": "p-secret",
+              "title": "PRIVATE client work"
+            }
+          ]
+        }
+      ],
+      "usage": null,
+      "expected": {
+        "details": "Using T3 Code",
+        "state": null,
+        "timestampsStart": 1793500600,
+        "smallImage": null
+      }
+    },
+    {
+      "name": "Timer can be turned off",
+      "settings": {
+        "showElapsedTimer": false
+      },
+      "environments": [
+        {
+          "id": "env-a",
+          "threads": [
+            {
+              "threadId": "a1",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            }
+          ],
+          "projects": [
+            {
+              "projectId": "p-orbit",
+              "title": "PRIVATE project name"
+            },
+            {
+              "projectId": "p-secret",
+              "title": "PRIVATE client work"
+            }
+          ]
+        },
+        {
+          "id": "env-b",
+          "threads": [
+            {
+              "threadId": "b1",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            },
+            {
+              "threadId": "b2",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            },
+            {
+              "threadId": "b2",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            },
+            {
+              "threadId": "b3",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": "subagent",
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": "b1",
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            },
+            {
+              "threadId": "b4",
+              "providerInstanceId": "personal-claude",
+              "status": "completed",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            }
+          ],
+          "projects": [
+            {
+              "projectId": "p-orbit",
+              "title": "PRIVATE project name"
+            },
+            {
+              "projectId": "p-secret",
+              "title": "PRIVATE client work"
+            }
+          ]
+        }
+      ],
+      "usage": null,
+      "expected": {
+        "timestampsStart": null
+      }
+    },
+    {
+      "name": "No fresh work falls back to app-only text and clock",
+      "settings": {},
+      "environments": [
+        {
+          "id": "env-a",
+          "threads": [
+            {
+              "threadId": "done",
+              "providerInstanceId": "personal-claude",
+              "status": "completed",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            }
+          ],
+          "projects": [
+            {
+              "projectId": "p-orbit",
+              "title": "PRIVATE project name"
+            },
+            {
+              "projectId": "p-secret",
+              "title": "PRIVATE client work"
+            }
+          ]
+        }
+      ],
+      "usage": null,
+      "expected": {
+        "details": "Using T3 Code",
+        "state": null,
+        "timestampsStart": 1793500600,
+        "smallImage": null
+      }
+    },
+    {
+      "name": "Usage today uses compact totals and explains the metric on hover",
+      "settings": {
+        "cardStyle": "usage",
+        "usageScope": "today"
+      },
+      "environments": [
+        {
+          "id": "env-a",
+          "threads": [
+            {
+              "threadId": "a1",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            }
+          ],
+          "projects": [
+            {
+              "projectId": "p-orbit",
+              "title": "PRIVATE project name"
+            },
+            {
+              "projectId": "p-secret",
+              "title": "PRIVATE client work"
+            }
+          ]
+        }
+      ],
+      "usage": {
+        "today": {
+          "tokens": {
+            "uncachedInputTokens": 400000,
+            "cachedInputTokens": 300000,
+            "cacheCreationTokens": 42000,
+            "outputTokens": 100000,
+            "reasoningTokens": 90000
+          },
+          "costUsd": 1.8413
+        }
+      },
+      "expected": {
+        "details": "T3 Code · Claude Code",
+        "state": "842K tokens today",
+        "largeText": "T3 Code · Tokens counted today across providers, including use outside T3"
+      }
+    },
+    {
+      "name": "Usage today with estimated cost",
+      "settings": {
+        "cardStyle": "usage",
+        "usageScope": "today",
+        "shareEstimatedCost": true
+      },
+      "environments": [
+        {
+          "id": "env-a",
+          "threads": [
+            {
+              "threadId": "a1",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            }
+          ],
+          "projects": [
+            {
+              "projectId": "p-orbit",
+              "title": "PRIVATE project name"
+            },
+            {
+              "projectId": "p-secret",
+              "title": "PRIVATE client work"
+            }
+          ]
+        }
+      ],
+      "usage": {
+        "today": {
+          "tokens": {
+            "uncachedInputTokens": 700000,
+            "cachedInputTokens": 400000,
+            "cacheCreationTokens": 50000,
+            "outputTokens": 90000,
+            "reasoningTokens": 0
+          },
+          "costUsd": 1.8413
+        }
+      },
+      "expected": {
+        "state": "1.2M tokens today · ~$1.84 API est."
+      }
+    },
+    {
+      "name": "Large cost is rounded to whole dollars",
+      "settings": {
+        "cardStyle": "usage",
+        "usageScope": "today",
+        "shareEstimatedCost": true,
+        "playfulWording": true
+      },
+      "environments": [
+        {
+          "id": "env-a",
+          "threads": [
+            {
+              "threadId": "a1",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            }
+          ],
+          "projects": [
+            {
+              "projectId": "p-orbit",
+              "title": "PRIVATE project name"
+            },
+            {
+              "projectId": "p-secret",
+              "title": "PRIVATE client work"
+            }
+          ]
+        }
+      ],
+      "usage": {
+        "today": {
+          "tokens": {
+            "uncachedInputTokens": 10000000,
+            "cachedInputTokens": 2000000,
+            "cacheCreationTokens": 0,
+            "outputTokens": 500000,
+            "reasoningTokens": 0
+          },
+          "costUsd": 23.4
+        }
+      },
+      "expected": {
+        "state": "Crunched 12.5M tokens today · ~$23 API est."
+      }
+    },
+    {
+      "name": "Cost is hidden outside today scope",
+      "settings": {
+        "cardStyle": "usage",
+        "usageScope": "session",
+        "shareEstimatedCost": true
+      },
+      "environments": [
+        {
+          "id": "env-a",
+          "threads": [
+            {
+              "threadId": "a1",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            }
+          ],
+          "projects": [
+            {
+              "projectId": "p-orbit",
+              "title": "PRIVATE project name"
+            },
+            {
+              "projectId": "p-secret",
+              "title": "PRIVATE client work"
+            }
+          ]
+        }
+      ],
+      "usage": {
+        "session": {
+          "tokens": {
+            "uncachedInputTokens": 100000000,
+            "cachedInputTokens": 0,
+            "cacheCreationTokens": 0,
+            "outputTokens": 50000000,
+            "reasoningTokens": 0
+          },
+          "costUsd": 99
+        }
+      },
+      "expected": {
+        "state": "150M tokens this session",
+        "largeText": "T3 Code · Tokens counted since this work session started"
+      }
+    },
+    {
+      "name": "Output category on the pinned task with exact rounding",
+      "settings": {
+        "cardStyle": "usage",
+        "usageScope": "pinnedTask",
+        "pinnedTask": "env-a/a1",
+        "tokenCategory": "output",
+        "tokenRounding": "exact"
+      },
+      "environments": [
+        {
+          "id": "env-a",
+          "threads": [
+            {
+              "threadId": "a1",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            }
+          ],
+          "projects": [
+            {
+              "projectId": "p-orbit",
+              "title": "PRIVATE project name"
+            },
+            {
+              "projectId": "p-secret",
+              "title": "PRIVATE client work"
+            }
+          ]
+        }
+      ],
+      "usage": {
+        "pinnedTask": {
+          "tokens": {
+            "uncachedInputTokens": 5,
+            "cachedInputTokens": 5,
+            "cacheCreationTokens": 5,
+            "outputTokens": 842112,
+            "reasoningTokens": 800000
+          }
+        }
+      },
+      "expected": {
+        "state": "842,112 tokens on this task"
+      }
+    },
+    {
+      "name": "Input category sums uncached, cached and cache creation",
+      "settings": {
+        "cardStyle": "usage",
+        "usageScope": "today",
+        "tokenCategory": "input"
+      },
+      "environments": [
+        {
+          "id": "env-a",
+          "threads": [
+            {
+              "threadId": "a1",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            }
+          ],
+          "projects": [
+            {
+              "projectId": "p-orbit",
+              "title": "PRIVATE project name"
+            },
+            {
+              "projectId": "p-secret",
+              "title": "PRIVATE client work"
+            }
+          ]
+        }
+      ],
+      "usage": {
+        "today": {
+          "tokens": {
+            "uncachedInputTokens": 500,
+            "cachedInputTokens": 300,
+            "cacheCreationTokens": 200,
+            "outputTokens": 7000,
+            "reasoningTokens": 0
+          }
+        }
+      },
+      "expected": {
+        "state": "1K tokens today"
+      }
+    },
+    {
+      "name": "Context percentage of the pinned task",
+      "settings": {
+        "cardStyle": "usage",
+        "usageMetric": "context",
+        "pinnedTask": "env-a/a1"
+      },
+      "environments": [
+        {
+          "id": "env-a",
+          "threads": [
+            {
+              "threadId": "a1",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            }
+          ],
+          "projects": [
+            {
+              "projectId": "p-orbit",
+              "title": "PRIVATE project name"
+            },
+            {
+              "projectId": "p-secret",
+              "title": "PRIVATE client work"
+            }
+          ]
+        }
+      ],
+      "usage": {
+        "pinnedTask": {
+          "contextUsedTokens": 124999,
+          "contextMaxTokens": 200000
+        }
+      },
+      "expected": {
+        "state": "62% of context used",
+        "largeText": "T3 Code · How full the pinned task's context window is"
+      }
+    },
+    {
+      "name": "Playful context wording",
+      "settings": {
+        "cardStyle": "usage",
+        "usageMetric": "context",
+        "pinnedTask": "env-a/a1",
+        "playfulWording": true
+      },
+      "environments": [
+        {
+          "id": "env-a",
+          "threads": [
+            {
+              "threadId": "a1",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            }
+          ],
+          "projects": [
+            {
+              "projectId": "p-orbit",
+              "title": "PRIVATE project name"
+            },
+            {
+              "projectId": "p-secret",
+              "title": "PRIVATE client work"
+            }
+          ]
+        }
+      ],
+      "usage": {
+        "pinnedTask": {
+          "contextUsedTokens": 124000,
+          "contextMaxTokens": 200000
+        }
+      },
+      "expected": {
+        "state": "Context tank 62% full"
+      }
+    },
+    {
+      "name": "Missing context window falls back to workload",
+      "settings": {
+        "cardStyle": "usage",
+        "usageMetric": "context",
+        "pinnedTask": "env-a/a1"
+      },
+      "environments": [
+        {
+          "id": "env-a",
+          "threads": [
+            {
+              "threadId": "a1",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            }
+          ],
+          "projects": [
+            {
+              "projectId": "p-orbit",
+              "title": "PRIVATE project name"
+            },
+            {
+              "projectId": "p-secret",
+              "title": "PRIVATE client work"
+            }
+          ]
+        }
+      ],
+      "usage": {
+        "pinnedTask": {
+          "contextUsedTokens": 124000,
+          "contextMaxTokens": null
+        }
+      },
+      "expected": {
+        "state": "1 task",
+        "largeText": "T3 Code"
+      }
+    },
+    {
+      "name": "Partial or missing usage falls back to workload instead of zero",
+      "settings": {
+        "cardStyle": "usage",
+        "usageScope": "today"
+      },
+      "environments": [
+        {
+          "id": "env-a",
+          "threads": [
+            {
+              "threadId": "a1",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            }
+          ],
+          "projects": [
+            {
+              "projectId": "p-orbit",
+              "title": "PRIVATE project name"
+            },
+            {
+              "projectId": "p-secret",
+              "title": "PRIVATE client work"
+            }
+          ]
+        }
+      ],
+      "usage": {
+        "today": {
+          "tokens": {
+            "uncachedInputTokens": 1,
+            "cachedInputTokens": 1,
+            "cacheCreationTokens": 1,
+            "outputTokens": 1,
+            "reasoningTokens": 0
+          },
+          "partial": true
+        }
+      },
+      "expected": {
+        "state": "1 task",
+        "forbidden": [
+          "0 tokens"
+        ]
+      }
+    },
+    {
+      "name": "Companion button",
+      "settings": {
+        "buttons": "companion"
+      },
+      "environments": [
+        {
+          "id": "env-a",
+          "threads": [
+            {
+              "threadId": "a1",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            }
+          ],
+          "projects": [
+            {
+              "projectId": "p-orbit",
+              "title": "PRIVATE project name"
+            },
+            {
+              "projectId": "p-secret",
+              "title": "PRIVATE client work"
+            }
+          ]
+        }
+      ],
+      "usage": null,
+      "expected": {
+        "buttons": [
+          {
+            "label": "Get Deskchirp",
+            "url": "https://github.com/geekynasir/deskchirp-discord"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Repository button needs a shown alias and a valid public link",
+      "settings": {
+        "buttons": "companionAndRepo",
+        "shareProjectAlias": true,
+        "projectAliases": {
+          "env-a/p-orbit": "Orbit"
+        },
+        "publicRepoUrl": "https://github.com/octo-org/orbit-notes"
+      },
+      "environments": [
+        {
+          "id": "env-a",
+          "threads": [
+            {
+              "threadId": "a1",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            }
+          ],
+          "projects": [
+            {
+              "projectId": "p-orbit",
+              "title": "PRIVATE project name"
+            },
+            {
+              "projectId": "p-secret",
+              "title": "PRIVATE client work"
+            }
+          ]
+        }
+      ],
+      "usage": null,
+      "expected": {
+        "buttons": [
+          {
+            "label": "Get Deskchirp",
+            "url": "https://github.com/geekynasir/deskchirp-discord"
+          },
+          {
+            "label": "View project",
+            "url": "https://github.com/octo-org/orbit-notes"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Invalid repository link is dropped",
+      "settings": {
+        "buttons": "companionAndRepo",
+        "shareProjectAlias": true,
+        "projectAliases": {
+          "env-a/p-orbit": "Orbit"
+        },
+        "publicRepoUrl": "https://github.com/octo-org/orbit-notes/tree/main?token=x"
+      },
+      "environments": [
+        {
+          "id": "env-a",
+          "threads": [
+            {
+              "threadId": "a1",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            }
+          ],
+          "projects": [
+            {
+              "projectId": "p-orbit",
+              "title": "PRIVATE project name"
+            },
+            {
+              "projectId": "p-secret",
+              "title": "PRIVATE client work"
+            }
+          ]
+        }
+      ],
+      "usage": null,
+      "expected": {
+        "buttons": [
+          {
+            "label": "Get Deskchirp",
+            "url": "https://github.com/geekynasir/deskchirp-discord"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Aliases are cleaned and capped at 32 characters, long lines get a fit warning",
+      "settings": {
+        "shareProjectAlias": true,
+        "projectAliases": {
+          "env-a/p-orbit": "  An\u0007 extremely long project alias that keeps going  "
+        }
+      },
+      "environments": [
+        {
+          "id": "env-a",
+          "threads": [
+            {
+              "threadId": "a1",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            }
+          ],
+          "projects": [
+            {
+              "projectId": "p-orbit",
+              "title": "PRIVATE project name"
+            },
+            {
+              "projectId": "p-secret",
+              "title": "PRIVATE client work"
+            }
+          ]
+        }
+      ],
+      "usage": null,
+      "expected": {
+        "details": "T3 Code · An extremely long project alias",
+        "fitWarnings": [
+          "details"
+        ]
+      }
+    },
+    {
+      "name": "Short card has no fit warnings",
+      "settings": {},
+      "environments": [
+        {
+          "id": "env-a",
+          "threads": [
+            {
+              "threadId": "a1",
+              "providerInstanceId": "personal-claude",
+              "status": "running",
+              "relationshipToParent": null,
+              "projectId": "p-orbit",
+              "model": "claude-opus-5-5",
+              "parentThreadId": null,
+              "updatedAt": "2026-10-31T10:00:00Z",
+              "title": "PRIVATE prompt title"
+            }
+          ],
+          "projects": [
+            {
+              "projectId": "p-orbit",
+              "title": "PRIVATE project name"
+            },
+            {
+              "projectId": "p-secret",
+              "title": "PRIVATE client work"
+            }
+          ]
+        }
+      ],
+      "usage": null,
+      "expected": {
+        "fitWarnings": []
+      }
+    }
+  ]
+}

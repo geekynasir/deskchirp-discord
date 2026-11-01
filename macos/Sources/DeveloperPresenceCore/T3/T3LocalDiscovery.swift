@@ -4,8 +4,8 @@ public enum T3DiscoveryError: LocalizedError {
     case notFound, ambiguous
     public var errorDescription: String? {
         switch self {
-        case .notFound: return "Open T3 Code on this computer, then try again. If you use a remote environment, enter its address under Advanced."
-        case .ambiguous: return "More than one T3 Code environment was found. Choose an address under Advanced."
+        case .notFound: return "Open T3 Code on this computer, then try again. If your tasks run on another computer, add that environment under T3 environments."
+        case .ambiguous: return "More than one T3 Code environment was found. Add the one you want under T3 environments."
         }
     }
 }

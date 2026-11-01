@@ -2,8 +2,13 @@ import Foundation
 
 /// Fixed public artwork only. Discord fetches images; local paths and user content never become URLs.
 public enum DiscordArtwork {
-    public static let baseURL = "https://raw.githubusercontent.com/geekynasir/deskchirp-discord/artwork-v1/assets/discord/"
-    public static let keys: Set<String> = ["deskchirp", "t3_code", "harness_claude", "harness_codex", "harness_antigravity", "harness_cursor", "harness_opencode", "harness_grok"]
+    /// Release tag holding the public PNGs. Change only this constant when the artwork pack moves.
+    public static let artworkTag = "artwork-v2"
+    public static let baseURL = "https://raw.githubusercontent.com/geekynasir/deskchirp-discord/\(DiscordArtwork.artworkTag)/assets/discord/"
+    public static let keys: Set<String> = [
+        "deskchirp", "t3_code", "harness_claude", "harness_codex", "harness_antigravity", "harness_cursor",
+        "harness_opencode", "harness_grok", "status_working", "status_attention", "status_idle"
+    ]
 
     public static func url(for key: String?) -> String? {
         guard let key, keys.contains(key) else { return nil }
@@ -20,9 +25,12 @@ public enum DiscordArtwork {
         case .none: return activity
         }
         let source = activity.assets
+        let smallImage = url(for: source?.small_image)
         let assets = DiscordActivityAssets(
-            largeImage: url(for: source?.large_image ?? defaultKey), largeText: app.displayName,
-            smallImage: url(for: source?.small_image), smallText: source?.small_text)
-        return DiscordActivity(details: activity.details, state: activity.state, assets: assets)
+            largeImage: url(for: source?.large_image ?? defaultKey), largeText: source?.large_text ?? app.displayName,
+            smallImage: smallImage, smallText: smallImage == nil ? nil : source?.small_text)
+        return DiscordActivity(
+            details: activity.details, state: activity.state, assets: assets,
+            timestamps: activity.timestamps, buttons: activity.buttons)
     }
 }

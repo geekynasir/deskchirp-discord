@@ -61,6 +61,7 @@ jobs:
           cmp spec/presence-cases.json macos/Tests/DeveloperPresenceTests/Resources/presence-cases.json
           cmp spec/ipc-frames.json macos/Tests/DeveloperPresenceTests/Resources/ipc-frames.json
           cmp spec/t3-activity-cases.json macos/Tests/DeveloperPresenceTests/Resources/t3-activity-cases.json
+          cmp spec/presence-v3-cases.json macos/Tests/DeveloperPresenceTests/Resources/presence-v3-cases.json
       - name: Test Swift implementation
         run: swift test --package-path macos
       - name: Build native app bundle

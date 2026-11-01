@@ -23,7 +23,14 @@ public final class T3ActivityService: @unchecked Sendable {
     private var activeAuthTask: Task<T3StoredCredential, Error>?
 
     public private(set) var connectionStatus: T3ConnectionStatus = .notConnected
-    public private(set) var currentSnapshot: T3ActivitySnapshot?
+    public private(set) var currentSnapshot: T3ActivitySnapshot? {
+        didSet { if currentSnapshot == nil { latestPoll = nil } }
+    }
+    /// Raw metadata of the latest fresh poll, used for the combined multi-environment snapshot.
+    /// Cleared together with `currentSnapshot`.
+    private var latestPoll: T3EnvironmentSnapshot?
+    /// True once this environment has returned any unfinished work.
+    public private(set) var hasEverReturnedWork = false
     public private(set) var currentEndpoint: T3NormalizedEndpoint?
     public private(set) var winningTool: String?
     public private(set) var lastErrorMessage: String?
@@ -47,6 +54,62 @@ public final class T3ActivityService: @unchecked Sendable {
         self.winnerSelector = winnerSelector
         self.pollIntervalSeconds = pollIntervalSeconds
         self.snapshotTTLSeconds = snapshotTTLSeconds
+    }
+
+    /// A service for another T3 environment sharing transport, Keychain and sign-in flow,
+    /// with its own MCP session, status, snapshot and timer.
+    public func makeSibling() -> T3ActivityService {
+        T3ActivityService(
+            transport: transport,
+            keychain: keychain,
+            oauthClient: oauthClient,
+            mcpClient: T3McpClient(transport: transport),
+            winnerSelector: T3WinnerSelector(),
+            pollIntervalSeconds: pollIntervalSeconds,
+            snapshotTTLSeconds: snapshotTTLSeconds
+        )
+    }
+
+    /// Latest fresh poll tagged with the given environment ID, or nil when stale, failed or cleared.
+    public func environmentSnapshot(environmentId: String, now: Date = Date()) -> T3EnvironmentSnapshot? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let poll = latestPoll, poll.isFresh(maxAgeSeconds: snapshotTTLSeconds, now: now) else { return nil }
+        return T3EnvironmentSnapshot(
+            environmentId: environmentId,
+            observedAt: poll.observedAt,
+            providers: poll.providers,
+            threads: poll.threads,
+            projects: poll.projects
+        )
+    }
+
+    /// Projects with titles from the latest poll, for the local alias editor only.
+    public var latestProjects: [T3ProjectInfo] {
+        lock.lock()
+        defer { lock.unlock() }
+        return latestPoll?.projects ?? []
+    }
+
+    /// Per-environment sign-in key: the existing Keychain service, account = normalized MCP URL.
+    public static func credentialAccount(for endpoint: T3NormalizedEndpoint) -> String {
+        endpoint.mcpUrl.absoluteString
+    }
+
+    /// Loads this environment's sign-in, moving a preview 3 credential (stored under the origin)
+    /// to the per-environment key the first time it is seen.
+    private func storedCredential(for endpoint: T3NormalizedEndpoint) -> T3StoredCredential? {
+        let account = Self.credentialAccount(for: endpoint)
+        if let current = try? keychain.loadCredential(forService: KeychainService.defaultService, account: account) {
+            return current
+        }
+        guard let legacy = try? keychain.loadCredential(forService: KeychainService.defaultService, account: endpoint.origin) else {
+            return nil
+        }
+        if (try? keychain.saveCredential(legacy, forService: KeychainService.defaultService, account: account)) != nil {
+            try? keychain.deleteCredential(forService: KeychainService.defaultService, account: endpoint.origin)
+        }
+        return legacy
     }
 
     // MARK: - Sign In & Disconnect
@@ -88,7 +151,7 @@ public final class T3ActivityService: @unchecked Sendable {
                     try keychain.saveCredential(
                         credential,
                         forService: KeychainService.defaultService,
-                        account: endpoint.origin
+                        account: Self.credentialAccount(for: endpoint)
                     )
                     self.connectionStatus = .connected
                     self.lastErrorMessage = nil
@@ -125,8 +188,8 @@ public final class T3ActivityService: @unchecked Sendable {
 
             lock.lock()
             if self.authGeneration == signAuthGen {
-                if let origin = currentEndpoint?.origin,
-                   let existing = try? keychain.loadCredential(forService: KeychainService.defaultService, account: origin),
+                if let current = currentEndpoint,
+                   let existing = storedCredential(for: current),
                    !existing.isExpired() {
                     self.connectionStatus = .connected
                     self.lastErrorMessage = error == .cancelled
@@ -175,8 +238,8 @@ public final class T3ActivityService: @unchecked Sendable {
         oauthClient.cancel()
 
         lock.lock()
-        if let origin = currentEndpoint?.origin,
-           let existing = try? keychain.loadCredential(forService: KeychainService.defaultService, account: origin),
+        if let current = currentEndpoint,
+           let existing = storedCredential(for: current),
            !existing.isExpired() {
             self.connectionStatus = .connected
             self.lastErrorMessage = nil
@@ -203,9 +266,11 @@ public final class T3ActivityService: @unchecked Sendable {
         activePollTask = nil
         oauthClient.cancel()
 
-        if let origin = currentEndpoint?.origin {
+        if let current = currentEndpoint {
             do {
-                try keychain.deleteCredential(forService: KeychainService.defaultService, account: origin)
+                try keychain.deleteCredential(forService: KeychainService.defaultService, account: Self.credentialAccount(for: current))
+                // Also remove a preview 3 credential that was never migrated.
+                try keychain.deleteCredential(forService: KeychainService.defaultService, account: current.origin)
             } catch {
                 currentSnapshot = nil
                 winningTool = nil
@@ -238,7 +303,7 @@ public final class T3ActivityService: @unchecked Sendable {
 
         lock.lock()
         self.currentEndpoint = endpoint
-        if let credential = try? keychain.loadCredential(forService: KeychainService.defaultService, account: endpoint.origin) {
+        if let credential = storedCredential(for: endpoint) {
             if credential.isExpired() {
                 self.connectionStatus = .signInAgain
                 self.lastErrorMessage = "Your T3 Code sign-in expired. Connect again to keep showing activity."
@@ -272,9 +337,10 @@ public final class T3ActivityService: @unchecked Sendable {
         winningTool = nil
         winnerSelector.reset()
         currentEndpoint = try? T3UrlValidator.validateAndNormalize(address)
+        hasEverReturnedWork = false
 
         if let endpoint = currentEndpoint,
-           let credential = try? keychain.loadCredential(forService: KeychainService.defaultService, account: endpoint.origin),
+           let credential = storedCredential(for: endpoint),
            !credential.accessToken.isEmpty {
             if credential.isExpired() {
                 connectionStatus = .signInAgain
@@ -375,7 +441,7 @@ public final class T3ActivityService: @unchecked Sendable {
         }
 
         // Check credential in Keychain
-        guard let credential = try? keychain.loadCredential(forService: KeychainService.defaultService, account: endpoint.origin),
+        guard let credential = storedCredential(for: endpoint),
               !credential.accessToken.isEmpty else {
             self.connectionStatus = .notConnected
             self.currentSnapshot = nil
@@ -409,7 +475,8 @@ public final class T3ActivityService: @unchecked Sendable {
 
         let task = Task {
             do {
-                let (providers, threads) = try await mcpClient.poll(endpoint: endpoint, token: token)
+                let observedAt = Date()
+                let (providers, threads, projects) = try await mcpClient.pollEnvironment(endpoint: endpoint, token: token)
 
                 var shouldNotify = false
                 var newSnapshot: T3ActivitySnapshot?
@@ -433,6 +500,14 @@ public final class T3ActivityService: @unchecked Sendable {
                 )
 
                 self.currentSnapshot = snapshot
+                self.latestPoll = T3EnvironmentSnapshot(
+                    environmentId: "",
+                    observedAt: observedAt,
+                    providers: providers,
+                    threads: threads,
+                    projects: projects
+                )
+                if threads.contains(where: { $0.isUnfinished }) { self.hasEverReturnedWork = true }
                 self.winningTool = winner
                 let recovered = self.connectionStatus != .connected
                 self.connectionStatus = .connected

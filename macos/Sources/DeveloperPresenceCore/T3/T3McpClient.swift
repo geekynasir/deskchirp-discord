@@ -33,12 +33,17 @@ public enum McpClientError: LocalizedError, Equatable {
 /// MCP Streamable HTTP client per specification:
 /// - Negotiates protocol version 2025-06-18.
 /// - Calls `initialize`, sends `notifications/initialized`.
-/// - Strictly allowlists only `orchestrator_capabilities` and `t3_thread_list`.
+/// - Strictly allowlists only `orchestrator_capabilities`, `t3_thread_list`, and `t3_project_list`.
 /// - Supports both application/json and text/event-stream (SSE).
 /// - Preserves MCP session header (`mcp-session-id`) and protocol header (`mcp-protocol-version`).
 /// - Enforces response size bounds, timeouts, pagination caps, and deduplication.
 /// - Finishes matching JSON-RPC responses immediately without waiting for stream EOF.
 public final class T3McpClient: @unchecked Sendable {
+    /// The only MCP tools Deskchirp ever calls. All need only `orchestration:read`.
+    public static let allowedTools: Set<String> = ["orchestrator_capabilities", "t3_thread_list", "t3_project_list"]
+    /// Project titles change rarely; refresh them at most this often.
+    public static let projectRefreshSeconds: TimeInterval = 300
+
     private let transport: HTTPTransporting
     private let maxResponseBytes: Int
     private let maxPages: Int
@@ -50,6 +55,8 @@ public final class T3McpClient: @unchecked Sendable {
     private var protocolVersion: String? = "2025-06-18"
     private var currentEndpointOrigin: String?
     private var currentToken: String?
+    private var cachedProjects: [T3ProjectInfo] = []
+    private var projectsFetchedAt: Date?
 
     public init(
         transport: HTTPTransporting = URLSessionHTTPTransport.shared,
@@ -70,7 +77,91 @@ public final class T3McpClient: @unchecked Sendable {
         protocolVersion = "2025-06-18"
         currentEndpointOrigin = nil
         currentToken = nil
+        cachedProjects = []
+        projectsFetchedAt = nil
         lock.unlock()
+    }
+
+    /// Polls capabilities, the thread list, and (best effort, cached) the project list.
+    /// A project-list failure other than an expired sign-in never fails the thread snapshot.
+    public func pollEnvironment(
+        endpoint: T3NormalizedEndpoint,
+        token: String,
+        now: Date = Date()
+    ) async throws -> (providers: [T3ProviderInfo], threads: [T3ThreadItem], projects: [T3ProjectInfo]) {
+        let (providers, threads) = try await poll(endpoint: endpoint, token: token)
+        lock.lock()
+        let fetchedAt = projectsFetchedAt
+        let cached = cachedProjects
+        lock.unlock()
+        if let fetchedAt = fetchedAt, now.timeIntervalSince(fetchedAt) < Self.projectRefreshSeconds, now >= fetchedAt {
+            return (providers, threads, cached)
+        }
+        do {
+            let projects = try await fetchProjectList(endpoint: endpoint, token: token)
+            lock.lock()
+            cachedProjects = projects
+            projectsFetchedAt = now
+            lock.unlock()
+            return (providers, threads, projects)
+        } catch McpClientError.unauthorized {
+            throw McpClientError.unauthorized
+        } catch {
+            // Older T3 builds may not offer the tool; retry on the normal refresh cadence.
+            lock.lock()
+            projectsFetchedAt = now
+            lock.unlock()
+            return (providers, threads, cached)
+        }
+    }
+
+    private func fetchProjectList(endpoint: T3NormalizedEndpoint, token: String) async throws -> [T3ProjectInfo] {
+        var projects: [T3ProjectInfo] = []
+        var seen = Set<String>()
+        var cursor: Any?
+        var requestId = 1000
+        for _ in 0..<maxPages {
+            var arguments: [String: Any] = [:]
+            if let cursor = cursor { arguments["cursor"] = cursor }
+            let result = try await postJsonRpc(
+                endpoint: endpoint,
+                token: token,
+                method: "tools/call",
+                params: ["name": "t3_project_list", "arguments": arguments],
+                id: requestId
+            )
+            requestId += 1
+            let resultDict: [String: Any]
+            if let structured = result["structuredContent"] as? [String: Any] {
+                resultDict = structured
+            } else if result["projects"] != nil {
+                resultDict = result
+            } else if let content = result["content"] as? [[String: Any]],
+                      let firstText = content.first?["text"] as? String,
+                      let textData = firstText.data(using: .utf8),
+                      let parsed = try? JSONSerialization.jsonObject(with: textData) as? [String: Any] {
+                resultDict = parsed
+            } else {
+                throw McpClientError.invalidResponse("Project list result is missing project data.")
+            }
+            guard let rawProjects = resultDict["projects"] as? [[String: Any]] else {
+                throw McpClientError.invalidResponse("projects field missing in project list.")
+            }
+            for raw in rawProjects {
+                let id = (raw["projectId"] as? String) ?? (raw["id"] as? String) ?? ""
+                guard !id.isEmpty, !seen.contains(id) else { continue }
+                seen.insert(id)
+                let title = (raw["title"] as? String) ?? (raw["name"] as? String)
+                projects.append(T3ProjectInfo(projectId: id, title: title))
+                if projects.count > maxTotalRows { throw McpClientError.snapshotCapped }
+            }
+            if let next = resultDict["nextCursor"], !(next is NSNull), !rawProjects.isEmpty {
+                cursor = next
+            } else {
+                return projects
+            }
+        }
+        throw McpClientError.snapshotCapped
     }
 
     public func poll(
@@ -267,7 +358,13 @@ public final class T3McpClient: @unchecked Sendable {
                     threadId: threadId,
                     providerInstanceId: providerInstanceId,
                     relationshipToParent: relationship,
-                    status: status
+                    status: status,
+                    projectId: Self.optionalString(threadObj["projectId"]),
+                    model: Self.modelString(threadObj["model"]),
+                    parentThreadId: Self.optionalString(threadObj["parentThreadId"]),
+                    createdAt: Self.optionalString(threadObj["createdAt"]),
+                    updatedAt: Self.optionalString(threadObj["updatedAt"]),
+                    title: Self.optionalString(threadObj["title"])
                 ))
             }
 
@@ -302,6 +399,18 @@ public final class T3McpClient: @unchecked Sendable {
         return deduplicated
     }
 
+    private static func optionalString(_ value: Any?) -> String? {
+        guard let string = value as? String, !string.isEmpty else { return nil }
+        return string
+    }
+
+    /// `model` may be a plain string or an object holding a `model` string. Anything else is ignored.
+    private static func modelString(_ value: Any?) -> String? {
+        if let string = optionalString(value) { return string }
+        if let object = value as? [String: Any] { return optionalString(object["model"]) }
+        return nil
+    }
+
     private func postJsonRpc(
         endpoint: T3NormalizedEndpoint,
         token: String,
@@ -309,6 +418,11 @@ public final class T3McpClient: @unchecked Sendable {
         params: [String: Any],
         id: Int?
     ) async throws -> [String: Any] {
+        if method == "tools/call" {
+            guard let tool = params["name"] as? String, Self.allowedTools.contains(tool) else {
+                throw McpClientError.invalidResponse("Tool is not allowlisted.")
+            }
+        }
         var req = URLRequest(url: endpoint.mcpUrl)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
