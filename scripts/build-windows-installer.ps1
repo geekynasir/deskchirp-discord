@@ -62,7 +62,7 @@ if (!$NoDelta) {
 }
 
 & $vpk pack --packId Deskchirp --packVersion $Version --packDir $payload --mainExe Deskchirp.exe `
-    --packTitle 'Deskchirp for Discord' --packAuthors geekynasir --channel win --outputDir $feed `
+    --packTitle 'Deskchirp for Discord' --packAuthors geekynasir --channel win --runtime win-x64 --outputDir $feed `
     --icon (Join-Path $root 'assets/brand/deskchirp.ico') `
     --splashImage (Join-Path $root 'assets/brand/setup-splash.png') --splashProgressColor '#80F1CF' `
     --shortcuts StartMenuRoot --exclude '.*\.pdb|settings.*\.png'

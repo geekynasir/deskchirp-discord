@@ -8,7 +8,6 @@ $setup = (Resolve-Path "dist/windows-installer/Deskchirp-$version-windows-x64-se
 $install = Join-Path $env:LOCALAPPDATA 'Deskchirp'
 $app = Join-Path $install 'current'
 $shortcut = Join-Path ([Environment]::GetFolderPath('Programs')) 'Deskchirp for Discord.lnk'
-$uninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Deskchirp'
 $legacyKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{F5C10229-3D01-49BF-9655-BF2D2564B917}_is1'
 $legacyFolder = Join-Path $env:LOCALAPPDATA 'Programs/Deskchirp'
 
@@ -20,7 +19,21 @@ function Stop-Deskchirp {
     Get-Process -Name Deskchirp -ErrorAction SilentlyContinue | Stop-Process -Force
     Start-Sleep -Seconds 2
 }
-function Get-InstalledVersion { (Get-ItemProperty $uninstallKey).DisplayVersion }
+# Velopack registers under the package ID; find it by name so a different key layout still fails clearly.
+function Get-UninstallEntry {
+    Get-ChildItem 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall' -ErrorAction SilentlyContinue |
+        ForEach-Object { Get-ItemProperty $_.PSPath } |
+        Where-Object { $_.DisplayName -eq 'Deskchirp for Discord' -and $_.PSChildName -notlike '{F5C10229*' } | Select-Object -First 1
+}
+function Get-InstalledVersion { (Get-UninstallEntry).DisplayVersion }
+function Wait-InstalledVersion([string]$expected, [string]$step) {
+    for ($attempt = 0; $attempt -lt 30 -and (Get-InstalledVersion) -ne $expected; $attempt++) { Start-Sleep -Seconds 1 }
+    if ((Get-InstalledVersion) -eq $expected) { return }
+    Write-Host "Uninstall entries:"; Get-ChildItem 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall' | ForEach-Object { Get-ItemProperty $_.PSPath } | Format-List PSChildName, DisplayName, DisplayVersion, InstallLocation, QuietUninstallString | Out-Host
+    Get-ChildItem $install -ErrorAction SilentlyContinue | Out-Host
+    if (Test-Path 'dist/installer-smoke.log') { Get-Content 'dist/installer-smoke.log' -Tail 60 | Out-Host }
+    throw "$step expected version $expected, found '$(Get-InstalledVersion)'."
+}
 
 # 1. Someone on preview 3 installed the old wizard. Installing must replace it, not add a second copy.
 $legacySetup = Join-Path $PWD 'dist/legacy-preview-3-setup.exe'
@@ -34,7 +47,7 @@ $fixtureVersion = '0.0.1-update-check'
 Invoke-Setup (Resolve-Path "dist/installer-update-fixture/Deskchirp-$fixtureVersion-windows-x64-setup.exe").Path
 Stop-Deskchirp
 if ((Test-Path $legacyKey) -or (Test-Path (Join-Path $legacyFolder 'Deskchirp.exe'))) { throw 'The preview 3 install was not removed.' }
-if ((Get-InstalledVersion) -ne $fixtureVersion) { throw 'Installed Apps shows the wrong version after setup.' }
+Wait-InstalledVersion $fixtureVersion 'Setup'
 # The fixture rewrote the payload's BUILD-INFO.json; restore the real build's copy.
 Copy-Item 'dist/windows-installer/BUILD-INFO.json' 'dist/windows-x64/BUILD-INFO.json' -Force
 
@@ -50,7 +63,7 @@ try {
     $update = Start-Process -FilePath (Join-Path $install 'Update.exe') -ArgumentList '--silent', 'apply', '--package', "`"$package`"" -Wait -PassThru
     if ($update.ExitCode -ne 0) { throw "Update failed: $($update.ExitCode)" }
     Stop-Deskchirp
-    if ((Get-InstalledVersion) -ne $version) { throw "Update did not reach $version (found $(Get-InstalledVersion))." }
+    Wait-InstalledVersion $version 'Update'
     if (!(Test-Path $sentinel)) { throw 'Update removed user settings.' }
 
     foreach ($file in @('Deskchirp.exe', 'Deskchirp.dll', 'Velopack.dll', 'coreclr.dll', 'Microsoft.ui.xaml.dll', 'vcruntime140.dll', 'msvcp140.dll', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'BUILD-INFO.json', 'Discord-artwork/deskchirp.ico', 'Discord-artwork/deskchirp.png', 'Discord-artwork/t3_code.png', 'Discord-artwork/status_working.png')) {
@@ -95,15 +108,16 @@ public class InstallerCapture {
     # 6. Running setup again over an installed copy repairs it in place.
     Invoke-Setup $setup
     Stop-Deskchirp
-    if ((Get-InstalledVersion) -ne $version -or !(Test-Path (Join-Path $app 'Deskchirp.exe'))) { throw 'Reinstalling over the same version failed.' }
+    Wait-InstalledVersion $version 'Reinstall'
+    if (!(Test-Path (Join-Path $app 'Deskchirp.exe'))) { throw 'Reinstalling over the same version failed.' }
 
     # 7. Uninstall with the command Windows Installed Apps uses.
-    $quiet = (Get-ItemProperty $uninstallKey).QuietUninstallString
+    $quiet = (Get-UninstallEntry).QuietUninstallString
     if ($quiet -notmatch '^"([^"]+)"\s*(.*)$') { throw "Unexpected uninstall command: $quiet" }
     $remove = Start-Process -FilePath $Matches[1] -ArgumentList $Matches[2] -Wait -PassThru
     if ($remove.ExitCode -ne 0) { throw "Uninstall failed: $($remove.ExitCode)" }
     for ($attempt = 0; $attempt -lt 15 -and (Test-Path (Join-Path $app 'Deskchirp.exe')); $attempt++) { Start-Sleep -Seconds 1 }
-    if ((Test-Path (Join-Path $app 'Deskchirp.exe')) -or (Test-Path $shortcut) -or (Test-Path $uninstallKey)) { throw 'Uninstall left the app, shortcut or registration behind.' }
+    if ((Test-Path (Join-Path $app 'Deskchirp.exe')) -or (Test-Path $shortcut) -or (Get-UninstallEntry)) { throw 'Uninstall left the app, shortcut or registration behind.' }
     if (!(Test-Path $sentinel)) { throw 'Uninstall removed user settings.' }
 } finally { Remove-Item $sentinel -ErrorAction SilentlyContinue }
 Write-Host 'Installer verified: preview 3 replaced, update applied, Start launch, reinstall, user-data preservation and uninstall.'
