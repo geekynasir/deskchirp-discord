@@ -734,6 +734,27 @@ public class T3DesktopFollowTests : IDisposable
         Assert.True(rig.Usage.HasPermission(id));
     }
 
+    [Fact]
+    public async Task MovingTheOnlyEnvironmentWithTokenAccessKeepsIt()
+    {
+        // The card shows workload; token access exists only because the user allowed it here.
+        await using var rig = new Rig();
+        await rig.Activity.InitializeAsync();
+        rig.Catalog.Set(Env("env-vps", "VPS", VpsLan, Vps));
+        await rig.Follower.SyncOnceAsync();
+        string id = rig.Settings.Settings.T3Environments.Single().Id;
+        rig.Usage.Allowed.Add(id);
+
+        rig.Mcp.Down.Add(VpsLan);
+        await rig.Activity.PollOnceAsync();
+        await rig.Follower.SyncOnceAsync();
+
+        Assert.Equal(Vps, rig.Settings.Settings.T3Environments.Single().Address);
+        Assert.Equal(new[] { id }, rig.Usage.Removed);
+        Assert.Equal(new[] { (id, "USAGECODE234") }, rig.Usage.Paired);
+        Assert.True(rig.Usage.HasPermission(id));
+    }
+
     [Theory]
     [InlineData(Vps)]    // Before the laptop's turn comes.
     [InlineData(Laptop)] // While the laptop's own code is being minted.

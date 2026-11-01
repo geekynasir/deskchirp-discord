@@ -53,6 +53,8 @@ public sealed class T3DesktopFollower : IAsyncDisposable
     private readonly Dictionary<string, DateTimeOffset> _retryAt = new(StringComparer.Ordinal);
     private readonly Dictionary<string, DateTimeOffset> _usageRetryAt = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _problems = new(StringComparer.Ordinal);
+    /// <summary>Environments whose token access following removed only to move them; it is paired again whatever the card shows.</summary>
+    private readonly HashSet<string> _usageMoved = new(StringComparer.Ordinal);
     private Task? _loop;
     private DateTime? _lastCatalogWrite;
     private bool _wasEnabled;
@@ -213,7 +215,7 @@ public sealed class T3DesktopFollower : IAsyncDisposable
                 var envStatus = statuses.FirstOrDefault(s => s.EnvironmentId == env.Id);
                 var status = envStatus?.Status;
                 if ((NeedsSignIn(status) || envStatus?.Unreachable == true) && !(_retryAt.TryGetValue(env.Id, out var at) && now < at)) return true;
-                if (status == T3ConnectionStatus.Connected && wantsUsage && _usageService?.HasPermission(env.Id) == false &&
+                if (status == T3ConnectionStatus.Connected && (wantsUsage || _usageMoved.Contains(env.Id)) && _usageService?.HasPermission(env.Id) == false &&
                     !settings.T3DesktopUsageDeclined.Contains(env.T3DesktopEnvironmentId) &&
                     !(_usageRetryAt.TryGetValue(env.Id, out var usageAt) && now < usageAt)) return true;
             }
@@ -274,7 +276,7 @@ public sealed class T3DesktopFollower : IAsyncDisposable
                 try { await _usageService.RemoveTokenAccessAsync(id, ct).ConfigureAwait(false); } catch { }
             }
             await _activityService.RemoveEnvironmentAsync(id, ct).ConfigureAwait(false);
-            lock (_lock) { _retryAt.Remove(id); _usageRetryAt.Remove(id); _problems.Remove(id); }
+            lock (_lock) { _retryAt.Remove(id); _usageRetryAt.Remove(id); _problems.Remove(id); _usageMoved.Remove(id); }
         }
     }
 
@@ -340,6 +342,7 @@ public sealed class T3DesktopFollower : IAsyncDisposable
                 // Following pairs it again on the new address unless the user declined it.
                 if (_usageService?.HasPermission(id) == true)
                 {
+                    lock (_lock) _usageMoved.Add(id);
                     try { await _usageService.RemoveTokenAccessAsync(id, ct).ConfigureAwait(false); } catch { }
                 }
                 if (!await _activityService.ChangeEnvironmentAddressAsync(id, route.McpAddress, ct).ConfigureAwait(false))
@@ -356,16 +359,24 @@ public sealed class T3DesktopFollower : IAsyncDisposable
     private async Task PairUsageAsync(Dictionary<string, T3DesktopEnvironment> byId, CancellationToken ct)
     {
         var settings = _settingsService.Settings;
-        if (_usageService == null || !WantsUsage(settings)) return;
+        if (_usageService == null) return;
+        bool wantsUsage = WantsUsage(settings);
+        HashSet<string> moved;
+        lock (_lock) moved = new HashSet<string>(_usageMoved, StringComparer.Ordinal);
+        if (!wantsUsage && moved.Count == 0) return;
         var candidates = settings.T3Environments
-            .Where(e => e.IsFromT3Desktop && byId.ContainsKey(e.T3DesktopEnvironmentId) &&
+            .Where(e => e.IsFromT3Desktop && byId.ContainsKey(e.T3DesktopEnvironmentId) && (wantsUsage || moved.Contains(e.Id)) &&
                         !settings.T3DesktopUsageDeclined.Contains(e.T3DesktopEnvironmentId))
             .Select(e => (e.Id, e.Address, Desktop: byId[e.T3DesktopEnvironmentId]))
             .ToList();
         foreach (var (id, address, desktop) in candidates)
         {
             ct.ThrowIfCancellationRequested();
-            if (UsageDeclined(id) || _usageService.HasPermission(id)) continue;
+            if (UsageDeclined(id) || _usageService.HasPermission(id))
+            {
+                lock (_lock) _usageMoved.Remove(id);
+                continue;
+            }
             if (_activityService.Environments.FirstOrDefault(s => s.EnvironmentId == id)?.Status != T3ConnectionStatus.Connected) continue;
             lock (_lock) { if (_usageRetryAt.TryGetValue(id, out var at) && _clock() < at) continue; }
             var route = desktop.Routes.FirstOrDefault(r => r.McpAddress == address);
@@ -374,7 +385,8 @@ public sealed class T3DesktopFollower : IAsyncDisposable
             bool paired = false;
             var minted = await _pairing.MintCodeAsync(route, UsageScopes, ct).ConfigureAwait(false);
             // The user may have removed token access, or turned following off, while the code was minted.
-            if (UsageDeclined(id) || !IsEnabled(_settingsService.Settings)) continue;
+            if (UsageDeclined(id)) { lock (_lock) _usageMoved.Remove(id); continue; }
+            if (!IsEnabled(_settingsService.Settings)) continue;
             if (minted.Outcome == T3DesktopPairingOutcome.Success && minted.Code != null)
             {
                 var result = await _usageService.PairAsync(id, minted.Code, ct).ConfigureAwait(false);
@@ -382,7 +394,7 @@ public sealed class T3DesktopFollower : IAsyncDisposable
             }
             lock (_lock)
             {
-                if (paired) _usageRetryAt.Remove(id);
+                if (paired) { _usageRetryAt.Remove(id); _usageMoved.Remove(id); }
                 else _usageRetryAt[id] = _clock() + FailureBackoff;
             }
         }
