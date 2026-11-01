@@ -40,8 +40,13 @@ public sealed class T3Environment
     public string Id { get; set; } = Guid.NewGuid().ToString();
     public string Address { get; set; } = string.Empty;
     public string Label { get; set; } = string.Empty;
+    /// <summary>T3's own environment id when this entry follows a T3 Code desktop connection; empty when added by hand.</summary>
+    public string T3DesktopEnvironmentId { get; set; } = string.Empty;
 
-    public T3Environment Clone() => new() { Id = Id, Address = Address, Label = Label };
+    [JsonIgnore]
+    public bool IsFromT3Desktop => !string.IsNullOrEmpty(T3DesktopEnvironmentId);
+
+    public T3Environment Clone() => new() { Id = Id, Address = Address, Label = Label, T3DesktopEnvironmentId = T3DesktopEnvironmentId };
 }
 
 /// <summary>Reads strings case-insensitively (or legacy integers); writes camelCase names.</summary>

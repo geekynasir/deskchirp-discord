@@ -118,6 +118,13 @@
                     <TextBlock Text="Environments" Style="{StaticResource BodyStrongTextBlockStyle}" />
                     <TextBlock Text="Add each computer where your T3 tasks run. Names stay on this PC and are never shared."
                         TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <ToggleSwitch Header="Use T3 Code’s connections" AutomationProperties.Name="Use T3 Code’s connections"
+                        IsOn="{x:Bind ViewModel.FollowT3DesktopConnections, Mode=TwoWay}" />
+                    <TextBlock Text="Adds every environment saved in the T3 Code app on this PC and connects to it read-only, without opening your browser. T3 Code’s own sign-ins never leave this PC except to the environment they belong to."
+                        TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBlock Text="{x:Bind ViewModel.T3FollowNote, Mode=OneWay}" TextWrapping="Wrap"
+                        AutomationProperties.LiveSetting="Polite"
+                        Visibility="{x:Bind BoolToVisibility(ViewModel.HasT3FollowNote), Mode=OneWay}" />
                     <ListView ItemsSource="{x:Bind ViewModel.Environments}" SelectionMode="None"
                         AutomationProperties.Name="Environments"
                         Visibility="{x:Bind BoolToVisibility(ViewModel.HasEnvironments), Mode=OneWay}">
@@ -127,6 +134,9 @@
                                     <TextBox Header="Name" AutomationProperties.Name="Environment name" MaxLength="48"
                                         Text="{x:Bind Label, Mode=TwoWay}" />
                                     <TextBlock Text="{x:Bind Address}" TextWrapping="Wrap" IsTextSelectionEnabled="True"
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock Text="{x:Bind SourceText, Mode=OneWay}" TextWrapping="Wrap"
+                                        Visibility="{x:Bind IsFromT3Desktop, Mode=OneWay}"
                                         Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     <TextBlock Text="{x:Bind StatusText, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}"
                                         AutomationProperties.LiveSetting="Polite" />

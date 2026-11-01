@@ -10,6 +10,7 @@ using DeveloperPresence.Core.Privacy;
 using DeveloperPresence.Core.Services;
 using DeveloperPresence.Core.T3;
 using DeveloperPresence.Core.Computers;
+using DeveloperPresence.Core.T3.Desktop;
 using DeveloperPresence.Core.T3.Usage;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -28,6 +29,7 @@ public sealed partial class MainWindow : Window
     private readonly PresenceCoordinator _coordinator;
     private readonly IComputerLinkService _computers;
     private readonly AppUpdateService _updates;
+    private readonly T3DesktopFollower _t3Follower;
 
     private readonly Win32.WndProcDelegate _wndProcDelegate;
     private readonly IntPtr _oldWndProc;
@@ -72,6 +74,10 @@ public sealed partial class MainWindow : Window
         ViewModel.AttachUpdates(_updates);
         ViewModel.RestartForUpdateRequested += ExplicitQuit;
         _updates.Start();
+
+        // Follows the connections saved in the T3 Code desktop app; starts once settings are loaded.
+        _t3Follower = new T3DesktopFollower(_settingsService, _t3ActivityService, _usageService);
+        ViewModel.AttachT3Follower(_t3Follower);
 
         // Initialize Native Tray Icon
         _trayIcon = new TrayIcon(
@@ -264,6 +270,7 @@ public sealed partial class MainWindow : Window
         _sessionNotifications.Dispose();
         try
         {
+            await _t3Follower.DisposeAsync();
             await _coordinator.DisposeAsync();
             await _discordClient.DisposeAsync();
         }
@@ -273,7 +280,11 @@ public sealed partial class MainWindow : Window
 
     private async Task StartCoordinatorAsync()
     {
-        try { await _coordinator.StartAsync(); }
+        try
+        {
+            await _coordinator.StartAsync();
+            _t3Follower.Start();
+        }
         catch (Exception) { ViewModel.ShowError("Couldn’t start sharing. Quit and reopen Deskchirp."); }
     }
 }

@@ -7,7 +7,8 @@ public interface IT3LocalDiscovery
     Task<string> FindAsync(CancellationToken ct = default);
 }
 
-/// Reads only T3's public runtime address. Never opens its catalog, credentials or conversations.
+/// Reads only T3's public runtime address. Never opens its catalog, credentials or conversations;
+/// following the desktop app's connections is T3DesktopFollower's job and has its own switch.
 public sealed class T3LocalDiscovery : IT3LocalDiscovery
 {
     public const string NotFound = "Open T3 Code on this computer, then try again. If you use a remote environment, enter its address under Advanced.";

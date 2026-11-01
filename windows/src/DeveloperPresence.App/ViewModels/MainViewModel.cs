@@ -611,8 +611,27 @@ public sealed partial class MainViewModel : INotifyPropertyChanged, IDisposable
     {
         if (_t3ActivityService != null)
         {
-            _ = _t3ActivityService.DisconnectAsync();
+            _ = DisconnectT3Async(_t3ActivityService);
         }
+    }
+
+    private async Task DisconnectT3Async(IT3ActivityService activity)
+    {
+        // Disconnect means staying disconnected: stop following T3 Code's connections first, or the
+        // follower would sign straight back in. Its in-flight pass finishes before the sign-ins go.
+        if (_followT3DesktopConnections)
+        {
+            _followT3DesktopConnections = false;
+            OnPropertyChanged(nameof(FollowT3DesktopConnections));
+            OnPropertyChanged(nameof(T3FollowNote));
+            OnPropertyChanged(nameof(HasT3FollowNote));
+            await UpdateSettingAsync(s => s.FollowT3DesktopConnections = false);
+        }
+        if (_t3Follower != null)
+        {
+            try { await _t3Follower.SyncOnceAsync(); } catch { }
+        }
+        await activity.DisconnectAsync();
     }
 
     private void OnCancelT3Clicked()

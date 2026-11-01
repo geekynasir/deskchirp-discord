@@ -12,6 +12,8 @@ Conversations, prompts, code, projects, model names, thread titles, window title
 
 The optional connection uses browser-approved read-only access. It requests capabilities and thread lists, not conversation-reading tools. The thread list can contain metadata such as titles and project names; Deskchirp does not put those fields into its activity. T3 sign-in is saved in Keychain on Mac or Windows Credential Manager on PC. Disconnect removes the local saved sign-in; revoke access in T3 Code as well if you no longer want it authorized.
 
+On Windows, **Use T3 Code’s connections** is on once T3 activity is allowed. Deskchirp decrypts T3 Code’s connection catalog with your Windows account to learn each environment’s name and address. It uses T3 Code’s saved sign-in for an environment only to ask that same environment for a one-time read-only pairing code. That sign-in stays in memory briefly and is never saved, logged, or sent to any other address. Turn the switch off to stop reading the catalog.
+
 ## Linked computers
 
 Follow me is optional and requires your own private linking service. Your computers send their chosen names, availability, coarse recent-input timing, and a group-specific fingerprint of the Discord account. The service does not receive your app names, activity text, agent names, counts, T3 address, or conversations. Input timing comes from the operating system's idle timer; Deskchirp does not record keystrokes, pointer positions, or screens.
@@ -28,7 +30,7 @@ Unlinking turns sharing off on that computer and removes its service credential 
 
 Deskchirp includes its publisher’s public Discord application ID. It discovers Discord’s local connection without asking for a Discord password or token. Sharing still starts only when you enable it.
 
-When you choose **Allow T3 activity** without entering an address, Deskchirp reads only T3’s small public runtime-address file and checks local read-only connection metadata. It does not read the encrypted environment catalog, T3 sign-in tokens, logs or conversations. T3 still asks you to approve read-only access in your browser. Remote environments and ambiguous local installations use an address override under Advanced.
+When you choose **Allow T3 activity** without entering an address, Deskchirp reads only T3’s small public runtime-address file and checks local read-only connection metadata. Discovery itself does not read the encrypted environment catalog, T3 sign-in tokens, logs or conversations; following T3 Code’s connections, described above, is separate and can be turned off. T3 still asks you to approve read-only access for the local address in your browser. Remote environments and ambiguous local installations use an address override under Advanced.
 
 ## Background T3 activity and images
 

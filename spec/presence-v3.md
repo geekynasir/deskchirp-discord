@@ -14,7 +14,7 @@ Preview 3 followed one address and auto-discovered only local T3, so users whose
 - Every environment uses its own OAuth credential stored under its normalized MCP URL (existing keychain/credential-manager key format). Removing an entry deletes its credential.
 - Poll every connected environment independently on the existing 15-second cadence with no overlap per environment. A failing environment contributes nothing and does not invalidate the others. The combined snapshot is fresh only if at least one environment produced a fresh snapshot; stale environments are dropped, not zeroed.
 - Thread identity is `(environmentId, threadId)`. Duplicate rows inside one environment still collapse.
-- The status line in the main window summarises: `Connected to 2 of 3 environments`. When an environment is connected but has never returned work, recovery text says: `Connected. No running tasks were found here — add the environment where your tasks run.`
+- The status line in the main window summarises: `Connected to 2 of 3 environments`. When an environment is connected but has never returned work, recovery text says: `Connected. No tasks are running here right now.`
 
 ## 2. Thread metadata
 
