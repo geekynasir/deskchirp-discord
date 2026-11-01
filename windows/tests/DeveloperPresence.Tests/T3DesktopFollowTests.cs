@@ -311,6 +311,42 @@ public class T3DesktopFollowTests : IDisposable
         Assert.DoesNotContain(handler.Requests, r => r.Request.RequestUri!.AbsolutePath == "/oauth/mcp/token");
     }
 
+    /// <summary>A response body that never finishes arriving.</summary>
+    private sealed class StalledStream : Stream
+    {
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken ct = default)
+        {
+            await Task.Delay(Timeout.Infinite, ct);
+            return 0;
+        }
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken ct) => ReadAsync(buffer.AsMemory(offset, count), ct).AsTask();
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
+    [Fact]
+    public async Task PairingCodeSignInGivesUpOnAStalledServer()
+    {
+        var handler = T3Server();
+        var respond = handler.Respond;
+        handler.Respond = (request, body) => request.RequestUri!.AbsolutePath == "/oauth/mcp/decision"
+            ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new StalledStream()) }
+            : respond(request, body);
+        var client = new T3OAuthClient(new HttpClient(handler), new NoBrowser()) { HeadlessSignInTimeout = TimeSpan.FromMilliseconds(200) };
+
+        var signIn = client.SignInWithPairingCodeAsync(new Uri(Vps), "ABCDEFGH2345");
+        Assert.Same(signIn, await Task.WhenAny(signIn, Task.Delay(TimeSpan.FromSeconds(10))));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => signIn);
+    }
+
     [Fact]
     public async Task PairingCodeSignInRejectsBroaderTokens()
     {

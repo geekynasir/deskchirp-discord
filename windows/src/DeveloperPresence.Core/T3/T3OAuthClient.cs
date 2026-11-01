@@ -187,6 +187,25 @@ public sealed class T3OAuthClient : IT3OAuthClient
             throw new ArgumentException("A pairing code is required.", nameof(pairingCode));
         }
 
+        // Nobody is waiting at a browser, so a stalled server (headers sent, body never finished)
+        // must not hold the caller forever. The deadline covers every request and body read.
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        deadline.CancelAfter(HeadlessSignInTimeout);
+        try
+        {
+            return await SignInWithPairingCodeCoreAsync(normalizedMcpUri, pairingCode, deadline.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            throw new InvalidOperationException("Sign-in didn’t finish. Try connecting again.");
+        }
+    }
+
+    /// <summary>The longest a sign-in with a pairing code may take, from discovery to token.</summary>
+    public TimeSpan HeadlessSignInTimeout { get; init; } = TimeSpan.FromSeconds(30);
+
+    private async Task<T3StoredToken> SignInWithPairingCodeCoreAsync(Uri normalizedMcpUri, string pairingCode, CancellationToken ct)
+    {
         Uri origin = T3UrlValidator.GetOriginUri(normalizedMcpUri);
         string originStr = origin.GetLeftPart(UriPartial.Authority);
 
