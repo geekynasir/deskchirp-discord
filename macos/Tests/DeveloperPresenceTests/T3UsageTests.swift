@@ -280,6 +280,10 @@ final class T3UsageTests: XCTestCase {
         let cached = try summary(summaryJSON.replacingOccurrences(of: #""status":"fresh""#, with: #""status":"cached""#))
         XCTAssertFalse(cached.costPartial)
 
+        let missingCost = try summary(summaryJSON.replacingOccurrences(of: #""costUsd":0.5,"#, with: ""))
+        XCTAssertFalse(missingCost.tokensPartial, "A bucket without a cost still counts tokens")
+        XCTAssertTrue(missingCost.costPartial, "A bucket without a cost makes the estimate partial")
+
         XCTAssertThrowsError(try summary(summaryJSON.replacingOccurrences(of: #""contractVersion":6"#, with: #""contractVersion":7"#)))
     }
 

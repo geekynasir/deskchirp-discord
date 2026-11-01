@@ -844,7 +844,8 @@ public final class PresenceCoordinator: ObservableObject {
         t3SetupTask?.cancel()
         isFindingT3 = false
         t3SetupMessage = nil
-        t3Service.disconnect()
+        for service in t3Services.values { service.disconnect() }
+        if !t3Services.values.contains(where: { $0 === primaryT3Service }) { primaryT3Service.disconnect() }
         evaluatePresence(immediate: true)
     }
 

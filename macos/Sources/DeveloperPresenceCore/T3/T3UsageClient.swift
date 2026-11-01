@@ -135,8 +135,11 @@ public enum T3UsageDecoding {
                 uncachedInputTokens: uncached, cachedInputTokens: cached, cacheCreationTokens: creation,
                 outputTokens: output, reasoningTokens: reasoning)
             decodedAny = true
-            if let bucketCost = double(bucket["costUsd"]) ?? double(bucketTotals["costUsd"]) {
+            if let bucketCost = double(bucket["costUsd"]) ?? double(bucketTotals["costUsd"]),
+               bucketCost.isFinite, bucketCost >= 0 {
                 cost = (cost ?? 0) + bucketCost
+            } else {
+                costPartial = true
             }
             if let unpriced = int(bucket["unpricedRecords"]) ?? int(bucketTotals["unpricedRecords"]), unpriced > 0 {
                 costPartial = true
