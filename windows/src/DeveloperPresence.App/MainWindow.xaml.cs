@@ -76,7 +76,7 @@ public sealed partial class MainWindow : Window
         _updates.Start();
 
         // Follows the connections saved in the T3 Code desktop app; starts once settings are loaded.
-        _t3Follower = new T3DesktopFollower(_settingsService, _t3ActivityService, _usageService);
+        _t3Follower = new T3DesktopFollower(_settingsService, _t3ActivityService, _usageService, ssh: new T3SshEnvironments());
         ViewModel.AttachT3Follower(_t3Follower);
 
         // Initialize Native Tray Icon

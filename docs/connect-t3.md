@@ -18,13 +18,23 @@ On Windows, once T3 activity is allowed, Deskchirp also uses the connections sav
 
 To do this, Deskchirp opens T3 Code’s encrypted connection catalog with your Windows account, the same way T3 Code does. For each environment it uses T3 Code’s saved sign-in once, only with that environment’s own address, to create a one-time read-only pairing code, then signs in with that code. The pairing appears in T3’s **Settings → Sharing & access** as **Deskchirp**. T3 Code’s own sign-in is never saved, logged or sent anywhere else.
 
-Some connections can’t be followed yet: ones that only go through T3 Connect, SSH connections, and plain `http://` addresses on another computer. Deskchirp names them under the switch; add them by hand as below if you can reach them another way.
+### Over SSH
+
+Environments T3 Code reaches only through T3 Connect, or over SSH, are reached with your own SSH instead, so they need no setup either as long as `ssh <machine>` signs in without a password prompt (a key or ssh-agent, and a host key you already trust):
+
+- For an SSH connection, Deskchirp uses the machine T3 Code saved.
+- For anything else, it asks the machines in your `~/.ssh/config` and, if Tailscale is installed, your own online Linux and Mac machines in your tailnet, which T3 environment each one runs. It reads only `~/.t3/userdata/environment-id` and the running server’s port from `~/.t3/userdata/server-runtime.json` there. Machines that don’t answer are asked again after 10 minutes, then less often.
+- On the machine that runs the environment, it has T3 Code’s own `t3` command create a five-minute read-only pairing code, then forwards a local port (between 41000 and 48999, the same one each time) to T3 through SSH and signs in through it. The pairing shows up as **Deskchirp** like the others.
+- Deskchirp keeps the tunnel open while the environment is followed, reopens it when it drops or T3 Code restarts on another port, and closes it when you remove the environment or turn following off. It never starts or stops T3 Code on the machine.
+
+Deskchirp uses Windows’ built-in OpenSSH (`ssh.exe`) with your own config and keys, and never asks for a password, so a machine that would prompt is skipped and named under the switch. Plain `http://` addresses on another computer still can’t be followed; add them by hand as below if you can reach them another way.
 
 - Removing an environment marked **From T3 Code** keeps it out of the list until you turn following off and on again.
 - Removing token access for one keeps token usage off for it.
 - Turn off **Use T3 Code’s connections** to stop reading the catalog. Environments it already added stay until you remove them.
 - **Disconnect** also turns following off, so nothing signs back in. Turn the switch on again to reconnect them.
 - If an environment’s address stops answering, for example when you leave the network it was on, Deskchirp switches to another address T3 Code has for it.
+- If an SSH machine can’t be reached, isn’t running T3 Code, or now runs a different environment, Deskchirp says so on the environment and tries again by itself.
 
 ### Adding an environment by hand
 

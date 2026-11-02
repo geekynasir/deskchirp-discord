@@ -14,13 +14,23 @@ public sealed class T3DesktopRoute
         DesktopToken = desktopToken;
     }
 
+    /// <summary>A route through an SSH tunnel Deskchirp opens itself, listening on <paramref name="mcpAddress"/> here.</summary>
+    public T3DesktopRoute(string mcpAddress, T3SshTarget ssh)
+    {
+        McpAddress = mcpAddress;
+        DesktopToken = string.Empty;
+        Ssh = ssh;
+    }
+
     /// <summary>Normalized MCP address, for example https://host/mcp.</summary>
     public string McpAddress { get; }
-    /// <summary>T3 Code's bearer token for this route. Only ever sent back to this route's own origin.</summary>
+    /// <summary>T3 Code's bearer token for this route. Only ever sent back to this route's own origin. Empty over SSH.</summary>
     public string DesktopToken { get; }
+    /// <summary>The machine an SSH route tunnels to. Codes are minted on it with its own t3 command.</summary>
+    public T3SshTarget? Ssh { get; }
     public Uri Origin => T3UrlValidator.GetOriginUri(new Uri(McpAddress));
 
-    public override string ToString() => McpAddress; // Never the token.
+    public override string ToString() => Ssh == null ? McpAddress : $"{McpAddress} over SSH to {Ssh}"; // Never the token.
 }
 
 /// <summary>An environment saved in the T3 Code desktop app.</summary>
@@ -32,6 +42,8 @@ public sealed class T3DesktopEnvironment
     public required IReadOnlyList<T3DesktopRoute> Routes { get; init; }
     /// <summary>Why no route is usable, when <see cref="Routes"/> is empty.</summary>
     public string? UnsupportedReason { get; init; }
+    /// <summary>Machines T3 Code reaches this environment on over SSH, in its order.</summary>
+    public IReadOnlyList<T3SshTarget> SshTargets { get; init; } = Array.Empty<T3SshTarget>();
 
     public override string ToString() => $"{Label} ({EnvironmentId}, {Routes.Count} routes)";
 }
@@ -62,7 +74,7 @@ public sealed record T3DesktopCatalogResult(T3DesktopCatalogStatus Status, IRead
 public sealed class T3DesktopCatalogReader
 {
     public const string MsgRelayOnly = "connects through T3 Connect, which Deskchirp can’t use yet";
-    public const string MsgSshOnly = "connects over SSH, which Deskchirp can’t use yet";
+    public const string MsgSshOnly = "connects over SSH, and T3 Code didn’t save which machine";
     public const string MsgInsecureOnly = "uses a plain http address on your network, which Deskchirp doesn’t send sign-ins to";
     public const string MsgNoSignIn = "has no saved sign-in in T3 Code";
 
@@ -215,6 +227,7 @@ public sealed class T3DesktopCatalogReader
         var labels = new Dictionary<string, string>(StringComparer.Ordinal);
         var routes = new Dictionary<string, List<T3DesktopRoute>>(StringComparer.Ordinal);
         var reasons = new Dictionary<string, string>(StringComparer.Ordinal);
+        var sshTargets = new Dictionary<string, List<T3SshTarget>>(StringComparer.Ordinal);
 
         foreach (var target in Array(root, "targets"))
         {
@@ -234,6 +247,11 @@ public sealed class T3DesktopCatalogReader
                     break;
                 case "SshConnectionTarget":
                     reason = MsgSshOnly;
+                    if (SshTarget(target, profiles) is { } ssh)
+                    {
+                        var list = sshTargets.TryGetValue(envId, out var existingList) ? existingList : sshTargets[envId] = new List<T3SshTarget>();
+                        if (!list.Contains(ssh)) list.Add(ssh);
+                    }
                     break;
                 case "BearerConnectionTarget":
                     reason = BearerRoute(target, profiles, credentials, out var route);
@@ -249,8 +267,24 @@ public sealed class T3DesktopCatalogReader
             EnvironmentId = envId,
             Label = labels.TryGetValue(envId, out var label) ? label : "T3 Code",
             Routes = routes[envId],
-            UnsupportedReason = routes[envId].Count == 0 ? reasons.GetValueOrDefault(envId, MsgNoSignIn) : null
+            UnsupportedReason = routes[envId].Count == 0 ? reasons.GetValueOrDefault(envId, MsgNoSignIn) : null,
+            SshTargets = sshTargets.TryGetValue(envId, out var ssh) ? ssh : System.Array.Empty<T3SshTarget>()
         }).ToList();
+    }
+
+    /// <summary>The machine an SSH target's profile names, as T3 Code gives it to ssh: [user@]alias, or the hostname.</summary>
+    private static T3SshTarget? SshTarget(JsonElement target, Dictionary<string, JsonElement> profiles)
+    {
+        if (Str(target, "connectionId") is not { } connectionId ||
+            !profiles.TryGetValue(connectionId, out var profile) ||
+            Str(profile, "_tag") != "SshConnectionProfile" ||
+            !profile.TryGetProperty("target", out var ssh) || ssh.ValueKind != JsonValueKind.Object)
+            return null;
+        string host = (Str(ssh, "alias")?.Trim() is { Length: > 0 } alias ? alias : Str(ssh, "hostname")?.Trim()) ?? string.Empty;
+        string? user = Str(ssh, "username")?.Trim() is { Length: > 0 } name ? name : null;
+        int? port = ssh.TryGetProperty("port", out var p) && p.ValueKind == JsonValueKind.Number && p.TryGetInt32(out int n) ? n : null;
+        var result = new T3SshTarget(host, user, port);
+        return result.IsValid ? result : null;
     }
 
     private static string? BearerRoute(

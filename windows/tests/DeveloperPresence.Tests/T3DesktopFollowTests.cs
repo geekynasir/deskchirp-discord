@@ -462,12 +462,15 @@ public class T3DesktopFollowTests : IDisposable
         public T3ActivityService Activity { get; }
         public T3DesktopFollower Follower { get; }
 
-        public Rig(Action<PresenceSettings>? setup = null)
+        public FakeSsh? Ssh { get; }
+
+        public Rig(Action<PresenceSettings>? setup = null, bool ssh = false)
         {
             Settings.Settings.ShowT3Activity = true;
             setup?.Invoke(Settings.Settings);
             Activity = new T3ActivityService(Settings, Store, OAuth, Mcp);
-            Follower = new T3DesktopFollower(Settings, Activity, Usage, Catalog, Pairing, () => Now);
+            if (ssh) Ssh = new FakeSsh();
+            Follower = new T3DesktopFollower(Settings, Activity, Usage, Catalog, Pairing, () => Now, ssh: Ssh);
         }
 
         public T3EnvironmentStatus StatusOf(string address) => Activity.Environments.Single(e => e.Address == address);
@@ -828,6 +831,238 @@ public class T3DesktopFollowTests : IDisposable
 
         Assert.Empty(rig.OAuth.Calls);
         Assert.NotEqual(T3ConnectionStatus.Connected, rig.StatusOf(Vps).Status);
+    }
+
+    // ---- Over SSH ----
+
+    private sealed class FakeSsh : IT3SshEnvironments
+    {
+        private readonly Dictionary<string, int> _ports = new();
+        /// <summary>Which machine discovery finds each environment on.</summary>
+        public Dictionary<string, T3SshTarget> Machines { get; } = new();
+        public Dictionary<string, T3DesktopPairingOutcome> Outcomes { get; } = new();
+        public List<string[]> Discoveries { get; } = new();
+        public List<(string EnvironmentId, string Destination, string Scopes)> Mints { get; } = new();
+        public IReadOnlyDictionary<string, T3SshTarget> Retained { get; private set; } = new Dictionary<string, T3SshTarget>();
+        public bool Disposed { get; private set; }
+
+        public string AddressFor(string environmentId)
+        {
+            if (!_ports.TryGetValue(environmentId, out int port)) _ports[environmentId] = port = 41000 + _ports.Count;
+            return $"http://127.0.0.1:{port}/mcp";
+        }
+
+        public Task<IReadOnlyDictionary<string, T3SshTarget>> DiscoverAsync(IReadOnlyCollection<string> environmentIds, CancellationToken ct = default)
+        {
+            Discoveries.Add(environmentIds.ToArray());
+            return Task.FromResult<IReadOnlyDictionary<string, T3SshTarget>>(
+                Machines.Where(m => environmentIds.Contains(m.Key)).ToDictionary(m => m.Key, m => m.Value));
+        }
+
+        public void Retain(IReadOnlyDictionary<string, T3SshTarget> tunnels) => Retained = tunnels.ToDictionary(t => t.Key, t => t.Value);
+
+        public Task<T3DesktopPairingResult> MintCodeAsync(string environmentId, T3SshTarget target, IReadOnlyList<string> scopes, CancellationToken ct = default)
+        {
+            Mints.Add((environmentId, target.Destination, string.Join(" ", scopes)));
+            var outcome = Outcomes.GetValueOrDefault(environmentId, T3DesktopPairingOutcome.Success);
+            return Task.FromResult(outcome == T3DesktopPairingOutcome.Success
+                ? new T3DesktopPairingResult(outcome, scopes.Count > 1 ? "USAGECODE234" : "READCODE2345")
+                : new T3DesktopPairingResult(outcome));
+        }
+
+        public ValueTask DisposeAsync() { Disposed = true; return ValueTask.CompletedTask; }
+    }
+
+    private static T3DesktopEnvironment RelayEnv(string id, string label, params T3SshTarget[] saved) => new()
+    {
+        EnvironmentId = id,
+        Label = label,
+        Routes = Array.Empty<T3DesktopRoute>(),
+        UnsupportedReason = saved.Length > 0 ? T3DesktopCatalogReader.MsgSshOnly : T3DesktopCatalogReader.MsgRelayOnly,
+        SshTargets = saved
+    };
+
+    [Fact]
+    public void ReadsTheMachineT3CodeSavedForAnSshConnection()
+    {
+        var target = new JsonObject { ["_tag"] = "SshConnectionTarget", ["environmentId"] = "env-ssh", ["label"] = "SSH box", ["connectionId"] = "ssh-1" };
+        JsonObject Profile(string id, JsonObject machine) => new()
+        {
+            ["_tag"] = "SshConnectionProfile", ["connectionId"] = id, ["environmentId"] = "env-ssh", ["target"] = machine
+        };
+        var catalog = Catalog(
+            ("env-ssh", "SSH box", target, Profile("ssh-1", new JsonObject { ["alias"] = "mumbai-vps", ["hostname"] = "10.0.0.5", ["username"] = "ubuntu", ["port"] = null }), null, null),
+            ("env-ssh", "SSH box", new JsonObject { ["_tag"] = "SshConnectionTarget", ["environmentId"] = "env-ssh", ["connectionId"] = "ssh-2" },
+                Profile("ssh-2", new JsonObject { ["alias"] = "", ["hostname"] = "10.0.0.6", ["port"] = 2222 }), null, null),
+            ("env-ssh", "SSH box", new JsonObject { ["_tag"] = "SshConnectionTarget", ["environmentId"] = "env-ssh", ["connectionId"] = "ssh-3" },
+                Profile("ssh-3", new JsonObject { ["hostname"] = "-oProxyCommand=evil" }), null, null));
+
+        var env = WriteCatalog(catalog).Read().Environments.Single();
+
+        Assert.Empty(env.Routes);
+        Assert.Equal(T3DesktopCatalogReader.MsgSshOnly, env.UnsupportedReason);
+        Assert.Equal(new[] { new T3SshTarget("mumbai-vps", "ubuntu"), new T3SshTarget("10.0.0.6", null, 2222) }, env.SshTargets);
+    }
+
+    [Fact]
+    public async Task FindsAnEnvironmentT3CodeReachesThroughConnectOverSshAndConnectsIt()
+    {
+        await using var rig = new Rig(ssh: true);
+        await rig.Activity.InitializeAsync();
+        rig.Ssh!.Machines["env-relay"] = new T3SshTarget("mumbai-vps");
+        rig.Catalog.Set(Env("env-laptop", "Laptop", Laptop), RelayEnv("env-relay", "Mumbai VPS"));
+
+        await rig.Follower.SyncOnceAsync();
+
+        const string tunnel = "http://127.0.0.1:41000/mcp";
+        Assert.Equal(new[] { Laptop, tunnel }, rig.Settings.Settings.T3Environments.Select(e => e.Address));
+        Assert.Equal(new[] { "env-relay" }, Assert.Single(rig.Ssh.Discoveries));
+        Assert.Equal(new[] { ("env-relay", "mumbai-vps", "orchestration:read") }, rig.Ssh.Mints);
+        Assert.Equal(T3ConnectionStatus.Connected, rig.StatusOf(tunnel).Status);
+        Assert.Contains((tunnel, "READCODE2345"), rig.OAuth.Calls);
+        // Desktop tokens still go only to their own environments; none goes over SSH.
+        Assert.Equal(new[] { Laptop }, rig.Pairing.Calls.Select(c => c.Address));
+        Assert.Equal(new Dictionary<string, T3SshTarget> { ["env-relay"] = new("mumbai-vps") }, rig.Ssh.Retained);
+        Assert.Equal(string.Empty, rig.Follower.Note);
+    }
+
+    [Fact]
+    public async Task UsesTheMachineT3CodeSavedWithoutSearching()
+    {
+        await using var rig = new Rig(ssh: true);
+        await rig.Activity.InitializeAsync();
+        rig.Catalog.Set(RelayEnv("env-ssh", "SSH box", new T3SshTarget("box", "me", 2222)));
+
+        await rig.Follower.SyncOnceAsync();
+
+        Assert.Empty(rig.Ssh!.Discoveries);
+        Assert.Equal(new[] { ("env-ssh", "me@box", "orchestration:read") }, rig.Ssh.Mints);
+        Assert.Equal(new T3SshTarget("box", "me", 2222), rig.Ssh.Retained["env-ssh"]);
+    }
+
+    [Fact]
+    public async Task EnvironmentsNotFoundAreNotedAndLookedForAgainLater()
+    {
+        await using var rig = new Rig(ssh: true);
+        await rig.Activity.InitializeAsync();
+        rig.Catalog.Set(RelayEnv("env-relay", "Mumbai VPS"));
+
+        await rig.Follower.SyncOnceAsync();
+        Assert.Empty(rig.Settings.Settings.T3Environments);
+        Assert.Equal($"T3 Code also has “Mumbai VPS”, which {T3DesktopFollower.MsgNotFoundOverSsh}.", rig.Follower.Note);
+
+        // Not again on every pass.
+        await rig.Follower.SyncOnceAsync();
+        Assert.Single(rig.Ssh!.Discoveries);
+
+        rig.Ssh.Machines["env-relay"] = new T3SshTarget("mumbai-vps");
+        rig.Now += T3DesktopFollower.SshDiscoveryInterval;
+        await rig.Follower.SyncOnceAsync();
+        Assert.Equal(2, rig.Ssh.Discoveries.Count);
+        Assert.Equal("http://127.0.0.1:41000/mcp", rig.Settings.Settings.T3Environments.Single().Address);
+        Assert.Equal(string.Empty, rig.Follower.Note);
+    }
+
+    [Fact]
+    public async Task ClosesTunnelsWhenT3CodeDropsTheEnvironmentOrFollowingIsOff()
+    {
+        await using var rig = new Rig(ssh: true);
+        await rig.Activity.InitializeAsync();
+        rig.Ssh!.Machines["env-a"] = new T3SshTarget("a");
+        rig.Ssh.Machines["env-b"] = new T3SshTarget("b");
+        rig.Catalog.Set(RelayEnv("env-a", "A"), RelayEnv("env-b", "B"));
+        await rig.Follower.SyncOnceAsync();
+        Assert.Equal(new[] { "env-a", "env-b" }, rig.Ssh.Retained.Keys.Order());
+
+        rig.Catalog.Set(RelayEnv("env-a", "A"));
+        await rig.Follower.SyncOnceAsync();
+        Assert.Equal(new[] { "env-a" }, rig.Ssh.Retained.Keys);
+        Assert.Single(rig.Settings.Settings.T3Environments);
+
+        await rig.Settings.UpdateSettingsAsync(s => s.FollowT3DesktopConnections = false);
+        await rig.Follower.SyncOnceAsync();
+        Assert.Empty(rig.Ssh.Retained);
+
+        await rig.Follower.DisposeAsync();
+        Assert.True(rig.Ssh.Disposed);
+    }
+
+    [Fact]
+    public async Task EnvironmentsRemovedHereLoseTheirTunnel()
+    {
+        await using var rig = new Rig(ssh: true);
+        await rig.Activity.InitializeAsync();
+        rig.Ssh!.Machines["env-a"] = new T3SshTarget("a");
+        rig.Catalog.Set(RelayEnv("env-a", "A"));
+        await rig.Follower.SyncOnceAsync();
+        string id = rig.Settings.Settings.T3Environments.Single().Id;
+
+        await rig.Settings.UpdateSettingsAsync(s => { T3DesktopFollower.MarkRemovedByUser(s, id); s.T3Environments.RemoveAll(e => e.Id == id); });
+        await rig.Activity.RemoveEnvironmentAsync(id);
+        await rig.Follower.SyncOnceAsync();
+
+        Assert.Empty(rig.Ssh.Retained);
+        Assert.Empty(rig.Settings.Settings.T3Environments);
+    }
+
+    [Theory]
+    [InlineData(T3DesktopPairingOutcome.SshUnreachable, T3DesktopFollower.MsgSshUnreachable)]
+    [InlineData(T3DesktopPairingOutcome.NotRunning, T3DesktopFollower.MsgSshNotRunning)]
+    [InlineData(T3DesktopPairingOutcome.NoT3Command, T3DesktopFollower.MsgSshNoT3)]
+    [InlineData(T3DesktopPairingOutcome.LocalPortBusy, T3DesktopFollower.MsgSshPortBusy)]
+    public async Task SaysWhySshDidntConnect(T3DesktopPairingOutcome outcome, string format)
+    {
+        await using var rig = new Rig(ssh: true);
+        await rig.Activity.InitializeAsync();
+        rig.Ssh!.Machines["env-a"] = new T3SshTarget("mumbai-vps", "ubuntu");
+        rig.Ssh.Outcomes["env-a"] = outcome;
+        rig.Catalog.Set(RelayEnv("env-a", "A"));
+
+        await rig.Follower.SyncOnceAsync();
+
+        string id = rig.Settings.Settings.T3Environments.Single().Id;
+        Assert.Equal(string.Format(format, "ubuntu@mumbai-vps", 41000), rig.Follower.ProblemFor(id));
+        Assert.Empty(rig.OAuth.Calls);
+        // The tunnel keeps trying on its own.
+        Assert.True(rig.Ssh.Retained.ContainsKey("env-a"));
+    }
+
+    [Fact]
+    public async Task LooksAgainWhenTheMachineNowRunsAnotherEnvironment()
+    {
+        await using var rig = new Rig(ssh: true);
+        await rig.Activity.InitializeAsync();
+        rig.Ssh!.Machines["env-a"] = new T3SshTarget("old-box");
+        rig.Ssh.Outcomes["env-a"] = T3DesktopPairingOutcome.WrongEnvironment;
+        rig.Catalog.Set(RelayEnv("env-a", "A"));
+        await rig.Follower.SyncOnceAsync();
+        string id = rig.Settings.Settings.T3Environments.Single().Id;
+        Assert.Equal(string.Format(T3DesktopFollower.MsgSshWrongEnvironment, "old-box"), rig.Follower.ProblemFor(id));
+
+        rig.Ssh.Machines["env-a"] = new T3SshTarget("new-box");
+        rig.Ssh.Outcomes.Remove("env-a");
+        rig.Now += T3DesktopFollower.FailureBackoff;
+        await rig.Follower.SyncOnceAsync();
+
+        Assert.Equal(2, rig.Ssh.Discoveries.Count);
+        Assert.Equal(("env-a", "new-box"), (rig.Ssh.Mints[^1].EnvironmentId, rig.Ssh.Mints[^1].Destination));
+        Assert.Equal(T3ConnectionStatus.Connected, rig.StatusOf("http://127.0.0.1:41000/mcp").Status);
+        Assert.Null(rig.Follower.ProblemFor(id));
+    }
+
+    [Fact]
+    public async Task AllowsTokenUsageOverSshToo()
+    {
+        await using var rig = new Rig(s => s.CardStyle = CardStyle.Usage, ssh: true);
+        await rig.Activity.InitializeAsync();
+        rig.Ssh!.Machines["env-a"] = new T3SshTarget("a");
+        rig.Catalog.Set(RelayEnv("env-a", "A"));
+
+        await rig.Follower.SyncOnceAsync();
+
+        string id = rig.Settings.Settings.T3Environments.Single().Id;
+        Assert.Equal(new[] { "orchestration:read", "orchestration:read diagnostics:read" }, rig.Ssh.Mints.Select(m => m.Scopes));
+        Assert.Equal(new[] { (id, "USAGECODE234") }, rig.Usage.Paired);
     }
 
     [Fact]

@@ -33,9 +33,16 @@ public sealed class T3DesktopFollower : IAsyncDisposable
     public const string MsgTokenRejected = "T3 Code’s sign-in for this environment has expired. Open the environment in T3 Code, and Deskchirp connects again after it.";
     public const string MsgMissingPermission = "T3 Code’s sign-in for this environment can’t create pairing codes. Use Allow instead.";
     public const string MsgSignInFailed = "Couldn’t connect through T3 Code. Deskchirp tries again in a few minutes, or use Allow.";
+    public const string MsgNotFoundOverSsh = "Deskchirp couldn’t find on any machine it can reach over SSH. Add the machine to your SSH config so ssh signs in to it without a password";
+    public const string MsgSshUnreachable = "Couldn’t reach {0} over SSH. Check that “ssh {0}” signs in without a password prompt; Deskchirp tries again in a few minutes.";
+    public const string MsgSshNotRunning = "T3 Code isn’t running on {0}. Deskchirp connects once it is.";
+    public const string MsgSshWrongEnvironment = "{0} now runs a different T3 environment. Deskchirp looks for this one again.";
+    public const string MsgSshNoT3 = "Couldn’t find the t3 command on {0}.";
+    public const string MsgSshPortBusy = "Another app on this computer is using port {1}, which Deskchirp tunnels {0} through. Deskchirp tries again in a few minutes.";
 
     public static readonly TimeSpan DefaultInterval = TimeSpan.FromSeconds(60);
     public static readonly TimeSpan FailureBackoff = TimeSpan.FromMinutes(5);
+    public static readonly TimeSpan SshDiscoveryInterval = TimeSpan.FromMinutes(10);
     private static readonly string[] ReadScopes = { T3DesktopPairingClient.ReadScope };
     private static readonly string[] UsageScopes = { T3DesktopPairingClient.ReadScope, T3DesktopPairingClient.DiagnosticsScope };
 
@@ -44,6 +51,7 @@ public sealed class T3DesktopFollower : IAsyncDisposable
     private readonly IT3UsageService? _usageService;
     private readonly IT3DesktopCatalogSource _catalog;
     private readonly IT3DesktopPairingClient _pairing;
+    private readonly IT3SshEnvironments? _ssh;
     private readonly Func<DateTimeOffset> _clock;
     private readonly TimeSpan _interval;
     private readonly SemaphoreSlim _syncLock = new(1, 1);
@@ -55,6 +63,12 @@ public sealed class T3DesktopFollower : IAsyncDisposable
     private readonly Dictionary<string, string> _problems = new(StringComparer.Ordinal);
     /// <summary>Environments whose token access following removed only to move them; it is paired again whatever the card shows.</summary>
     private readonly HashSet<string> _usageMoved = new(StringComparer.Ordinal);
+    /// <summary>Machines SSH discovery found T3 Code's SSH-less environments on, by environment id.</summary>
+    private readonly Dictionary<string, T3SshTarget> _sshFound = new(StringComparer.Ordinal);
+    private DateTimeOffset _discoverAt = DateTimeOffset.MinValue;
+    /// <summary>The last pass left environments that discovery may still find.</summary>
+    private bool _sshPending;
+    private IReadOnlyList<T3DesktopEnvironment> _lastEnvironments = Array.Empty<T3DesktopEnvironment>();
     private Task? _loop;
     private DateTime? _lastCatalogWrite;
     private bool _wasEnabled;
@@ -69,7 +83,8 @@ public sealed class T3DesktopFollower : IAsyncDisposable
         IT3DesktopCatalogSource? catalog = null,
         IT3DesktopPairingClient? pairing = null,
         Func<DateTimeOffset>? clock = null,
-        TimeSpan? interval = null)
+        TimeSpan? interval = null,
+        IT3SshEnvironments? ssh = null)
     {
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
         _activityService = activityService ?? throw new ArgumentNullException(nameof(activityService));
@@ -78,6 +93,7 @@ public sealed class T3DesktopFollower : IAsyncDisposable
         _pairing = pairing ?? new T3DesktopPairingClient();
         _clock = clock ?? (() => DateTimeOffset.UtcNow);
         _interval = interval ?? DefaultInterval;
+        _ssh = ssh;
         _settingsService.SettingsChanged += OnSettingsChanged;
     }
 
@@ -129,6 +145,7 @@ public sealed class T3DesktopFollower : IAsyncDisposable
         {
             _retryAt.Clear();
             _usageRetryAt.Clear();
+            _discoverAt = DateTimeOffset.MinValue;
             _forceRead = true;
         }
         Wake();
@@ -170,6 +187,7 @@ public sealed class T3DesktopFollower : IAsyncDisposable
         if (!enabled)
         {
             _wasEnabled = false;
+            _ssh?.Retain(new Dictionary<string, T3SshTarget>());
             ClearProblems();
             SetNote(string.Empty);
             return;
@@ -186,21 +204,121 @@ public sealed class T3DesktopFollower : IAsyncDisposable
             if (catalogChanged) { _retryAt.Clear(); _usageRetryAt.Clear(); }
         }
         _wasEnabled = true;
-        if (!force && !HasWork(settings)) return;
+        if (!force && !HasWork(settings))
+        {
+            // The user may have removed an environment; its tunnel closes without waiting for a full pass.
+            RetainTunnels(_lastEnvironments);
+            return;
+        }
 
         var catalog = _catalog.Read();
         // An unreadable catalog, for example one T3 Code is still writing, is read again next pass.
         if (catalog.Status == T3DesktopCatalogStatus.Unreadable) { SetNote(MsgUnreadable); return; }
         _lastCatalogWrite = writeTime;
-        if (catalog.Status == T3DesktopCatalogStatus.NotFound) { SetNote(string.Empty); return; }
+        if (catalog.Status == T3DesktopCatalogStatus.NotFound)
+        {
+            _lastEnvironments = Array.Empty<T3DesktopEnvironment>();
+            RetainTunnels(_lastEnvironments);
+            SetNote(string.Empty);
+            return;
+        }
 
-        var byId = catalog.Environments.ToDictionary(e => e.EnvironmentId, StringComparer.Ordinal);
-        await AddAndAdoptAsync(catalog.Environments, ct).ConfigureAwait(false);
+        var environments = await AddSshRoutesAsync(catalog.Environments, force, ct).ConfigureAwait(false);
+        _lastEnvironments = environments;
+        var byId = environments.ToDictionary(e => e.EnvironmentId, StringComparer.Ordinal);
+        await AddAndAdoptAsync(environments, ct).ConfigureAwait(false);
         await RemoveGoneAsync(byId, ct).ConfigureAwait(false);
+        RetainTunnels(environments);
         await ConnectAsync(byId, ct).ConfigureAwait(false);
         await PairUsageAsync(byId, ct).ConfigureAwait(false);
-        SetNote(BuildNote(catalog.Environments));
+        SetNote(BuildNote(environments));
     }
+
+    /// <summary>
+    /// Gives environments T3 Code reaches some other way, such as T3 Connect, a route through an SSH
+    /// tunnel: to the machine T3 Code saved for it, or else the one discovery found running it.
+    /// </summary>
+    private async Task<IReadOnlyList<T3DesktopEnvironment>> AddSshRoutesAsync(IReadOnlyList<T3DesktopEnvironment> environments, bool force, CancellationToken ct)
+    {
+        if (_ssh == null) return environments;
+        var ignored = _settingsService.Settings.IgnoredT3DesktopEnvironments;
+        var now = _clock();
+        List<string> unresolved;
+        bool discover;
+        lock (_lock)
+        {
+            unresolved = environments
+                .Where(d => d.Routes.Count == 0 && d.SshTargets.Count == 0 && !ignored.Contains(d.EnvironmentId) && !_sshFound.ContainsKey(d.EnvironmentId))
+                .Select(d => d.EnvironmentId)
+                .ToList();
+            discover = unresolved.Count > 0 && (force || now >= _discoverAt);
+        }
+        if (discover)
+        {
+            IReadOnlyDictionary<string, T3SshTarget> found;
+            try { found = await _ssh.DiscoverAsync(unresolved, ct).ConfigureAwait(false); }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+            catch { found = new Dictionary<string, T3SshTarget>(); } // The other environments still follow.
+            lock (_lock)
+            {
+                foreach (var (id, target) in found) _sshFound[id] = target;
+                _discoverAt = _clock() + SshDiscoveryInterval;
+            }
+        }
+
+        var result = new List<T3DesktopEnvironment>(environments.Count);
+        bool pending = false;
+        lock (_lock)
+        {
+            foreach (var d in environments)
+            {
+                if (d.Routes.Count > 0 || ignored.Contains(d.EnvironmentId)) { result.Add(d); continue; }
+                var target = d.SshTargets.FirstOrDefault() ?? _sshFound.GetValueOrDefault(d.EnvironmentId);
+                if (target == null)
+                {
+                    pending = true;
+                    result.Add(new T3DesktopEnvironment
+                    {
+                        EnvironmentId = d.EnvironmentId,
+                        Label = d.Label,
+                        Routes = d.Routes,
+                        UnsupportedReason = MsgNotFoundOverSsh,
+                        SshTargets = d.SshTargets
+                    });
+                    continue;
+                }
+                result.Add(new T3DesktopEnvironment
+                {
+                    EnvironmentId = d.EnvironmentId,
+                    Label = d.Label,
+                    Routes = new[] { new T3DesktopRoute(_ssh.AddressFor(d.EnvironmentId), target) },
+                    SshTargets = d.SshTargets
+                });
+            }
+            _sshPending = pending;
+        }
+        return result;
+    }
+
+    /// <summary>Keeps a tunnel open for each followed environment whose address is its SSH route, and closes the rest.</summary>
+    private void RetainTunnels(IReadOnlyList<T3DesktopEnvironment> environments)
+    {
+        if (_ssh == null) return;
+        var followed = _settingsService.Settings.T3Environments.Where(e => e.IsFromT3Desktop).ToList();
+        var tunnels = new Dictionary<string, T3SshTarget>(StringComparer.Ordinal);
+        foreach (var d in environments)
+        {
+            var route = d.Routes.FirstOrDefault(r => r.Ssh != null);
+            if (route?.Ssh != null && followed.Any(e => e.T3DesktopEnvironmentId == d.EnvironmentId && e.Address == route.McpAddress))
+                tunnels[d.EnvironmentId] = route.Ssh;
+        }
+        _ssh.Retain(tunnels);
+    }
+
+    private Task<T3DesktopPairingResult> MintAsync(T3DesktopEnvironment desktop, T3DesktopRoute route, IReadOnlyList<string> scopes, CancellationToken ct) =>
+        route.Ssh != null && _ssh != null
+            ? _ssh.MintCodeAsync(desktop.EnvironmentId, route.Ssh, scopes, ct)
+            : _pairing.MintCodeAsync(route, scopes, ct);
 
     /// <summary>True when a followed environment still needs a sign-in or token access and isn't waiting out a failure.</summary>
     private bool HasWork(PresenceSettings settings)
@@ -210,6 +328,7 @@ public sealed class T3DesktopFollower : IAsyncDisposable
         bool wantsUsage = WantsUsage(settings);
         lock (_lock)
         {
+            if (_ssh != null && _sshPending && now >= _discoverAt) return true;
             foreach (var env in settings.T3Environments.Where(e => e.IsFromT3Desktop))
             {
                 var envStatus = statuses.FirstOrDefault(s => s.EnvironmentId == env.Id);
@@ -322,14 +441,20 @@ public sealed class T3DesktopFollower : IAsyncDisposable
         string problem = MsgUnreachable;
         foreach (var route in routes)
         {
-            var minted = await _pairing.MintCodeAsync(route, ReadScopes, ct).ConfigureAwait(false);
+            var minted = await MintAsync(desktop, route, ReadScopes, ct).ConfigureAwait(false);
             if (minted.Outcome != T3DesktopPairingOutcome.Success || minted.Code == null)
             {
+                if (minted.Outcome == T3DesktopPairingOutcome.WrongEnvironment) LostSshMachine(desktop.EnvironmentId);
                 problem = minted.Outcome switch
                 {
                     T3DesktopPairingOutcome.TokenRejected => MsgTokenRejected,
                     T3DesktopPairingOutcome.MissingPermission => MsgMissingPermission,
                     T3DesktopPairingOutcome.Unreachable => problem,
+                    T3DesktopPairingOutcome.SshUnreachable => SshProblem(MsgSshUnreachable, route),
+                    T3DesktopPairingOutcome.NotRunning => SshProblem(MsgSshNotRunning, route),
+                    T3DesktopPairingOutcome.WrongEnvironment => SshProblem(MsgSshWrongEnvironment, route),
+                    T3DesktopPairingOutcome.NoT3Command => SshProblem(MsgSshNoT3, route),
+                    T3DesktopPairingOutcome.LocalPortBusy => SshProblem(MsgSshPortBusy, route),
                     _ => MsgSignInFailed
                 };
                 continue;
@@ -353,6 +478,20 @@ public sealed class T3DesktopFollower : IAsyncDisposable
             problem = MsgSignInFailed;
         }
         return problem;
+    }
+
+    private static string SshProblem(string format, T3DesktopRoute route) =>
+        string.Format(System.Globalization.CultureInfo.InvariantCulture, format, route.Ssh?.Destination ?? route.Origin.Host, route.Origin.Port);
+
+    /// <summary>The machine found for this environment now runs another one: look for it again on the next pass.</summary>
+    private void LostSshMachine(string environmentId)
+    {
+        lock (_lock)
+        {
+            _sshFound.Remove(environmentId);
+            _discoverAt = DateTimeOffset.MinValue;
+            _sshPending = true;
+        }
     }
 
     /// <summary>Allows token usage for followed environments once the user has chosen to show usage anywhere.</summary>
@@ -383,7 +522,8 @@ public sealed class T3DesktopFollower : IAsyncDisposable
             if (route == null) continue;
 
             bool paired = false;
-            var minted = await _pairing.MintCodeAsync(route, UsageScopes, ct).ConfigureAwait(false);
+            var minted = await MintAsync(desktop, route, UsageScopes, ct).ConfigureAwait(false);
+            if (minted.Outcome == T3DesktopPairingOutcome.WrongEnvironment) LostSshMachine(desktop.EnvironmentId);
             // The user may have removed token access, or turned following off, while the code was minted.
             if (UsageDeclined(id)) { lock (_lock) _usageMoved.Remove(id); continue; }
             if (!IsEnabled(_settingsService.Settings)) continue;
@@ -460,6 +600,7 @@ public sealed class T3DesktopFollower : IAsyncDisposable
         {
             try { await _loop.ConfigureAwait(false); } catch { }
         }
+        if (_ssh != null) await _ssh.DisposeAsync().ConfigureAwait(false);
         _stop.Dispose();
     }
 }

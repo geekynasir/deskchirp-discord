@@ -6,7 +6,20 @@ using DeveloperPresence.Core.T3.Usage;
 
 namespace DeveloperPresence.Core.T3.Desktop;
 
-public enum T3DesktopPairingOutcome { Success, TokenRejected, MissingPermission, Unreachable, Failed }
+public enum T3DesktopPairingOutcome
+{
+    Success, TokenRejected, MissingPermission, Unreachable, Failed,
+    /// <summary>Over SSH: ssh couldn't sign in to the machine without a prompt.</summary>
+    SshUnreachable,
+    /// <summary>Over SSH: the machine has this environment, but T3 Code isn't running there.</summary>
+    NotRunning,
+    /// <summary>Over SSH: the machine runs a different T3 environment.</summary>
+    WrongEnvironment,
+    /// <summary>Over SSH: no t3 command to mint a code with.</summary>
+    NoT3Command,
+    /// <summary>Over SSH: the tunnel's port here is taken by something else.</summary>
+    LocalPortBusy
+}
 
 public sealed record T3DesktopPairingResult(T3DesktopPairingOutcome Outcome, string? Code = null)
 {

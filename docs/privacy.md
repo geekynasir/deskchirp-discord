@@ -30,7 +30,9 @@ Unlinking turns sharing off on that computer and removes its service credential 
 
 Deskchirp includes its publisher’s public Discord application ID. It discovers Discord’s local connection without asking for a Discord password or token. Sharing still starts only when you enable it.
 
-When you choose **Allow T3 activity** without entering an address, Deskchirp reads only T3’s small public runtime-address file and checks local read-only connection metadata. Discovery itself does not read the encrypted environment catalog, T3 sign-in tokens, logs or conversations; following T3 Code’s connections, described above, is separate and can be turned off. T3 still asks you to approve read-only access for the local address in your browser. Remote environments and ambiguous local installations use an address override under Advanced.
+When you choose **Allow T3 activity** without entering an address, Deskchirp reads only T3’s small public runtime-address file and checks local read-only connection metadata. Discovery itself does not read the encrypted environment catalog, T3 sign-in tokens, logs or conversations; following T3 Code’s connections, described above, is separate and can be turned off.
+
+For environments T3 Code reaches through T3 Connect or SSH, following uses your own `ssh` without prompting. Deskchirp reads host names from your SSH config (never keys or known hosts) and, if Tailscale is installed, the names of your own online machines from `tailscale status`. On those machines it reads only T3’s environment id and runtime port, runs `t3 auth pairing create` for a five-minute read-only code, and forwards a local loopback port to T3. It never reads T3’s secrets, database or conversations there, and sends nothing about them to anyone else. T3 still asks you to approve read-only access for the local address in your browser. Remote environments and ambiguous local installations use an address override under Advanced.
 
 ## Background T3 activity and images
 
