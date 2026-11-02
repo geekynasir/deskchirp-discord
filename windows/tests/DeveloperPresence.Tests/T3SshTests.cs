@@ -449,6 +449,24 @@ public class T3SshTests : IDisposable
         Assert.Equal(2, ssh.Runner.Forwards.Count);
     }
 
+    [Fact]
+    public async Task ATunnelWhoseMachineNowRunsAnotherEnvironmentReportsItAndAsksAgain()
+    {
+        await using var ssh = new Ssh();
+        var vps = ssh.Machine("vps", EnvA);
+        var laptop = ssh.Machine("laptop", null);
+        Assert.Equal(new T3SshTarget("vps"), (await ssh.Environments.DiscoverAsync(new[] { EnvA }))[EnvA]);
+
+        vps.EnvironmentId = EnvB;
+        laptop.EnvironmentId = EnvA;
+        ssh.Environments.Retain(new Dictionary<string, T3SshTarget> { [EnvA] = new("vps") });
+        Assert.True(await WaitAsync(() => ssh.Environments.TakeMovedEnvironments() is { Count: > 0 } moved && moved.Single() == EnvA));
+        Assert.Empty(ssh.Environments.TakeMovedEnvironments());
+
+        // Machines that answered before are asked again straight away.
+        Assert.Equal(new T3SshTarget("laptop"), (await ssh.Environments.DiscoverAsync(new[] { EnvA }))[EnvA]);
+    }
+
     private static async Task<bool> WaitAsync(Func<bool> condition)
     {
         var waited = Stopwatch.StartNew();

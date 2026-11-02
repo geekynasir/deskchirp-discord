@@ -204,6 +204,9 @@ public sealed class T3DesktopFollower : IAsyncDisposable
             if (catalogChanged) { _retryAt.Clear(); _usageRetryAt.Clear(); }
         }
         _wasEnabled = true;
+        // A tunnel found its machine now runs another environment, maybe while the entry stays signed in.
+        if (_ssh != null)
+            foreach (string moved in _ssh.TakeMovedEnvironments()) LostSshMachine(moved);
         if (!force && !HasWork(settings))
         {
             // The user may have removed an environment; its tunnel closes without waiting for a full pass.

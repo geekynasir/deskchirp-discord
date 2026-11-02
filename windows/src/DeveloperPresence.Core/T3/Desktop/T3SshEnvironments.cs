@@ -29,6 +29,9 @@ public interface IT3SshEnvironments : IAsyncDisposable
     /// <summary>Keeps tunnels open for exactly these environments, reopening them when they drop, and closes the rest.</summary>
     void Retain(IReadOnlyDictionary<string, T3SshTarget> tunnels);
 
+    /// <summary>Environments whose tunnel found its machine running another environment since the last call, so they can be looked for again.</summary>
+    IReadOnlyCollection<string> TakeMovedEnvironments();
+
     /// <summary>Opens the environment's tunnel if needed, then has the machine's own t3 command mint a one-time pairing code.</summary>
     Task<T3DesktopPairingResult> MintCodeAsync(string environmentId, T3SshTarget target, IReadOnlyList<string> scopes, CancellationToken ct = default);
 }
@@ -67,6 +70,7 @@ public sealed partial class T3SshEnvironments : IT3SshEnvironments
     private readonly Dictionary<string, int> _ports = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Tunnel> _tunnels = new(StringComparer.Ordinal);
     private readonly Dictionary<T3SshTarget, HostProbe> _probed = new();
+    private readonly HashSet<string> _moved = new(StringComparer.Ordinal);
     private bool _disposed;
 
     public T3SshEnvironments(
@@ -228,6 +232,31 @@ public sealed partial class T3SshEnvironments : IT3SshEnvironments
     private void Forget(T3SshTarget target)
     {
         lock (_lock) _probed.Remove(target);
+    }
+
+    /// <summary>
+    /// The environment left this machine. Machines that answered are asked again, as one of them may run it
+    /// now; ones that didn't answer keep waiting.
+    /// </summary>
+    private void Moved(string environmentId, T3SshTarget target)
+    {
+        lock (_lock)
+        {
+            foreach (var (host, probe) in _probed.ToList())
+                if (probe.EnvironmentId != null) _probed.Remove(host);
+            _probed.Remove(target);
+            _moved.Add(environmentId);
+        }
+    }
+
+    public IReadOnlyCollection<string> TakeMovedEnvironments()
+    {
+        lock (_lock)
+        {
+            var moved = _moved.ToList();
+            _moved.Clear();
+            return moved;
+        }
     }
 
     // ---- Remote scripts ----
@@ -407,7 +436,7 @@ public sealed partial class T3SshEnvironments : IT3SshEnvironments
         if (!reached) return (T3DesktopPairingOutcome.SshUnreachable, null, 0);
         if (probe?.EnvironmentId != tunnel.EnvironmentId)
         {
-            Forget(tunnel.Target);
+            Moved(tunnel.EnvironmentId, tunnel.Target);
             return (T3DesktopPairingOutcome.WrongEnvironment, null, 0);
         }
         if (!probe.Running) return (T3DesktopPairingOutcome.NotRunning, null, 0);
@@ -482,7 +511,7 @@ public sealed partial class T3SshEnvironments : IT3SshEnvironments
                 return code == null ? new(T3DesktopPairingOutcome.Failed) : new(T3DesktopPairingOutcome.Success, code);
             case 3: return new(T3DesktopPairingOutcome.NoT3Command);
             case 4:
-                Forget(target);
+                Moved(environmentId, target);
                 return new(T3DesktopPairingOutcome.WrongEnvironment);
             case 5: return new(T3DesktopPairingOutcome.NotRunning);
             default: return new(T3DesktopPairingOutcome.Failed);

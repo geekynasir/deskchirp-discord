@@ -861,6 +861,14 @@ public class T3DesktopFollowTests : IDisposable
 
         public void Retain(IReadOnlyDictionary<string, T3SshTarget> tunnels) => Retained = tunnels.ToDictionary(t => t.Key, t => t.Value);
 
+        public HashSet<string> Moved { get; } = new();
+        public IReadOnlyCollection<string> TakeMovedEnvironments()
+        {
+            var moved = Moved.ToList();
+            Moved.Clear();
+            return moved;
+        }
+
         public Task<T3DesktopPairingResult> MintCodeAsync(string environmentId, T3SshTarget target, IReadOnlyList<string> scopes, CancellationToken ct = default)
         {
             Mints.Add((environmentId, target.Destination, string.Join(" ", scopes)));
@@ -1048,6 +1056,26 @@ public class T3DesktopFollowTests : IDisposable
         Assert.Equal(("env-a", "new-box"), (rig.Ssh.Mints[^1].EnvironmentId, rig.Ssh.Mints[^1].Destination));
         Assert.Equal(T3ConnectionStatus.Connected, rig.StatusOf("http://127.0.0.1:41000/mcp").Status);
         Assert.Null(rig.Follower.ProblemFor(id));
+    }
+
+    [Fact]
+    public async Task FollowsASignedInEnvironmentToItsNewMachine()
+    {
+        await using var rig = new Rig(ssh: true);
+        await rig.Activity.InitializeAsync();
+        rig.Ssh!.Machines["env-a"] = new T3SshTarget("old-box");
+        rig.Catalog.Set(RelayEnv("env-a", "A"));
+        await rig.Follower.SyncOnceAsync();
+        Assert.Equal(T3ConnectionStatus.Connected, rig.StatusOf("http://127.0.0.1:41000/mcp").Status);
+
+        // The tunnel finds old-box running something else; the entry is still signed in, so nothing mints.
+        rig.Ssh.Machines["env-a"] = new T3SshTarget("new-box");
+        rig.Ssh.Moved.Add("env-a");
+        await rig.Follower.SyncOnceAsync();
+
+        Assert.Equal(2, rig.Ssh.Discoveries.Count);
+        Assert.Equal(new T3SshTarget("new-box"), rig.Ssh.Retained["env-a"]);
+        Assert.Equal("http://127.0.0.1:41000/mcp", rig.Settings.Settings.T3Environments.Single().Address);
     }
 
     [Fact]
