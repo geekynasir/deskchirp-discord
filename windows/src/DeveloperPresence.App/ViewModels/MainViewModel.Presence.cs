@@ -6,6 +6,7 @@ using DeveloperPresence.Core.Models;
 using DeveloperPresence.Core.Privacy;
 using DeveloperPresence.Core.Services;
 using DeveloperPresence.Core.T3;
+using DeveloperPresence.Core.T3.Desktop;
 using DeveloperPresence.Core.T3.Usage;
 
 namespace DeveloperPresence.App.ViewModels;
@@ -37,6 +38,8 @@ public sealed class EnvironmentItem : ObservableItem
     private bool _showPairing;
     private string _pairingMessage = string.Empty;
     private bool _isPairing;
+    private bool _isFromT3Desktop;
+    private string? _followProblem;
 
     public EnvironmentItem(string id, string address, string label)
     {
@@ -78,6 +81,21 @@ public sealed class EnvironmentItem : ObservableItem
     }
 
     public string Detail { get => _detail; set => Set(ref _detail, value); }
+
+    /// <summary>True when this entry follows a connection saved in the T3 Code desktop app.</summary>
+    public bool IsFromT3Desktop
+    {
+        get => _isFromT3Desktop;
+        set { if (Set(ref _isFromT3Desktop, value)) Raise(nameof(SourceText)); }
+    }
+
+    public string? FollowProblem
+    {
+        get => _followProblem;
+        set { if (Set(ref _followProblem, value)) Raise(nameof(SourceText)); }
+    }
+
+    public string SourceText => _followProblem == null ? "From T3 Code" : $"From T3 Code. {_followProblem}";
 
     public string StatusText => _status switch
     {
@@ -192,6 +210,8 @@ public sealed partial class MainViewModel
     private int _pinnedProjectIndex;
     private string _newEnvironmentAddress = string.Empty;
     private string? _addEnvironmentError;
+    private bool _followT3DesktopConnections = true;
+    private T3DesktopFollower? _t3Follower;
 
     public ObservableCollection<EnvironmentItem> Environments { get; } = new();
     public ObservableCollection<PickerOption> ProjectOptions { get; } = new();
@@ -219,8 +239,38 @@ public sealed partial class MainViewModel
         if (_usageService != null) _usageService.Changed += OnEnvironmentsChanged;
     }
 
+    public void AttachT3Follower(T3DesktopFollower follower)
+    {
+        _t3Follower = follower;
+        follower.Changed += OnEnvironmentsChanged;
+        OnEnvironmentsChanged();
+    }
+
+    /// <summary>Keeps Environments in step with the connections saved in the T3 Code desktop app.</summary>
+    public bool FollowT3DesktopConnections
+    {
+        get => _followT3DesktopConnections;
+        set
+        {
+            if (_followT3DesktopConnections == value) return;
+            _followT3DesktopConnections = value;
+            OnPropertyChanged();
+            // Turning following back on also brings back connections removed here earlier.
+            _ = UpdateSettingAsync(s =>
+            {
+                s.FollowT3DesktopConnections = value;
+                if (value) s.IgnoredT3DesktopEnvironments.Clear();
+            });
+            if (value) _t3Follower?.RetryNow();
+        }
+    }
+
+    public string T3FollowNote => _followT3DesktopConnections ? _t3Follower?.Note ?? string.Empty : string.Empty;
+    public bool HasT3FollowNote => !string.IsNullOrEmpty(T3FollowNote);
+
     private void DisposePresenceControls()
     {
+        if (_t3Follower != null) _t3Follower.Changed -= OnEnvironmentsChanged;
         if (_t3ActivityService != null) _t3ActivityService.EnvironmentsChanged -= OnEnvironmentsChanged;
         if (_usageService != null) _usageService.Changed -= OnEnvironmentsChanged;
     }
@@ -231,6 +281,8 @@ public sealed partial class MainViewModel
         RefreshEnvironmentStatus();
         RefreshPickers(_settingsService.Settings);
         NotifyAvailability();
+        OnPropertyChanged(nameof(T3FollowNote));
+        OnPropertyChanged(nameof(HasT3FollowNote));
     });
 
     private void LoadPresenceControls(PresenceSettings s)
@@ -250,9 +302,11 @@ public sealed partial class MainViewModel
         _buttons = s.Buttons;
         if (!string.Equals(_publicRepoUrl, s.PublicRepoUrl, StringComparison.Ordinal)) _publicRepoUrl = s.PublicRepoUrl;
         _selectionMode = s.SelectionMode;
+        _followT3DesktopConnections = s.FollowT3DesktopConnections;
         foreach (var name in new[] { nameof(CardStyleIndex), nameof(UsageMetricIndex), nameof(UsageScopeIndex), nameof(TokenCategoryIndex),
             nameof(TokenRoundingIndex), nameof(SmallBadgeIndex), nameof(ShareProjectAlias), nameof(ShareModel), nameof(ShareEstimatedCost),
-            nameof(ShowElapsedTimer), nameof(PlayfulWording), nameof(ButtonsIndex), nameof(PublicRepoUrl), nameof(SelectionModeIndex) })
+            nameof(ShowElapsedTimer), nameof(PlayfulWording), nameof(ButtonsIndex), nameof(PublicRepoUrl), nameof(SelectionModeIndex),
+            nameof(FollowT3DesktopConnections), nameof(T3FollowNote), nameof(HasT3FollowNote) })
             OnPropertyChanged(name);
         SyncEnvironmentItems(s);
         RefreshPickers(s);
@@ -553,6 +607,7 @@ public sealed partial class MainViewModel
             {
                 Environments.Move(Environments.IndexOf(item), Math.Min(i, Environments.Count - 1));
             }
+            item.IsFromT3Desktop = env.IsFromT3Desktop;
         }
         OnPropertyChanged(nameof(HasEnvironments));
         RefreshEnvironmentStatus();
@@ -568,6 +623,7 @@ public sealed partial class MainViewModel
             item.Detail = status?.Detail ?? string.Empty;
             item.UsageAllowed = _usageService?.HasPermission(item.Id) == true;
             item.UsageStatus = _usageService?.StatusFor(item.Id);
+            item.FollowProblem = item.IsFromT3Desktop ? _t3Follower?.ProblemFor(item.Id) : null;
         }
     }
 
@@ -613,7 +669,9 @@ public sealed partial class MainViewModel
     {
         try
         {
-            // Removing an environment deletes both its sign-in and its token access.
+            // Removing an environment deletes both its sign-in and its token access. One that
+            // follows T3 Code stays removed until following is turned off and on again.
+            await _settingsService.UpdateSettingsAsync(s => T3DesktopFollower.MarkRemovedByUser(s, item.Id));
             if (_usageService != null) await _usageService.RemoveTokenAccessAsync(item.Id);
             await _t3ActivityService!.RemoveEnvironmentAsync(item.Id);
         }
@@ -637,7 +695,11 @@ public sealed partial class MainViewModel
 
     private async Task RemoveTokenAccessAsync(EnvironmentItem item)
     {
-        try { await _usageService!.RemoveTokenAccessAsync(item.Id); }
+        try
+        {
+            await _settingsService.UpdateSettingsAsync(s => T3DesktopFollower.MarkUsageDeclined(s, item.Id));
+            await _usageService!.RemoveTokenAccessAsync(item.Id);
+        }
         catch { }
         Dispatch(RefreshEnvironmentStatus);
     }
@@ -660,7 +722,11 @@ public sealed partial class MainViewModel
         {
             item.IsPairing = false;
             item.PairingMessage = result.Outcome == T3PairingOutcome.Success ? string.Empty : result.Message;
-            if (result.Outcome == T3PairingOutcome.Success) item.PairingInput = string.Empty;
+            if (result.Outcome == T3PairingOutcome.Success)
+            {
+                item.PairingInput = string.Empty;
+                _ = UpdateSettingAsync(s => T3DesktopFollower.ClearUsageDeclined(s, item.Id));
+            }
             RefreshEnvironmentStatus();
             NotifyAvailability();
         });

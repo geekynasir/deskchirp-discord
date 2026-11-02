@@ -15,6 +15,8 @@ public sealed class T3EnvironmentStatus
     public bool HasReturnedWork { get; init; }
     /// <summary>True once t3_project_list has answered for this environment.</summary>
     public bool ProjectCatalogLoaded { get; init; }
+    /// <summary>True while connected but the last poll couldn't reach the address.</summary>
+    public bool Unreachable { get; init; }
 }
 
 /// <summary>Thread metadata for the local pinned-task picker. Titles never leave settings.</summary>
@@ -57,10 +59,14 @@ public interface IT3ActivityService : IAsyncDisposable
     /// <summary>Validates and adds an environment. Returns an error message, or null on success.</summary>
     Task<string?> AddEnvironmentAsync(string rawAddress, CancellationToken ct = default) => Task.FromResult<string?>("Not supported.");
     Task<bool> ConnectEnvironmentAsync(string environmentId, CancellationToken ct = default) => Task.FromResult(false);
+    /// <summary>Connects without a browser, using a one-time pairing code T3 Code minted for this environment.</summary>
+    Task<bool> ConnectEnvironmentWithPairingCodeAsync(string environmentId, string pairingCode, CancellationToken ct = default) => Task.FromResult(false);
     /// <summary>Cancels only this environment's pending browser sign-in.</summary>
     Task CancelSignInAsync(string environmentId) => CancelSignInAsync();
     /// <summary>Removes the environment and deletes its saved sign-in.</summary>
     Task RemoveEnvironmentAsync(string environmentId, CancellationToken ct = default) => Task.CompletedTask;
+    /// <summary>Points an environment at another address for the same T3 environment, dropping the old sign-in.</summary>
+    Task<bool> ChangeEnvironmentAddressAsync(string environmentId, string rawAddress, CancellationToken ct = default) => Task.FromResult(false);
     IReadOnlyList<T3PickerTask> PickerTasks => Array.Empty<T3PickerTask>();
     IReadOnlyList<T3PickerProject> PickerProjects => Array.Empty<T3PickerProject>();
 }

@@ -88,6 +88,16 @@ public sealed class PresenceSettings
     public SelectionMode SelectionMode { get; set; } = SelectionMode.KeepBackgroundVisible;
 
     /// <summary>
+    /// Keeps the environment list in step with the connections saved in the T3 Code desktop app,
+    /// once T3 activity is on. Deskchirp signs in to each one read-only without a browser.
+    /// </summary>
+    public bool FollowT3DesktopConnections { get; set; } = true;
+    /// <summary>T3 environment ids the user removed here, so following doesn't add them back.</summary>
+    public HashSet<string> IgnoredT3DesktopEnvironments { get; set; } = new(StringComparer.Ordinal);
+    /// <summary>T3 environment ids whose token access the user removed, so following doesn't pair it again.</summary>
+    public HashSet<string> T3DesktopUsageDeclined { get; set; } = new(StringComparer.Ordinal);
+
+    /// <summary>
     /// Fills missing collections and moves a non-empty legacy T3 address into the environment list.
     /// The legacy field is cleared afterwards so removing that environment does not resurrect it.
     /// Returns true when anything changed.
@@ -101,7 +111,14 @@ public sealed class PresenceSettings
         {
             if (string.IsNullOrWhiteSpace(env.Id)) { env.Id = Guid.NewGuid().ToString(); changed = true; }
             env.Label ??= string.Empty;
+            env.T3DesktopEnvironmentId ??= string.Empty;
         }
+        IgnoredT3DesktopEnvironments = IgnoredT3DesktopEnvironments == null
+            ? new(StringComparer.Ordinal)
+            : new HashSet<string>(IgnoredT3DesktopEnvironments.Where(p => !string.IsNullOrEmpty(p)), StringComparer.Ordinal);
+        T3DesktopUsageDeclined = T3DesktopUsageDeclined == null
+            ? new(StringComparer.Ordinal)
+            : new HashSet<string>(T3DesktopUsageDeclined.Where(p => !string.IsNullOrEmpty(p)), StringComparer.Ordinal);
         ProjectAliases = ProjectAliases == null
             ? new(StringComparer.Ordinal)
             : new Dictionary<string, string>(ProjectAliases.Where(p => p.Key != null && p.Value != null), StringComparer.Ordinal);

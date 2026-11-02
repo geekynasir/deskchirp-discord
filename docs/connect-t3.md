@@ -14,7 +14,19 @@ The saved connection is restored on later launches. T3 currently grants access f
 
 ## Tasks running on another computer
 
-If your tasks run in a remote T3 environment (for example a server your T3 desktop app connects to), add that environment too:
+On Windows, once T3 activity is allowed, Deskchirp also uses the connections saved in your T3 Code desktop app. Every environment T3 Code connects to, such as a server or another PC, appears in **T3 environments** marked **From T3 Code** and connects read-only on its own, without a browser. When you add or remove a connection in T3 Code, Deskchirp follows within about a minute. If the card style is **Usage**, or you already allowed token usage elsewhere, the new environments get token usage too.
+
+To do this, Deskchirp opens T3 Code’s encrypted connection catalog with your Windows account, the same way T3 Code does. For each environment it uses T3 Code’s saved sign-in once, only with that environment’s own address, to create a one-time read-only pairing code, then signs in with that code. The pairing appears in T3’s **Settings → Sharing & access** as **Deskchirp**. T3 Code’s own sign-in is never saved, logged or sent anywhere else.
+
+Some connections can’t be followed yet: ones that only go through T3 Connect, SSH connections, and plain `http://` addresses on another computer. Deskchirp names them under the switch; add them by hand as below if you can reach them another way.
+
+- Removing an environment marked **From T3 Code** keeps it out of the list until you turn following off and on again.
+- Removing token access for one keeps token usage off for it.
+- Turn off **Use T3 Code’s connections** to stop reading the catalog. Environments it already added stay until you remove them.
+- **Disconnect** also turns following off, so nothing signs back in. Turn the switch on again to reconnect them.
+- If an environment’s address stops answering, for example when you leave the network it was on, Deskchirp switches to another address T3 Code has for it.
+
+### Adding an environment by hand
 
 1. In T3 Code, open the remote environment’s menu and choose **Copy MCP URL**.
 2. In Deskchirp, open **T3 environments → Add environment** and paste it.
@@ -22,7 +34,7 @@ If your tasks run in a remote T3 environment (for example a server your T3 deskt
 
 Deskchirp follows every environment in the list and combines their counts. One unreachable environment doesn’t hide the others. If an environment is connected but never shows work, Deskchirp says so, which usually means your tasks run somewhere else.
 
-Local discovery reads only T3’s public `server-runtime.json` address and checks its read-only connection metadata, plus the default local port 3773. It never opens T3’s encrypted connection catalog or reads saved tokens. Remove an environment to delete its saved sign-in.
+Local discovery reads only T3’s public `server-runtime.json` address and checks its read-only connection metadata, plus the default local port 3773. Remove an environment to delete its saved sign-in.
 
 ## Choose what the card shows
 
