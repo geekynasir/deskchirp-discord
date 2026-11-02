@@ -247,6 +247,7 @@ public class T3SshTests : IDisposable
     {
         public string? EnvironmentId { get; set; }
         public int? Port { get; set; } = 3773;
+        public string? Host { get; set; }
         public bool Down { get; set; }
         public int MintExit { get; set; }
     }
@@ -277,7 +278,9 @@ public class T3SshTests : IDisposable
             if (!Machines.TryGetValue(target.Destination, out var machine) || machine.Down) return Task.FromResult(new T3SshResult(255, string.Empty));
             if (!mint)
             {
-                string runtime = machine.Port is { } port ? $"{{\"version\":1,\"pid\":42,\"port\":{port}}}" : string.Empty;
+                string runtime = machine.Port is { } port ? machine.Host is { } host
+                    ? $"{{\"version\":1,\"pid\":42,\"host\":\"{host}\",\"port\":{port}}}"
+                    : $"{{\"version\":1,\"pid\":42,\"port\":{port}}}" : string.Empty;
                 return Task.FromResult(new T3SshResult(0, $"motd\n{T3SshEnvironments.ProbeMarker}\nid={machine.EnvironmentId}\nruntime={runtime}\n"));
             }
             if (!script.Contains($"'{machine.EnvironmentId}' ]", StringComparison.Ordinal)) return Task.FromResult(new T3SshResult(4, string.Empty));
@@ -317,12 +320,13 @@ public class T3SshTests : IDisposable
         public DateTimeOffset Now { get; set; } = new(2026, 11, 2, 12, 0, 0, TimeSpan.Zero);
         public T3SshEnvironments Environments { get; }
 
-        public Ssh()
+        public Ssh(TimeSpan? recheck = null)
         {
             Environments = new T3SshEnvironments(Runner, Hosts,
                 portFree: port => !Busy.Contains(port) && Runner.Live(port) == null,
                 listening: (port, _) => Task.FromResult(Runner.Live(port) != null),
-                clock: () => Now);
+                clock: () => Now,
+                recheckOpenTunnel: recheck);
         }
 
         public FakeMachine Machine(string destination, string? environmentId)
@@ -388,7 +392,7 @@ public class T3SshTests : IDisposable
         await using var ssh = new Ssh();
         ssh.Machine("vps", EnvA).Port = 3900;
 
-        var result = await ssh.Environments.MintCodeAsync(EnvA, new T3SshTarget("vps"), new[] { "orchestration:read" });
+        var result = await ssh.Environments.MintCodeAsync(EnvA, new[] { new T3SshTarget("vps") }, new[] { "orchestration:read" });
 
         Assert.Equal(new T3DesktopPairingResult(T3DesktopPairingOutcome.Success, "SYNTHETICCODE42"), result);
         var forward = Assert.Single(ssh.Runner.Forwards);
@@ -397,7 +401,7 @@ public class T3SshTests : IDisposable
         Assert.DoesNotContain("SYNTHETIC", result.ToString());
 
         // Once nothing retains it, the tunnel closes.
-        ssh.Environments.Retain(new Dictionary<string, T3SshTarget>());
+        ssh.Environments.Retain(new Dictionary<string, IReadOnlyList<T3SshTarget>>());
         Assert.True(await WaitAsync(() => forward.Disposed));
     }
 
@@ -417,7 +421,7 @@ public class T3SshTests : IDisposable
         ssh.Machine("no-t3", EnvA).MintExit = 3;
         if (machine == "busy") ssh.Busy.Add(ssh.PortOf(EnvA));
 
-        var result = await ssh.Environments.MintCodeAsync(EnvA, new T3SshTarget(machine), new[] { "orchestration:read" });
+        var result = await ssh.Environments.MintCodeAsync(EnvA, new[] { new T3SshTarget(machine) }, new[] { "orchestration:read" });
 
         Assert.Equal(expected, result.Outcome);
         Assert.Null(result.Code);
@@ -429,7 +433,7 @@ public class T3SshTests : IDisposable
     {
         await using var ssh = new Ssh();
         ssh.Machine("vps", EnvA);
-        var result = await ssh.Environments.MintCodeAsync(EnvA, new T3SshTarget("vps"), new[] { "orchestration:write" });
+        var result = await ssh.Environments.MintCodeAsync(EnvA, new[] { new T3SshTarget("vps") }, new[] { "orchestration:write" });
         Assert.Equal(T3DesktopPairingOutcome.Failed, result.Outcome);
         Assert.Empty(ssh.Runner.Calls);
     }
@@ -439,14 +443,68 @@ public class T3SshTests : IDisposable
     {
         await using var ssh = new Ssh();
         ssh.Machine("vps", EnvA);
-        ssh.Environments.Retain(new Dictionary<string, T3SshTarget> { [EnvA] = new("vps") });
+        ssh.Environments.Retain(new Dictionary<string, IReadOnlyList<T3SshTarget>> { [EnvA] = new[] { new T3SshTarget("vps") } });
         Assert.True(await WaitAsync(() => ssh.Runner.Live(ssh.PortOf(EnvA)) != null));
 
         ssh.Runner.Live(ssh.PortOf(EnvA))!.Exit();
         // The next attempt waits a few seconds; minting wakes it.
-        var result = await ssh.Environments.MintCodeAsync(EnvA, new T3SshTarget("vps"), new[] { "orchestration:read" });
+        var result = await ssh.Environments.MintCodeAsync(EnvA, new[] { new T3SshTarget("vps") }, new[] { "orchestration:read" });
         Assert.Equal(T3DesktopPairingOutcome.Success, result.Outcome);
         Assert.Equal(2, ssh.Runner.Forwards.Count);
+    }
+
+    [Fact]
+    public async Task TriesEachSavedMachineAndMintsOnTheOneTheTunnelGoesTo()
+    {
+        await using var ssh = new Ssh();
+        ssh.Machine("down", EnvA).Down = true;
+        ssh.Machine("other", EnvB);
+        ssh.Machine("vps", EnvA);
+        var targets = new[] { new T3SshTarget("down"), new T3SshTarget("other"), new T3SshTarget("vps") };
+
+        var result = await ssh.Environments.MintCodeAsync(EnvA, targets, new[] { "orchestration:read" });
+
+        Assert.Equal(T3DesktopPairingOutcome.Success, result.Outcome);
+        Assert.Equal("vps", Assert.Single(ssh.Runner.Forwards).Destination);
+        Assert.Equal(new[] { "vps" }, ssh.Runner.Calls.Where(c => c.Kind == "mint").Select(c => c.Destination));
+        // Another machine answering with another environment isn't news when one of them works.
+        Assert.Empty(ssh.Environments.TakeMovedEnvironments());
+    }
+
+    [Theory]
+    [InlineData(new[] { "down", "other" }, T3DesktopPairingOutcome.WrongEnvironment)]
+    [InlineData(new[] { "other", "stopped", "down" }, T3DesktopPairingOutcome.NotRunning)]
+    [InlineData(new[] { "down", "down-too" }, T3DesktopPairingOutcome.SshUnreachable)]
+    public async Task WhenNoSavedMachineWorksSaysTheMostTellingReason(string[] machines, T3DesktopPairingOutcome expected)
+    {
+        await using var ssh = new Ssh();
+        ssh.Machine("down", EnvA).Down = true;
+        ssh.Machine("down-too", EnvA).Down = true;
+        ssh.Machine("other", EnvB);
+        ssh.Machine("stopped", EnvA).Port = null;
+
+        var result = await ssh.Environments.MintCodeAsync(EnvA, machines.Select(m => new T3SshTarget(m)).ToArray(), new[] { "orchestration:read" });
+
+        Assert.Equal(expected, result.Outcome);
+        Assert.Empty(ssh.Runner.Forwards);
+    }
+
+    [Fact]
+    public async Task ReopensTheTunnelWhenT3ThereMovesToAnotherLoopbackAddress()
+    {
+        await using var ssh = new Ssh(recheck: TimeSpan.FromMilliseconds(50));
+        var vps = ssh.Machine("vps", EnvA);
+        ssh.Environments.Retain(new Dictionary<string, IReadOnlyList<T3SshTarget>> { [EnvA] = new[] { new T3SshTarget("vps") } });
+        Assert.True(await WaitAsync(() => ssh.Runner.Live(ssh.PortOf(EnvA)) != null));
+        var first = ssh.Runner.Live(ssh.PortOf(EnvA))!;
+        Assert.Equal("127.0.0.1:3773", first.Remote);
+
+        // Same port, now on IPv6 loopback: the old forward would point at nothing.
+        vps.Host = "::1";
+        Assert.True(await WaitAsync(() => first.Disposed));
+        var result = await ssh.Environments.MintCodeAsync(EnvA, new[] { new T3SshTarget("vps") }, new[] { "orchestration:read" });
+        Assert.Equal(T3DesktopPairingOutcome.Success, result.Outcome);
+        Assert.Equal("::1:3773", ssh.Runner.Live(ssh.PortOf(EnvA))!.Remote);
     }
 
     [Fact]
@@ -459,7 +517,7 @@ public class T3SshTests : IDisposable
 
         vps.EnvironmentId = EnvB;
         laptop.EnvironmentId = EnvA;
-        ssh.Environments.Retain(new Dictionary<string, T3SshTarget> { [EnvA] = new("vps") });
+        ssh.Environments.Retain(new Dictionary<string, IReadOnlyList<T3SshTarget>> { [EnvA] = new[] { new T3SshTarget("vps") } });
         Assert.True(await WaitAsync(() => ssh.Environments.TakeMovedEnvironments() is { Count: > 0 } moved && moved.Single() == EnvA));
         Assert.Empty(ssh.Environments.TakeMovedEnvironments());
 

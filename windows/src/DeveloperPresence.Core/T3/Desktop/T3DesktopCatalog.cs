@@ -14,23 +14,25 @@ public sealed class T3DesktopRoute
         DesktopToken = desktopToken;
     }
 
-    /// <summary>A route through an SSH tunnel Deskchirp opens itself, listening on <paramref name="mcpAddress"/> here.</summary>
-    public T3DesktopRoute(string mcpAddress, T3SshTarget ssh)
+    /// <summary>A route through an SSH tunnel Deskchirp opens itself to the first of <paramref name="ssh"/> that works, listening on <paramref name="mcpAddress"/> here.</summary>
+    public T3DesktopRoute(string mcpAddress, IReadOnlyList<T3SshTarget> ssh)
     {
+        if (ssh.Count == 0) throw new ArgumentException("An SSH route needs a machine.", nameof(ssh));
         McpAddress = mcpAddress;
         DesktopToken = string.Empty;
-        Ssh = ssh;
+        SshTargets = ssh;
     }
 
     /// <summary>Normalized MCP address, for example https://host/mcp.</summary>
     public string McpAddress { get; }
     /// <summary>T3 Code's bearer token for this route. Only ever sent back to this route's own origin. Empty over SSH.</summary>
     public string DesktopToken { get; }
-    /// <summary>The machine an SSH route tunnels to. Codes are minted on it with its own t3 command.</summary>
-    public T3SshTarget? Ssh { get; }
+    /// <summary>The machines an SSH route may tunnel to, in order. Codes are minted on the one the tunnel opened on, with its own t3 command.</summary>
+    public IReadOnlyList<T3SshTarget> SshTargets { get; } = Array.Empty<T3SshTarget>();
+    public bool IsSsh => SshTargets.Count > 0;
     public Uri Origin => T3UrlValidator.GetOriginUri(new Uri(McpAddress));
 
-    public override string ToString() => Ssh == null ? McpAddress : $"{McpAddress} over SSH to {Ssh}"; // Never the token.
+    public override string ToString() => IsSsh ? $"{McpAddress} over SSH to {string.Join(" or ", SshTargets)}" : McpAddress; // Never the token.
 }
 
 /// <summary>An environment saved in the T3 Code desktop app.</summary>

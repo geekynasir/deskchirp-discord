@@ -843,7 +843,7 @@ public class T3DesktopFollowTests : IDisposable
         public Dictionary<string, T3DesktopPairingOutcome> Outcomes { get; } = new();
         public List<string[]> Discoveries { get; } = new();
         public List<(string EnvironmentId, string Destination, string Scopes)> Mints { get; } = new();
-        public IReadOnlyDictionary<string, T3SshTarget> Retained { get; private set; } = new Dictionary<string, T3SshTarget>();
+        public IReadOnlyDictionary<string, T3SshTarget[]> Retained { get; private set; } = new Dictionary<string, T3SshTarget[]>();
         public bool Disposed { get; private set; }
 
         public string AddressFor(string environmentId)
@@ -859,7 +859,7 @@ public class T3DesktopFollowTests : IDisposable
                 Machines.Where(m => environmentIds.Contains(m.Key)).ToDictionary(m => m.Key, m => m.Value));
         }
 
-        public void Retain(IReadOnlyDictionary<string, T3SshTarget> tunnels) => Retained = tunnels.ToDictionary(t => t.Key, t => t.Value);
+        public void Retain(IReadOnlyDictionary<string, IReadOnlyList<T3SshTarget>> tunnels) => Retained = tunnels.ToDictionary(t => t.Key, t => t.Value.ToArray());
 
         public HashSet<string> Moved { get; } = new();
         public IReadOnlyCollection<string> TakeMovedEnvironments()
@@ -869,9 +869,9 @@ public class T3DesktopFollowTests : IDisposable
             return moved;
         }
 
-        public Task<T3DesktopPairingResult> MintCodeAsync(string environmentId, T3SshTarget target, IReadOnlyList<string> scopes, CancellationToken ct = default)
+        public Task<T3DesktopPairingResult> MintCodeAsync(string environmentId, IReadOnlyList<T3SshTarget> targets, IReadOnlyList<string> scopes, CancellationToken ct = default)
         {
-            Mints.Add((environmentId, target.Destination, string.Join(" ", scopes)));
+            Mints.Add((environmentId, string.Join(" ", targets.Select(t => t.Destination)), string.Join(" ", scopes)));
             var outcome = Outcomes.GetValueOrDefault(environmentId, T3DesktopPairingOutcome.Success);
             return Task.FromResult(outcome == T3DesktopPairingOutcome.Success
                 ? new T3DesktopPairingResult(outcome, scopes.Count > 1 ? "USAGECODE234" : "READCODE2345")
@@ -930,7 +930,7 @@ public class T3DesktopFollowTests : IDisposable
         Assert.Contains((tunnel, "READCODE2345"), rig.OAuth.Calls);
         // Desktop tokens still go only to their own environments; none goes over SSH.
         Assert.Equal(new[] { Laptop }, rig.Pairing.Calls.Select(c => c.Address));
-        Assert.Equal(new Dictionary<string, T3SshTarget> { ["env-relay"] = new("mumbai-vps") }, rig.Ssh.Retained);
+        Assert.Equal(new[] { new T3SshTarget("mumbai-vps") }, Assert.Single(rig.Ssh.Retained, r => r.Key == "env-relay").Value);
         Assert.Equal(string.Empty, rig.Follower.Note);
     }
 
@@ -939,13 +939,14 @@ public class T3DesktopFollowTests : IDisposable
     {
         await using var rig = new Rig(ssh: true);
         await rig.Activity.InitializeAsync();
-        rig.Catalog.Set(RelayEnv("env-ssh", "SSH box", new T3SshTarget("box", "me", 2222)));
+        rig.Catalog.Set(RelayEnv("env-ssh", "SSH box", new T3SshTarget("box", "me", 2222), new T3SshTarget("10.0.0.6")));
 
         await rig.Follower.SyncOnceAsync();
 
+        // Every saved machine is handed over, in order, for the tunnel to try.
         Assert.Empty(rig.Ssh!.Discoveries);
-        Assert.Equal(new[] { ("env-ssh", "me@box", "orchestration:read") }, rig.Ssh.Mints);
-        Assert.Equal(new T3SshTarget("box", "me", 2222), rig.Ssh.Retained["env-ssh"]);
+        Assert.Equal(new[] { ("env-ssh", "me@box 10.0.0.6", "orchestration:read") }, rig.Ssh.Mints);
+        Assert.Equal(new[] { new T3SshTarget("box", "me", 2222), new T3SshTarget("10.0.0.6") }, rig.Ssh.Retained["env-ssh"]);
     }
 
     [Fact]
@@ -1074,7 +1075,7 @@ public class T3DesktopFollowTests : IDisposable
         await rig.Follower.SyncOnceAsync();
 
         Assert.Equal(2, rig.Ssh.Discoveries.Count);
-        Assert.Equal(new T3SshTarget("new-box"), rig.Ssh.Retained["env-a"]);
+        Assert.Equal(new[] { new T3SshTarget("new-box") }, rig.Ssh.Retained["env-a"]);
         Assert.Equal("http://127.0.0.1:41000/mcp", rig.Settings.Settings.T3Environments.Single().Address);
     }
 

@@ -22,7 +22,7 @@ To do this, Deskchirp opens T3 Code’s encrypted connection catalog with your W
 
 Environments T3 Code reaches only through T3 Connect, or over SSH, are reached with your own SSH instead, so they need no setup either as long as `ssh <machine>` signs in without a password prompt (a key or ssh-agent, and a host key you already trust):
 
-- For an SSH connection, Deskchirp uses the machine T3 Code saved.
+- For an SSH connection, Deskchirp tries the machines T3 Code saved, in order, and uses the first one that runs the environment.
 - For anything else, it asks the machines in your `~/.ssh/config` and, if Tailscale is installed, your own online Linux and Mac machines in your tailnet, which T3 environment each one runs. It reads only `~/.t3/userdata/environment-id` and the running server’s port from `~/.t3/userdata/server-runtime.json` there. Machines that don’t answer are asked again after 10 minutes, then less often.
 - On the machine that runs the environment, it has T3 Code’s own `t3` command create a five-minute read-only pairing code, then forwards a local port (between 41000 and 48999, the same one each time) to T3 through SSH and signs in through it. The pairing shows up as **Deskchirp** like the others.
 - Deskchirp keeps the tunnel open while the environment is followed, reopens it when it drops or T3 Code restarts on another port, and closes it when you remove the environment or turn following off. It never starts or stops T3 Code on the machine.

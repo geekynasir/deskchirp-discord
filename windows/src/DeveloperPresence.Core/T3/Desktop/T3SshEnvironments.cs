@@ -26,14 +26,17 @@ public interface IT3SshEnvironments : IAsyncDisposable
     /// <summary>Asks the user's SSH hosts which T3 environment each runs, and returns the machine for each one wanted that turned up.</summary>
     Task<IReadOnlyDictionary<string, T3SshTarget>> DiscoverAsync(IReadOnlyCollection<string> environmentIds, CancellationToken ct = default);
 
-    /// <summary>Keeps tunnels open for exactly these environments, reopening them when they drop, and closes the rest.</summary>
-    void Retain(IReadOnlyDictionary<string, T3SshTarget> tunnels);
+    /// <summary>
+    /// Keeps tunnels open for exactly these environments, each to the first of its machines that runs it,
+    /// reopening them when they drop, and closes the rest.
+    /// </summary>
+    void Retain(IReadOnlyDictionary<string, IReadOnlyList<T3SshTarget>> tunnels);
 
     /// <summary>Environments whose tunnel found its machine running another environment since the last call, so they can be looked for again.</summary>
     IReadOnlyCollection<string> TakeMovedEnvironments();
 
     /// <summary>Opens the environment's tunnel if needed, then has the machine's own t3 command mint a one-time pairing code.</summary>
-    Task<T3DesktopPairingResult> MintCodeAsync(string environmentId, T3SshTarget target, IReadOnlyList<string> scopes, CancellationToken ct = default);
+    Task<T3DesktopPairingResult> MintCodeAsync(string environmentId, IReadOnlyList<T3SshTarget> targets, IReadOnlyList<string> scopes, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -66,6 +69,7 @@ public sealed partial class T3SshEnvironments : IT3SshEnvironments
     private readonly Func<int, bool> _portFree;
     private readonly Func<int, CancellationToken, Task<bool>> _listening;
     private readonly Func<DateTimeOffset> _clock;
+    private readonly TimeSpan _recheck;
     private readonly object _lock = new();
     private readonly Dictionary<string, int> _ports = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Tunnel> _tunnels = new(StringComparer.Ordinal);
@@ -78,13 +82,15 @@ public sealed partial class T3SshEnvironments : IT3SshEnvironments
         IT3SshHostSource? hosts = null,
         Func<int, bool>? portFree = null,
         Func<int, CancellationToken, Task<bool>>? listening = null,
-        Func<DateTimeOffset>? clock = null)
+        Func<DateTimeOffset>? clock = null,
+        TimeSpan? recheckOpenTunnel = null)
     {
         _runner = runner ?? new T3SshRunner();
         _hosts = hosts ?? new T3SshHostSource();
         _portFree = portFree ?? IsPortFree;
         _listening = listening ?? IsListeningAsync;
         _clock = clock ?? (() => DateTimeOffset.UtcNow);
+        _recheck = recheckOpenTunnel ?? RecheckOpenTunnel;
     }
 
     [GeneratedRegex("^[A-Za-z0-9._-]{1,128}$", RegexOptions.CultureInvariant)]
@@ -94,15 +100,17 @@ public sealed partial class T3SshEnvironments : IT3SshEnvironments
 
     private sealed class Tunnel
     {
-        public Tunnel(string environmentId, T3SshTarget target, int localPort)
+        public Tunnel(string environmentId, IReadOnlyList<T3SshTarget> targets, int localPort)
         {
             EnvironmentId = environmentId;
-            Target = target;
+            Targets = targets.ToList();
             LocalPort = localPort;
         }
 
         public string EnvironmentId { get; }
-        public T3SshTarget Target { get; }
+        public IReadOnlyList<T3SshTarget> Targets { get; }
+        /// <summary>The machine the open forward goes to.</summary>
+        public volatile T3SshTarget? Current;
         public int LocalPort { get; }
         public CancellationTokenSource Stop { get; } = new();
         public SemaphoreSlim Kick { get; } = new(0, 1);
@@ -238,13 +246,13 @@ public sealed partial class T3SshEnvironments : IT3SshEnvironments
     /// The environment left this machine. Machines that answered are asked again, as one of them may run it
     /// now; ones that didn't answer keep waiting.
     /// </summary>
-    private void Moved(string environmentId, T3SshTarget target)
+    private void Moved(string environmentId, IEnumerable<T3SshTarget> targets)
     {
         lock (_lock)
         {
             foreach (var (host, probe) in _probed.ToList())
                 if (probe.EnvironmentId != null) _probed.Remove(host);
-            _probed.Remove(target);
+            foreach (var target in targets) _probed.Remove(target);
             _moved.Add(environmentId);
         }
     }
@@ -361,31 +369,31 @@ public sealed partial class T3SshEnvironments : IT3SshEnvironments
 
     // ---- Tunnels ----
 
-    public void Retain(IReadOnlyDictionary<string, T3SshTarget> tunnels)
+    public void Retain(IReadOnlyDictionary<string, IReadOnlyList<T3SshTarget>> tunnels)
     {
         lock (_lock)
         {
             if (_disposed) return;
             foreach (var (id, tunnel) in _tunnels.ToList())
             {
-                if (tunnels.TryGetValue(id, out var target) && target == tunnel.Target) continue;
+                if (tunnels.TryGetValue(id, out var targets) && targets.SequenceEqual(tunnel.Targets)) continue;
                 tunnel.Stop.Cancel();
                 _tunnels.Remove(id);
             }
-            foreach (var (id, target) in tunnels) EnsureTunnelLocked(id, target);
+            foreach (var (id, targets) in tunnels) EnsureTunnelLocked(id, targets);
         }
     }
 
-    private Tunnel? EnsureTunnelLocked(string environmentId, T3SshTarget target)
+    private Tunnel? EnsureTunnelLocked(string environmentId, IReadOnlyList<T3SshTarget> targets)
     {
-        if (_disposed) return null;
+        if (_disposed || targets.Count == 0) return null;
         if (_tunnels.TryGetValue(environmentId, out var existing))
         {
-            if (existing.Target == target) return existing;
+            if (existing.Targets.SequenceEqual(targets)) return existing;
             existing.Stop.Cancel();
         }
         if (!_ports.ContainsKey(environmentId)) AddressFor(environmentId);
-        var tunnel = new Tunnel(environmentId, target, _ports[environmentId]);
+        var tunnel = new Tunnel(environmentId, targets, _ports[environmentId]);
         _tunnels[environmentId] = tunnel;
         tunnel.Loop = Task.Run(() => RunTunnelAsync(tunnel));
         return tunnel;
@@ -398,27 +406,26 @@ public sealed partial class T3SshEnvironments : IT3SshEnvironments
         var delay = MinTunnelRetry;
         while (!stop.IsCancellationRequested)
         {
-            T3DesktopPairingOutcome problem;
-            IT3SshForward? forward = null;
-            int remotePort = 0;
-            try { (problem, forward, remotePort) = await OpenAsync(tunnel, stop).ConfigureAwait(false); }
+            Opened opened = new(T3DesktopPairingOutcome.Failed, null, null, null);
+            try { opened = await OpenAsync(tunnel, stop).ConfigureAwait(false); }
             catch (OperationCanceledException) when (stop.IsCancellationRequested) { break; }
-            catch { problem = T3DesktopPairingOutcome.Failed; }
+            catch { }
 
-            if (forward != null)
+            if (opened is { Forward: { } forward, Target: { } target, Probe: { } probe })
             {
-                var opened = Stopwatch.StartNew();
+                var since = Stopwatch.StartNew();
+                tunnel.Current = target;
                 tunnel.Forward = forward;
                 Interlocked.Increment(ref tunnel.Attempts);
-                try { await WatchAsync(tunnel, forward, remotePort, stop).ConfigureAwait(false); }
+                try { await WatchAsync(tunnel, forward, target, probe, stop).ConfigureAwait(false); }
                 catch { }
                 tunnel.Forward = null;
                 forward.Dispose();
-                if (opened.Elapsed > TimeSpan.FromMinutes(1)) delay = MinTunnelRetry;
+                if (since.Elapsed > TimeSpan.FromMinutes(1)) delay = MinTunnelRetry;
             }
             else
             {
-                tunnel.Problem = problem;
+                tunnel.Problem = opened.Problem;
                 Interlocked.Increment(ref tunnel.Attempts);
             }
 
@@ -429,21 +436,40 @@ public sealed partial class T3SshEnvironments : IT3SshEnvironments
         }
     }
 
-    /// <summary>Checks the machine still runs this environment on the same port, then forwards to it.</summary>
-    private async Task<(T3DesktopPairingOutcome Problem, IT3SshForward? Forward, int RemotePort)> OpenAsync(Tunnel tunnel, CancellationToken ct)
-    {
-        var (probe, reached) = await ProbeAsync(tunnel.Target, ct).ConfigureAwait(false);
-        if (!reached) return (T3DesktopPairingOutcome.SshUnreachable, null, 0);
-        if (probe?.EnvironmentId != tunnel.EnvironmentId)
-        {
-            Moved(tunnel.EnvironmentId, tunnel.Target);
-            return (T3DesktopPairingOutcome.WrongEnvironment, null, 0);
-        }
-        if (!probe.Running) return (T3DesktopPairingOutcome.NotRunning, null, 0);
-        // Something else listening here would get the sign-in meant for T3.
-        if (!_portFree(tunnel.LocalPort)) return (T3DesktopPairingOutcome.LocalPortBusy, null, 0);
+    private sealed record Opened(T3DesktopPairingOutcome Problem, IT3SshForward? Forward, T3SshTarget? Target, T3SshProbe? Probe);
 
-        var forward = _runner.StartForward(tunnel.Target, tunnel.LocalPort, probe.RemoteHost!, probe.RemotePort!.Value);
+    /// <summary>
+    /// Tries the machines in order until one runs this environment and forwards to it. Otherwise returns the
+    /// most telling problem: not running beats another environment, which beats unreachable.
+    /// </summary>
+    private async Task<Opened> OpenAsync(Tunnel tunnel, CancellationToken ct)
+    {
+        var problem = T3DesktopPairingOutcome.SshUnreachable;
+        var wrong = new List<T3SshTarget>();
+        foreach (var target in tunnel.Targets)
+        {
+            var (probe, reached) = await ProbeAsync(target, ct).ConfigureAwait(false);
+            if (!reached) continue;
+            if (probe?.EnvironmentId != tunnel.EnvironmentId)
+            {
+                wrong.Add(target);
+                if (problem == T3DesktopPairingOutcome.SshUnreachable) problem = T3DesktopPairingOutcome.WrongEnvironment;
+                continue;
+            }
+            if (!probe.Running) { problem = T3DesktopPairingOutcome.NotRunning; continue; }
+            // Something else listening here would get the sign-in meant for T3.
+            if (!_portFree(tunnel.LocalPort)) return new(T3DesktopPairingOutcome.LocalPortBusy, null, null, null);
+            var forward = await ForwardAsync(tunnel, target, probe, ct).ConfigureAwait(false);
+            if (forward != null) return new(T3DesktopPairingOutcome.Success, forward, target, probe);
+        }
+        if (problem == T3DesktopPairingOutcome.WrongEnvironment) Moved(tunnel.EnvironmentId, wrong);
+        return new(problem, null, null, null);
+    }
+
+    /// <summary>Starts the forward and returns it once the local port answers, or null if ssh gave up.</summary>
+    private async Task<IT3SshForward?> ForwardAsync(Tunnel tunnel, T3SshTarget target, T3SshProbe probe, CancellationToken ct)
+    {
+        var forward = _runner.StartForward(target, tunnel.LocalPort, probe.RemoteHost!, probe.RemotePort!.Value);
         var waited = Stopwatch.StartNew();
         try
         {
@@ -451,7 +477,7 @@ public sealed partial class T3SshEnvironments : IT3SshEnvironments
             {
                 if (forward.Exited.IsCompleted) break;
                 if (await _listening(tunnel.LocalPort, ct).ConfigureAwait(false) && !forward.Exited.IsCompleted)
-                    return (T3DesktopPairingOutcome.Success, forward, probe.RemotePort.Value);
+                    return forward;
                 await Task.Delay(TimeSpan.FromMilliseconds(250), ct).ConfigureAwait(false);
             }
         }
@@ -461,33 +487,35 @@ public sealed partial class T3SshEnvironments : IT3SshEnvironments
             throw;
         }
         forward.Dispose();
-        return (T3DesktopPairingOutcome.SshUnreachable, null, 0);
+        return null;
     }
 
-    /// <summary>Returns once the forward ends, or once T3 Code there restarted on another port or stopped.</summary>
-    private async Task WatchAsync(Tunnel tunnel, IT3SshForward forward, int remotePort, CancellationToken stop)
+    /// <summary>Returns once the forward ends, or once T3 Code there restarted on another address or port, or stopped.</summary>
+    private async Task WatchAsync(Tunnel tunnel, IT3SshForward forward, T3SshTarget target, T3SshProbe opened, CancellationToken stop)
     {
         while (!stop.IsCancellationRequested)
         {
             using var wait = CancellationTokenSource.CreateLinkedTokenSource(stop);
-            var recheck = Task.Delay(RecheckOpenTunnel, wait.Token);
+            var recheck = Task.Delay(_recheck, wait.Token);
             var done = await Task.WhenAny(forward.Exited, recheck).ConfigureAwait(false);
             wait.Cancel();
             if (done == forward.Exited || stop.IsCancellationRequested) return;
-            var (probe, reached) = await ProbeAsync(tunnel.Target, stop).ConfigureAwait(false);
-            if (reached && (probe?.EnvironmentId != tunnel.EnvironmentId || !probe.Running || probe.RemotePort != remotePort)) return;
+            var (probe, reached) = await ProbeAsync(target, stop).ConfigureAwait(false);
+            if (reached && (probe?.EnvironmentId != tunnel.EnvironmentId || !probe.Running ||
+                            probe.RemoteHost != opened.RemoteHost || probe.RemotePort != opened.RemotePort)) return;
         }
     }
 
     // ---- Pairing codes ----
 
-    public async Task<T3DesktopPairingResult> MintCodeAsync(string environmentId, T3SshTarget target, IReadOnlyList<string> scopes, CancellationToken ct = default)
+    public async Task<T3DesktopPairingResult> MintCodeAsync(string environmentId, IReadOnlyList<T3SshTarget> targets, IReadOnlyList<string> scopes, CancellationToken ct = default)
     {
-        if (!EnvironmentIdPattern().IsMatch(environmentId) || scopes.Count == 0 || scopes.Any(s => !AllowedScopes.Contains(s)) || !target.IsValid)
+        if (!EnvironmentIdPattern().IsMatch(environmentId) || scopes.Count == 0 || scopes.Any(s => !AllowedScopes.Contains(s)) ||
+            targets.Count == 0 || targets.Any(t => !t.IsValid))
             return new(T3DesktopPairingOutcome.Failed);
 
         Tunnel? tunnel;
-        lock (_lock) tunnel = EnsureTunnelLocked(environmentId, target);
+        lock (_lock) tunnel = EnsureTunnelLocked(environmentId, targets);
         if (tunnel == null) return new(T3DesktopPairingOutcome.Failed);
 
         // The code is only minted once the tunnel it will be used through is open.
@@ -501,6 +529,8 @@ public sealed partial class T3SshEnvironments : IT3SshEnvironments
             if (!tunnel.Open)
                 return new(Volatile.Read(ref tunnel.Attempts) == seen ? T3DesktopPairingOutcome.SshUnreachable : tunnel.Problem);
         }
+        // Minted on the machine the tunnel goes to, so the code lands where it will be used.
+        if (tunnel.Current is not { } target) return new(T3DesktopPairingOutcome.SshUnreachable);
 
         var result = await _runner.RunScriptAsync(target, MintScript(environmentId, scopes), MintTimeout, ct).ConfigureAwait(false);
         if (result.Unreachable) return new(T3DesktopPairingOutcome.SshUnreachable);
@@ -511,7 +541,7 @@ public sealed partial class T3SshEnvironments : IT3SshEnvironments
                 return code == null ? new(T3DesktopPairingOutcome.Failed) : new(T3DesktopPairingOutcome.Success, code);
             case 3: return new(T3DesktopPairingOutcome.NoT3Command);
             case 4:
-                Moved(environmentId, target);
+                Moved(environmentId, new[] { target });
                 return new(T3DesktopPairingOutcome.WrongEnvironment);
             case 5: return new(T3DesktopPairingOutcome.NotRunning);
             default: return new(T3DesktopPairingOutcome.Failed);
