@@ -862,11 +862,15 @@ public class T3DesktopFollowTests : IDisposable
         public void Retain(IReadOnlyDictionary<string, IReadOnlyList<T3SshTarget>> tunnels) => Retained = tunnels.ToDictionary(t => t.Key, t => t.Value.ToArray());
 
         public HashSet<string> Moved { get; } = new();
-        public IReadOnlyCollection<string> TakeMovedEnvironments()
+        public IReadOnlyCollection<string> TakeMovedEnvironments() => Take(Moved);
+        public HashSet<string> Unreachable { get; } = new();
+        public IReadOnlyCollection<string> TakeUnreachableEnvironments() => Take(Unreachable);
+
+        private static IReadOnlyCollection<string> Take(HashSet<string> environments)
         {
-            var moved = Moved.ToList();
-            Moved.Clear();
-            return moved;
+            var taken = environments.ToList();
+            environments.Clear();
+            return taken;
         }
 
         public Task<T3DesktopPairingResult> MintCodeAsync(string environmentId, IReadOnlyList<T3SshTarget> targets, IReadOnlyList<string> scopes, CancellationToken ct = default)
@@ -1077,6 +1081,37 @@ public class T3DesktopFollowTests : IDisposable
         Assert.Equal(2, rig.Ssh.Discoveries.Count);
         Assert.Equal(new[] { new T3SshTarget("new-box") }, rig.Ssh.Retained["env-a"]);
         Assert.Equal("http://127.0.0.1:41000/mcp", rig.Settings.Settings.T3Environments.Single().Address);
+    }
+
+    [Fact]
+    public async Task LooksElsewhereWhenTheFoundMachineStopsAnsweringButKeepsTryingIt()
+    {
+        await using var rig = new Rig(ssh: true);
+        await rig.Activity.InitializeAsync();
+        rig.Ssh!.Machines["env-a"] = new T3SshTarget("old-box");
+        rig.Catalog.Set(RelayEnv("env-a", "A"));
+        await rig.Follower.SyncOnceAsync();
+
+        // old-box went quiet and nothing else runs env-a yet: its tunnel keeps trying old-box.
+        rig.Ssh.Machines.Remove("env-a");
+        rig.Ssh.Unreachable.Add("env-a");
+        await rig.Follower.SyncOnceAsync();
+        Assert.Equal(2, rig.Ssh.Discoveries.Count);
+        Assert.Equal(new[] { new T3SshTarget("old-box") }, rig.Ssh.Retained["env-a"]);
+
+        // It keeps looking, and follows env-a once another machine runs it.
+        await rig.Follower.SyncOnceAsync();
+        Assert.Equal(2, rig.Ssh.Discoveries.Count);
+        rig.Ssh.Machines["env-a"] = new T3SshTarget("new-box");
+        rig.Now += T3DesktopFollower.SshDiscoveryInterval;
+        await rig.Follower.SyncOnceAsync();
+        Assert.Equal(3, rig.Ssh.Discoveries.Count);
+        Assert.Equal(new[] { new T3SshTarget("new-box") }, rig.Ssh.Retained["env-a"]);
+
+        // Found again, it isn't looked for any more.
+        rig.Now += T3DesktopFollower.SshDiscoveryInterval;
+        await rig.Follower.SyncOnceAsync();
+        Assert.Equal(3, rig.Ssh.Discoveries.Count);
     }
 
     [Fact]

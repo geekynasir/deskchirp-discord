@@ -525,6 +525,31 @@ public class T3SshTests : IDisposable
         Assert.Equal(new T3SshTarget("laptop"), (await ssh.Environments.DiscoverAsync(new[] { EnvA }))[EnvA]);
     }
 
+    [Fact]
+    public async Task ATunnelThatReachesNoMachineForAWhileAsksForADifferentOne()
+    {
+        await using var ssh = new Ssh();
+        var vps = ssh.Machine("vps", EnvA);
+        var laptop = ssh.Machine("laptop", null);
+        Assert.Equal(new T3SshTarget("vps"), (await ssh.Environments.DiscoverAsync(new[] { EnvA }))[EnvA]);
+
+        vps.Down = true;
+        laptop.EnvironmentId = EnvA;
+        var targets = new[] { new T3SshTarget("vps") };
+        Assert.Equal(T3DesktopPairingOutcome.SshUnreachable, (await ssh.Environments.MintCodeAsync(EnvA, targets, new[] { "orchestration:read" })).Outcome);
+        Assert.Empty(ssh.Environments.TakeUnreachableEnvironments());
+
+        ssh.Now += T3SshEnvironments.SearchAfterUnreachable;
+        Assert.Equal(T3DesktopPairingOutcome.SshUnreachable, (await ssh.Environments.MintCodeAsync(EnvA, targets, new[] { "orchestration:read" })).Outcome);
+        Assert.Equal(new[] { EnvA }, ssh.Environments.TakeUnreachableEnvironments());
+        // Once per stretch.
+        Assert.Equal(T3DesktopPairingOutcome.SshUnreachable, (await ssh.Environments.MintCodeAsync(EnvA, targets, new[] { "orchestration:read" })).Outcome);
+        Assert.Empty(ssh.Environments.TakeUnreachableEnvironments());
+
+        // Discovery no longer offers the silent machine from memory and asks the others again.
+        Assert.Equal(new T3SshTarget("laptop"), (await ssh.Environments.DiscoverAsync(new[] { EnvA }))[EnvA]);
+    }
+
     private static async Task<bool> WaitAsync(Func<bool> condition)
     {
         var waited = Stopwatch.StartNew();

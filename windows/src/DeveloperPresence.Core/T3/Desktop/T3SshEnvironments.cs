@@ -35,6 +35,12 @@ public interface IT3SshEnvironments : IAsyncDisposable
     /// <summary>Environments whose tunnel found its machine running another environment since the last call, so they can be looked for again.</summary>
     IReadOnlyCollection<string> TakeMovedEnvironments();
 
+    /// <summary>
+    /// Environments whose tunnel hasn't reached any of its machines for a while, once per stretch, so other
+    /// machines can be asked whether they run it now.
+    /// </summary>
+    IReadOnlyCollection<string> TakeUnreachableEnvironments();
+
     /// <summary>Opens the environment's tunnel if needed, then has the machine's own t3 command mint a one-time pairing code.</summary>
     Task<T3DesktopPairingResult> MintCodeAsync(string environmentId, IReadOnlyList<T3SshTarget> targets, IReadOnlyList<string> scopes, CancellationToken ct = default);
 }
@@ -60,6 +66,7 @@ public sealed partial class T3SshEnvironments : IT3SshEnvironments
     public static readonly TimeSpan MinTunnelRetry = TimeSpan.FromSeconds(5);
     public static readonly TimeSpan MaxTunnelRetry = TimeSpan.FromMinutes(5);
     public static readonly TimeSpan RecheckOpenTunnel = TimeSpan.FromMinutes(5);
+    public static readonly TimeSpan SearchAfterUnreachable = TimeSpan.FromMinutes(15);
     internal const string ProbeMarker = "deskchirp-t3-probe-1";
     private const int MaxParallelProbes = 4;
     private static readonly string[] AllowedScopes = { T3DesktopPairingClient.ReadScope, T3DesktopPairingClient.DiagnosticsScope };
@@ -75,6 +82,7 @@ public sealed partial class T3SshEnvironments : IT3SshEnvironments
     private readonly Dictionary<string, Tunnel> _tunnels = new(StringComparer.Ordinal);
     private readonly Dictionary<T3SshTarget, HostProbe> _probed = new();
     private readonly HashSet<string> _moved = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _unreachable = new(StringComparer.Ordinal);
     private bool _disposed;
 
     public T3SshEnvironments(
@@ -121,6 +129,9 @@ public sealed partial class T3SshEnvironments : IT3SshEnvironments
         /// <summary>Counts finished attempts, so a waiter can tell a fresh failure from an old one.</summary>
         public int Attempts;
         public volatile T3DesktopPairingOutcome Problem = T3DesktopPairingOutcome.SshUnreachable;
+        /// <summary>When the attempts in a row that reached none of the machines began, and whether that was reported.</summary>
+        public DateTimeOffset? UnreachableSince;
+        public bool ReportedUnreachable;
 
         public void Wake()
         {
@@ -257,13 +268,32 @@ public sealed partial class T3SshEnvironments : IT3SshEnvironments
         }
     }
 
-    public IReadOnlyCollection<string> TakeMovedEnvironments()
+    public IReadOnlyCollection<string> TakeMovedEnvironments() => Take(_moved);
+
+    public IReadOnlyCollection<string> TakeUnreachableEnvironments() => Take(_unreachable);
+
+    private IReadOnlyCollection<string> Take(HashSet<string> environments)
     {
         lock (_lock)
         {
-            var moved = _moved.ToList();
-            _moved.Clear();
-            return moved;
+            var taken = environments.ToList();
+            environments.Clear();
+            return taken;
+        }
+    }
+
+    /// <summary>
+    /// None of this environment's machines has answered for a while. They count as not answering, so discovery
+    /// doesn't offer them from memory, and machines that answered are asked again, as one of them may run it now.
+    /// </summary>
+    private void LongUnreachable(Tunnel tunnel)
+    {
+        lock (_lock)
+        {
+            foreach (var (host, probe) in _probed.ToList())
+                if (probe.EnvironmentId != null) _probed.Remove(host);
+            foreach (var target in tunnel.Targets) _probed[target] = new HostProbe(null, _clock() + HostRetry, 1);
+            _unreachable.Add(tunnel.EnvironmentId);
         }
     }
 
@@ -416,6 +446,8 @@ public sealed partial class T3SshEnvironments : IT3SshEnvironments
                 var since = Stopwatch.StartNew();
                 tunnel.Current = target;
                 tunnel.Forward = forward;
+                tunnel.UnreachableSince = null;
+                tunnel.ReportedUnreachable = false;
                 Interlocked.Increment(ref tunnel.Attempts);
                 try { await WatchAsync(tunnel, forward, target, probe, stop).ConfigureAwait(false); }
                 catch { }
@@ -426,6 +458,21 @@ public sealed partial class T3SshEnvironments : IT3SshEnvironments
             else
             {
                 tunnel.Problem = opened.Problem;
+                if (opened.Problem == T3DesktopPairingOutcome.SshUnreachable)
+                {
+                    var now = _clock();
+                    tunnel.UnreachableSince ??= now;
+                    if (!tunnel.ReportedUnreachable && now - tunnel.UnreachableSince >= SearchAfterUnreachable)
+                    {
+                        tunnel.ReportedUnreachable = true;
+                        LongUnreachable(tunnel);
+                    }
+                }
+                else
+                {
+                    tunnel.UnreachableSince = null;
+                    tunnel.ReportedUnreachable = false;
+                }
                 Interlocked.Increment(ref tunnel.Attempts);
             }
 

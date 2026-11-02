@@ -65,6 +65,8 @@ public sealed class T3DesktopFollower : IAsyncDisposable
     private readonly HashSet<string> _usageMoved = new(StringComparer.Ordinal);
     /// <summary>Machines SSH discovery found T3 Code's SSH-less environments on, by environment id.</summary>
     private readonly Dictionary<string, T3SshTarget> _sshFound = new(StringComparer.Ordinal);
+    /// <summary>Found environments whose machine stopped answering: still tunnelled to it, but looked for elsewhere too.</summary>
+    private readonly HashSet<string> _sshStale = new(StringComparer.Ordinal);
     private DateTimeOffset _discoverAt = DateTimeOffset.MinValue;
     /// <summary>The last pass left environments that discovery may still find.</summary>
     private bool _sshPending;
@@ -206,7 +208,10 @@ public sealed class T3DesktopFollower : IAsyncDisposable
         _wasEnabled = true;
         // A tunnel found its machine now runs another environment, maybe while the entry stays signed in.
         if (_ssh != null)
+        {
             foreach (string moved in _ssh.TakeMovedEnvironments()) LostSshMachine(moved);
+            foreach (string unreachable in _ssh.TakeUnreachableEnvironments()) SshMachineSilent(unreachable);
+        }
         if (!force && !HasWork(settings))
         {
             // The user may have removed an environment; its tunnel closes without waiting for a full pass.
@@ -251,7 +256,8 @@ public sealed class T3DesktopFollower : IAsyncDisposable
         lock (_lock)
         {
             unresolved = environments
-                .Where(d => d.Routes.Count == 0 && d.SshTargets.Count == 0 && !ignored.Contains(d.EnvironmentId) && !_sshFound.ContainsKey(d.EnvironmentId))
+                .Where(d => d.Routes.Count == 0 && d.SshTargets.Count == 0 && !ignored.Contains(d.EnvironmentId) &&
+                            (!_sshFound.ContainsKey(d.EnvironmentId) || _sshStale.Contains(d.EnvironmentId)))
                 .Select(d => d.EnvironmentId)
                 .ToList();
             discover = unresolved.Count > 0 && (force || now >= _discoverAt);
@@ -264,7 +270,11 @@ public sealed class T3DesktopFollower : IAsyncDisposable
             catch { found = new Dictionary<string, T3SshTarget>(); } // The other environments still follow.
             lock (_lock)
             {
-                foreach (var (id, target) in found) _sshFound[id] = target;
+                foreach (var (id, target) in found)
+                {
+                    _sshFound[id] = target;
+                    _sshStale.Remove(id);
+                }
                 _discoverAt = _clock() + SshDiscoveryInterval;
             }
         }
@@ -273,6 +283,8 @@ public sealed class T3DesktopFollower : IAsyncDisposable
         bool pending = false;
         lock (_lock)
         {
+            _sshStale.IntersectWith(environments.Where(d => d.Routes.Count == 0 && d.SshTargets.Count == 0).Select(d => d.EnvironmentId));
+            pending = _sshStale.Count > 0;
             foreach (var d in environments)
             {
                 if (d.Routes.Count > 0 || ignored.Contains(d.EnvironmentId)) { result.Add(d); continue; }
@@ -495,6 +507,22 @@ public sealed class T3DesktopFollower : IAsyncDisposable
         lock (_lock)
         {
             _sshFound.Remove(environmentId);
+            _sshStale.Remove(environmentId);
+            _discoverAt = DateTimeOffset.MinValue;
+            _sshPending = true;
+        }
+    }
+
+    /// <summary>
+    /// The machine found for this environment hasn't answered for a while. Its tunnel keeps trying it, in case
+    /// it is only off, while discovery asks the other machines in case the environment moved.
+    /// </summary>
+    private void SshMachineSilent(string environmentId)
+    {
+        lock (_lock)
+        {
+            if (!_sshFound.ContainsKey(environmentId)) return;
+            _sshStale.Add(environmentId);
             _discoverAt = DateTimeOffset.MinValue;
             _sshPending = true;
         }
