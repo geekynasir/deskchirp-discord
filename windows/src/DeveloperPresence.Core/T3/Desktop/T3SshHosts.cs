@@ -22,12 +22,17 @@ public sealed record T3TailnetPeer(string DnsName, string HostName, IReadOnlyLis
 /// </summary>
 public sealed class T3SshHostSource : IT3SshHostSource
 {
-    public const int MaxCandidates = 32;
+    /// <summary>A sanity cap only; discovery asks a few of them per pass, in turn.</summary>
+    public const int MaxCandidates = 256;
     private const int MaxConfigBytes = 1024 * 1024;
+    private const int MaxIncludeFiles = 32;
     private const int MaxIncludeDepth = 4;
     private static readonly TimeSpan TailscaleTimeout = TimeSpan.FromSeconds(5);
     private static readonly string[] GitHosts = { "github.com", "gitlab.com", "bitbucket.org", "ssh.dev.azure.com", "vs-ssh.visualstudio.com", "codeberg.org" };
     private static readonly string[] PosixSystems = { "linux", "macos", "darwin", "freebsd", "openbsd", "illumos" };
+    // A wildcard Include such as "~/.ssh/*" also matches keys; those are never opened.
+    private static readonly string[] KeyFilePrefixes = { "id_", "known_hosts", "authorized_keys" };
+    private static readonly string[] KeyFileExtensions = { ".pub", ".pem", ".key", ".ppk" };
 
     private readonly string _sshDir;
     private readonly Func<CancellationToken, Task<string?>> _tailscaleStatus;
@@ -61,6 +66,7 @@ public sealed class T3SshHostSource : IT3SshHostSource
 
         var named = new HashSet<string>(hosts.SelectMany(h => new[] { h.Alias, h.HostName }).OfType<string>(), StringComparer.OrdinalIgnoreCase);
         // The config's user names are the likeliest ones on other machines too; ssh's default comes last.
+        // Tailscale's login names are left out: they are rarely a machine's user, and each wrong guess is a failed sign-in in its log.
         var users = hosts.Select(h => h.User).OfType<string>().Distinct(StringComparer.Ordinal).Take(2).Append(null).ToList();
         foreach (var peer in peers)
         {
@@ -87,8 +93,12 @@ public sealed class T3SshHostSource : IT3SshHostSource
         {
             if (aliases != null)
                 foreach (string alias in aliases)
-                    if (!IsGitHost(alias) && !(hostName != null && IsGitHost(hostName)))
-                        hosts.Add(new T3SshConfigHost(alias, hostName, user));
+                {
+                    // "HostName %h.example.com" names each alias's own machine.
+                    string? name = hostName?.Replace("%h", alias, StringComparison.Ordinal);
+                    if (!IsGitHost(alias) && !(name != null && IsGitHost(name)))
+                        hosts.Add(new T3SshConfigHost(alias, name, user));
+                }
             hosts.AddRange(included);
             included.Clear();
             aliases = null;
@@ -197,7 +207,7 @@ public sealed class T3SshHostSource : IT3SshHostSource
     {
         try
         {
-            string expanded = pattern.StartsWith("~/", StringComparison.Ordinal)
+            string expanded = pattern.StartsWith("~/", StringComparison.Ordinal) || pattern.StartsWith("~\\", StringComparison.Ordinal)
                 ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), pattern[2..])
                 : pattern;
             string full = Path.IsPathRooted(expanded) ? expanded : Path.Combine(_sshDir, expanded);
@@ -205,11 +215,19 @@ public sealed class T3SshHostSource : IT3SshHostSource
             string name = Path.GetFileName(full);
             if (dir == null || !Directory.Exists(dir)) return Array.Empty<string>();
             var files = name.IndexOfAny(new[] { '*', '?' }) >= 0
-                ? Directory.GetFiles(dir, name).OrderBy(f => f, StringComparer.Ordinal).Take(32)
+                ? Directory.GetFiles(dir, name).OrderBy(f => f, StringComparer.Ordinal)
                 : new[] { full }.AsEnumerable();
-            return files.Select(ReadText).OfType<string>().ToList();
+            return files.Where(f => !LooksLikeKeyFile(f)).Take(MaxIncludeFiles).Select(ReadText).OfType<string>()
+                .Where(text => !text.Contains("-----BEGIN", StringComparison.Ordinal)).ToList();
         }
         catch { return Array.Empty<string>(); }
+    }
+
+    internal static bool LooksLikeKeyFile(string path)
+    {
+        string name = Path.GetFileName(path);
+        return KeyFilePrefixes.Any(p => name.StartsWith(p, StringComparison.OrdinalIgnoreCase)) ||
+               KeyFileExtensions.Any(e => name.EndsWith(e, StringComparison.OrdinalIgnoreCase));
     }
 
     private static string? ReadText(string path)
@@ -247,17 +265,19 @@ public sealed class T3SshHostSource : IT3SshHostSource
         if (process == null) return null;
         using (process)
         {
+            const int maxStatusChars = 4 * MaxConfigBytes;
             try
             {
-                var stdout = process.StandardOutput.ReadToEndAsync(deadline.Token);
-                _ = process.StandardError.ReadToEndAsync(deadline.Token);
+                var stdout = T3SshRunner.ReadBoundedAsync(process.StandardOutput, deadline.Token, maxStatusChars + 1);
+                _ = T3SshRunner.ReadBoundedAsync(process.StandardError, deadline.Token, 4096);
                 await process.WaitForExitAsync(deadline.Token).ConfigureAwait(false);
                 string text = await stdout.ConfigureAwait(false);
-                return process.ExitCode == 0 && text.Length <= 4 * MaxConfigBytes ? text : null;
+                return process.ExitCode == 0 && text.Length <= maxStatusChars ? text : null;
             }
-            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            catch (OperationCanceledException)
             {
-                try { process.Kill(); } catch { }
+                try { process.Kill(entireProcessTree: true); } catch { }
+                if (ct.IsCancellationRequested) throw;
                 return null;
             }
         }

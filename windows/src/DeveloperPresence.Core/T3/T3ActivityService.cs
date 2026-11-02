@@ -26,6 +26,8 @@ public sealed class T3ActivityService : IT3ActivityService
     private readonly ICredentialStore _credentialStore;
     private readonly IT3OAuthClient _oauthClient;
     private readonly Func<IT3McpClient> _mcpClientFactory;
+    /// <summary>Whether a token may go to an address now; tunnel ports only carry it while their tunnel is open.</summary>
+    private readonly Func<string, bool> _maySend;
     private readonly IT3McpClient? _sharedMcpClient;
     private readonly T3LeaderTracker _leaderTracker = new();
     private readonly SemaphoreSlim _authLock = new(1, 1);
@@ -127,13 +129,15 @@ public sealed class T3ActivityService : IT3ActivityService
         ICredentialStore credentialStore,
         IT3OAuthClient? oauthClient = null,
         IT3McpClient? mcpClient = null,
-        Func<IT3McpClient>? mcpClientFactory = null)
+        Func<IT3McpClient>? mcpClientFactory = null,
+        Func<string, bool>? maySend = null)
     {
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
         _credentialStore = credentialStore ?? throw new ArgumentNullException(nameof(credentialStore));
         _oauthClient = oauthClient ?? new T3OAuthClient();
         _sharedMcpClient = mcpClient;
         _mcpClientFactory = mcpClient != null ? () => mcpClient : mcpClientFactory ?? (() => new T3McpClient());
+        _maySend = maySend ?? (_ => true);
         _settingsService.Settings.NormalizeAndMigrate();
         SyncStructure(_settingsService.Settings);
         _settingsService.SettingsChanged += OnSettingsChanged;
@@ -539,6 +543,19 @@ public sealed class T3ActivityService : IT3ActivityService
         }
         if (!Uri.TryCreate(token.McpUri, UriKind.Absolute, out var mcpUri) ||
             !string.Equals(token.McpUri, state.Address, StringComparison.Ordinal)) return;
+        if (!_maySend(state.Address))
+        {
+            // Another app could be listening on a tunnel port while the tunnel is down; it never gets the token.
+            lock (_stateLock)
+            {
+                state.Snapshot = null;
+                SetEnvStatus(state, T3ConnectionStatus.Connected, MsgUnavailable);
+                state.Unreachable = true;
+            }
+            RebuildSnapshot();
+            PublishStatus();
+            return;
+        }
         if (!await state.PollLock.WaitAsync(0, ct).ConfigureAwait(false)) return; // no overlap per environment
 
         long envGen = Interlocked.Read(ref state.Generation);

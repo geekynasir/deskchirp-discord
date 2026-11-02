@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using DeveloperPresence.Core.T3.Desktop;
 
 namespace DeveloperPresence.Core.Models;
 
@@ -42,11 +43,16 @@ public sealed class T3Environment
     public string Label { get; set; } = string.Empty;
     /// <summary>T3's own environment id when this entry follows a T3 Code desktop connection; empty when added by hand.</summary>
     public string T3DesktopEnvironmentId { get; set; } = string.Empty;
+    /// <summary>For a followed environment Deskchirp found over SSH, the machine it was found on, so it is tried first next time.</summary>
+    public T3SshTarget? T3SshMachine { get; set; }
 
     [JsonIgnore]
     public bool IsFromT3Desktop => !string.IsNullOrEmpty(T3DesktopEnvironmentId);
 
-    public T3Environment Clone() => new() { Id = Id, Address = Address, Label = Label, T3DesktopEnvironmentId = T3DesktopEnvironmentId };
+    public T3Environment Clone() => new()
+    {
+        Id = Id, Address = Address, Label = Label, T3DesktopEnvironmentId = T3DesktopEnvironmentId, T3SshMachine = T3SshMachine
+    };
 }
 
 /// <summary>Reads strings case-insensitively (or legacy integers); writes camelCase names.</summary>

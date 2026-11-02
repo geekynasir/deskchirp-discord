@@ -77,10 +77,13 @@ public sealed class T3LocalDiscovery : IT3LocalDiscovery
         catch (Exception ex) when (ex is JsonException or KeyNotFoundException or InvalidOperationException) { return false; }
     }
 
-    private static async Task<bool> ProbeAsync(Uri endpoint, CancellationToken ct)
+    /// <summary>Whether T3's server answers at this endpoint, judged by the metadata it serves for exactly this address.</summary>
+    internal static Task<bool> ProbeAsync(Uri endpoint, CancellationToken ct) => ProbeAsync(endpoint, TimeSpan.FromSeconds(2), ct);
+
+    internal static async Task<bool> ProbeAsync(Uri endpoint, TimeSpan timeout, CancellationToken ct)
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        deadline.CancelAfter(TimeSpan.FromSeconds(2));
+        deadline.CancelAfter(timeout);
         using var handler = new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false, UseProxy = false };
         using var client = new HttpClient(handler);
         try

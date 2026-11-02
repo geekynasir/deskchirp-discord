@@ -52,6 +52,7 @@ public sealed class T3UsageService : IT3UsageService
     private readonly IT3UsageSocketFactory _sockets;
     private readonly Func<DateTimeOffset> _clock;
     private readonly TimeZoneInfo _timeZone;
+    private readonly Func<string, bool> _maySend;
     private readonly SemaphoreSlim _pollLock = new(1, 1);
     private readonly object _lock = new();
     private readonly Dictionary<string, T3UsageCredential> _credentials = new(StringComparer.Ordinal); // keyed by origin
@@ -76,7 +77,8 @@ public sealed class T3UsageService : IT3UsageService
         ?? "0.0.0";
 
     public T3UsageService(ISettingsService settings, ICredentialStore store, HttpClient? http = null,
-        IT3UsageSocketFactory? sockets = null, Func<DateTimeOffset>? clock = null, TimeZoneInfo? timeZone = null)
+        IT3UsageSocketFactory? sockets = null, Func<DateTimeOffset>? clock = null, TimeZoneInfo? timeZone = null,
+        Func<string, bool>? maySend = null)
     {
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _store = store ?? throw new ArgumentNullException(nameof(store));
@@ -85,6 +87,7 @@ public sealed class T3UsageService : IT3UsageService
         _pairingClient = new T3UsagePairingClient(_http, _clock);
         _sockets = sockets ?? new ClientWebSocketFactory();
         _timeZone = timeZone ?? TimeZoneInfo.Local;
+        _maySend = maySend ?? (_ => true);
     }
 
     public T3UsageSnapshot? CurrentSnapshot => _current;
@@ -389,6 +392,12 @@ public sealed class T3UsageService : IT3UsageService
     private async Task<EnvOutcome> RunEnvironmentAsync(EnvPlan plan, DateTimeOffset now, CancellationToken ct)
     {
         var failed = new EnvOutcome(plan, true, null, plan.Threads.Select(_ => (T3ProjectionUsage?)null).ToList());
+        // A tunnel port carries the token only while its tunnel is open.
+        if (!_maySend(plan.Origin))
+        {
+            SetStatus(plan.Origin, T3UsageText.Unavailable);
+            return failed;
+        }
         try
         {
             if (!await IsSupportedAsync(plan.Origin, ct).ConfigureAwait(false))

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.Json.Serialization;
 
 namespace DeveloperPresence.Core.T3.Desktop;
 
@@ -9,9 +10,11 @@ namespace DeveloperPresence.Core.T3.Desktop;
 public sealed record T3SshTarget(string Host, string? User = null, int? Port = null)
 {
     /// <summary>What ssh is given as the destination, for example ubuntu@mumbai-vps.</summary>
+    [JsonIgnore]
     public string Destination => string.IsNullOrEmpty(User) ? Host : $"{User}@{Host}";
 
     /// <summary>Destinations go to ssh after "--", and are still kept to plain names so none reads as an option.</summary>
+    [JsonIgnore]
     public bool IsValid =>
         IsPlainName(Host, allowColon: true) && (User == null || IsPlainName(User, allowColon: false)) && Port is null or (> 0 and < 65536);
 
@@ -22,12 +25,29 @@ public sealed record T3SshTarget(string Host, string? User = null, int? Port = n
     public override string ToString() => Port is { } port ? $"{Destination}:{port}" : Destination;
 }
 
-public sealed record T3SshResult(int ExitCode, string Stdout)
+/// <summary>Why ssh itself didn't get to run anything on the machine.</summary>
+public enum T3SshFailure
+{
+    None,
+    /// <summary>The machine didn't answer, or ssh gave up on it for a reason it didn't spell out.</summary>
+    Unreachable,
+    /// <summary>ssh doesn't trust the machine's host key yet, or the key changed.</summary>
+    HostKey,
+    /// <summary>The machine turned down every key ssh offered.</summary>
+    Denied,
+    /// <summary>This computer has no ssh.</summary>
+    NoSsh,
+}
+
+public sealed record T3SshResult(int ExitCode, string Stdout, T3SshFailure Failure = T3SshFailure.None)
 {
     public const int TimedOut = -1;
 
     /// <summary>ssh itself failed: the host didn't answer, or it wanted a password or to trust a new host key.</summary>
-    public bool Unreachable => ExitCode is 255 or TimedOut;
+    public bool Unreachable => ExitCode is 255 or TimedOut || Failure != T3SshFailure.None;
+
+    /// <summary>Why ssh failed, or None when the script ran.</summary>
+    public T3SshFailure Reason => Failure != T3SshFailure.None ? Failure : Unreachable ? T3SshFailure.Unreachable : T3SshFailure.None;
 }
 
 /// <summary>A running "ssh -N -L" forward.</summary>
@@ -35,6 +55,9 @@ public interface IT3SshForward : IDisposable
 {
     /// <summary>Completes when ssh exits.</summary>
     Task Exited { get; }
+
+    /// <summary>Once ssh has exited, why it did as far as its errors tell.</summary>
+    T3SshFailure Failure => T3SshFailure.Unreachable;
 }
 
 /// <summary>Runs the user's own ssh. It never prompts: hosts must sign in with keys or an agent.</summary>
@@ -56,11 +79,23 @@ public sealed class T3SshRunner : IT3SshRunner
     public const int MaxOutputChars = 64 * 1024;
     private static readonly Lazy<KillOnCloseJob?> Job = new(KillOnCloseJob.TryCreate);
 
-    public static string SshPath()
+    /// <summary>Windows' own OpenSSH Client, or null when it isn't installed. Elsewhere, ssh on PATH.</summary>
+    public static string? SshPath()
     {
         if (!OperatingSystem.IsWindows()) return "ssh";
+        // Only the system copy: a bare "ssh.exe" could be found in the working directory first.
         string bundled = Path.Combine(Environment.SystemDirectory, "OpenSSH", "ssh.exe");
-        return File.Exists(bundled) ? bundled : "ssh.exe";
+        return File.Exists(bundled) ? bundled : null;
+    }
+
+    /// <summary>What ssh's own error output says went wrong. Only these fixed phrases are looked for; the text is never kept.</summary>
+    internal static T3SshFailure Classify(string stderr)
+    {
+        if (stderr.Contains("Host key verification failed", StringComparison.Ordinal) ||
+            stderr.Contains("REMOTE HOST IDENTIFICATION HAS CHANGED", StringComparison.Ordinal))
+            return T3SshFailure.HostKey;
+        if (stderr.Contains("Permission denied", StringComparison.Ordinal)) return T3SshFailure.Denied;
+        return T3SshFailure.Unreachable;
     }
 
     internal static List<string> BaseArgs(T3SshTarget target)
@@ -101,9 +136,9 @@ public sealed class T3SshRunner : IT3SshRunner
 
     public async Task<T3SshResult> RunScriptAsync(T3SshTarget target, string script, TimeSpan timeout, CancellationToken ct = default)
     {
-        if (!target.IsValid) return new T3SshResult(255, string.Empty);
+        if (!target.IsValid) return new T3SshResult(255, string.Empty, T3SshFailure.Unreachable);
         using var process = Start(ScriptArgs(target), redirectInput: true);
-        if (process == null) return new T3SshResult(255, string.Empty);
+        if (process == null) return new T3SshResult(255, string.Empty, T3SshFailure.NoSsh);
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
         deadline.CancelAfter(timeout);
         try
@@ -115,13 +150,15 @@ public sealed class T3SshRunner : IT3SshRunner
             process.StandardInput.Close();
             await process.WaitForExitAsync(deadline.Token).ConfigureAwait(false);
             string output = await stdout.ConfigureAwait(false);
-            await stderr.ConfigureAwait(false);
-            return new T3SshResult(process.ExitCode, output);
+            string errors = await stderr.ConfigureAwait(false);
+            return process.ExitCode == 255
+                ? new T3SshResult(255, string.Empty, Classify(errors))
+                : new T3SshResult(process.ExitCode, output);
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
             Kill(process);
-            return new T3SshResult(T3SshResult.TimedOut, string.Empty);
+            return new T3SshResult(T3SshResult.TimedOut, string.Empty, T3SshFailure.Unreachable);
         }
         catch (OperationCanceledException)
         {
@@ -132,16 +169,22 @@ public sealed class T3SshRunner : IT3SshRunner
         {
             // ssh exited before reading the script.
             Kill(process);
-            return new T3SshResult(255, string.Empty);
+            return new T3SshResult(255, string.Empty, T3SshFailure.Unreachable);
         }
     }
 
-    public IT3SshForward StartForward(T3SshTarget target, int localPort, string remoteHost, int remotePort) =>
-        new Forward(target.IsValid ? Start(ForwardArgs(target, localPort, remoteHost, remotePort), redirectInput: false) : null);
+    public IT3SshForward StartForward(T3SshTarget target, int localPort, string remoteHost, int remotePort)
+    {
+        if (!target.IsValid) return new Forward(null, T3SshFailure.Unreachable);
+        var process = Start(ForwardArgs(target, localPort, remoteHost, remotePort), redirectInput: false);
+        return new Forward(process, process == null ? T3SshFailure.NoSsh : T3SshFailure.Unreachable);
+    }
 
+    /// <summary>Null when there is no ssh to start.</summary>
     private static Process? Start(List<string> args, bool redirectInput)
     {
-        var info = new ProcessStartInfo(SshPath())
+        if (SshPath() is not { } ssh) return null;
+        var info = new ProcessStartInfo(ssh)
         {
             UseShellExecute = false,
             CreateNoWindow = true,
@@ -164,15 +207,15 @@ public sealed class T3SshRunner : IT3SshRunner
         }
     }
 
-    private static async Task<string> ReadBoundedAsync(StreamReader reader, CancellationToken ct)
+    internal static async Task<string> ReadBoundedAsync(StreamReader reader, CancellationToken ct, int maxChars = MaxOutputChars)
     {
         var text = new StringBuilder();
         var buffer = new char[4096];
         int read;
         while ((read = await reader.ReadAsync(buffer.AsMemory(), ct).ConfigureAwait(false)) > 0)
         {
-            // Keep draining past the limit so ssh never blocks on a full pipe.
-            if (text.Length < MaxOutputChars) text.Append(buffer, 0, Math.Min(read, MaxOutputChars - text.Length));
+            // Keep draining past the limit so the process never blocks on a full pipe.
+            if (text.Length < maxChars) text.Append(buffer, 0, Math.Min(read, maxChars - text.Length));
         }
         return text.ToString();
     }
@@ -185,18 +228,34 @@ public sealed class T3SshRunner : IT3SshRunner
     private sealed class Forward : IT3SshForward
     {
         private readonly Process? _process;
+        private volatile int _failure;
 
-        public Forward(Process? process)
+        public Forward(Process? process, T3SshFailure failure)
         {
             _process = process;
+            _failure = (int)failure;
             if (process == null) { Exited = Task.CompletedTask; return; }
-            // Nothing is read from a forward; drain both pipes so ssh never blocks writing to them.
+            // Nothing is read from a forward but its errors; drain both pipes so ssh never blocks writing to them.
             _ = DrainAsync(process.StandardOutput);
-            _ = DrainAsync(process.StandardError);
-            Exited = process.WaitForExitAsync();
+            Exited = WatchAsync(process);
         }
 
         public Task Exited { get; }
+
+        public T3SshFailure Failure => (T3SshFailure)_failure;
+
+        private async Task WatchAsync(Process process)
+        {
+            string errors = string.Empty;
+            try
+            {
+                var stderr = ReadBoundedAsync(process.StandardError, CancellationToken.None);
+                await process.WaitForExitAsync().ConfigureAwait(false);
+                errors = await stderr.ConfigureAwait(false);
+            }
+            catch { }
+            _failure = (int)Classify(errors);
+        }
 
         private static async Task DrainAsync(StreamReader reader)
         {
@@ -207,6 +266,8 @@ public sealed class T3SshRunner : IT3SshRunner
         {
             if (_process == null) return;
             Kill(_process);
+            // Give ssh a moment to let go of the local port before the next forward wants it.
+            try { _process.WaitForExit(2000); } catch { }
             _process.Dispose();
         }
     }
@@ -232,7 +293,11 @@ public sealed class T3SshRunner : IT3SshRunner
             try
             {
                 Marshal.StructureToPtr(info, buffer, false);
-                if (!SetInformationJobObject(handle, ExtendedLimitInformationClass, buffer, (uint)size)) return null;
+                if (!SetInformationJobObject(handle, ExtendedLimitInformationClass, buffer, (uint)size))
+                {
+                    CloseHandle(handle);
+                    return null;
+                }
             }
             finally { Marshal.FreeHGlobal(buffer); }
             // The handle stays open for the life of Deskchirp; Windows closes it, and ends the job, on exit.
@@ -282,6 +347,10 @@ public sealed class T3SshRunner : IT3SshRunner
         [DllImport("kernel32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         private static extern bool SetInformationJobObject(IntPtr hJob, int infoClass, IntPtr lpInfo, uint cbInfoLength);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool CloseHandle(IntPtr hObject);
 
         [DllImport("kernel32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]

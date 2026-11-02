@@ -304,7 +304,8 @@ public partial class T3UsageTransportTests
         }
     }
 
-    private static async Task<(MockSettingsService, InMemoryCredentialStore, FakeSockets, Handler, T3UsageService)> UsageSetup(Func<DateTimeOffset>? clock = null)
+    private static async Task<(MockSettingsService, InMemoryCredentialStore, FakeSockets, Handler, T3UsageService)> UsageSetup(Func<DateTimeOffset>? clock = null,
+        Func<string, bool>? maySend = null)
     {
         var settings = new MockSettingsService();
         settings.Settings.T3Environments.Add(new T3Environment { Id = "env-a", Address = "https://remote.example:8443/mcp" });
@@ -320,9 +321,37 @@ public partial class T3UsageTransportTests
         };
         var sockets = new FakeSockets();
         var service = new T3UsageService(settings, store, new HttpClient(handler), sockets, clock,
-            TimeZoneInfo.FindSystemTimeZoneById("Asia/Karachi"));
+            TimeZoneInfo.FindSystemTimeZoneById("Asia/Karachi"), maySend);
         await service.InitializeAsync();
         return (settings, store, sockets, handler, service);
+    }
+
+    [Fact]
+    public async Task NothingIsSentWhereTheTokenMayNotGo()
+    {
+        bool open = true;
+        var (settings, _, sockets, handler, service) = await UsageSetup(maySend: origin =>
+        {
+            Assert.Equal("https://remote.example:8443", origin);
+            return open;
+        });
+        await service.PairAsync("env-a", "AbC123xyz");
+        sockets.Reply = text => text.Contains("server.getUsageSummary")
+            ? new[] { "{\"_tag\":\"Exit\",\"requestId\":\"1\",\"exit\":{\"_tag\":\"Success\",\"value\":" + Summary + "}}" }
+            : Array.Empty<string>();
+        settings.Settings.CardStyle = CardStyle.Usage;
+        open = false;
+        int requests = handler.Requests.Count;
+
+        await service.PollOnceAsync(new T3UsagePollRequest { Settings = settings.Settings });
+
+        Assert.Empty(sockets.Connections);
+        Assert.Equal(requests, handler.Requests.Count);
+        Assert.Equal(T3UsageText.Unavailable, service.StatusFor("env-a"));
+
+        open = true;
+        await service.PollOnceAsync(new T3UsagePollRequest { Settings = settings.Settings });
+        Assert.Single(sockets.Connections);
     }
 
     [Fact]
