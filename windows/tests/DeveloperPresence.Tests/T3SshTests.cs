@@ -603,6 +603,20 @@ public class T3SshTests : IDisposable
     }
 
     [Fact]
+    public async Task AWakeFromBeforeTheTunnelOpenedDoesntSkipTheWaitAfterADrop()
+    {
+        await using var ssh = new Ssh();
+        ssh.Machine("vps", EnvA);
+        // Minting wakes the tunnel while its first attempt is still under way.
+        Assert.Equal(T3DesktopPairingOutcome.Success, (await ssh.Environments.MintCodeAsync(EnvA, new[] { new T3SshTarget("vps") }, new[] { "orchestration:read" })).Outcome);
+
+        ssh.Runner.Live(ssh.PortOf(EnvA))!.Exit();
+        await Task.Delay(TimeSpan.FromSeconds(1));
+        Assert.Single(ssh.Runner.Forwards);
+        Assert.Equal((false, true), (ssh.Environments.TunnelState(EnvA)!.Open, ssh.Environments.TunnelState(EnvA)!.Tried));
+    }
+
+    [Fact]
     public async Task TriesEachSavedMachineAndMintsOnTheOneTheTunnelGoesTo()
     {
         await using var ssh = new Ssh();

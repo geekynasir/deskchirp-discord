@@ -666,6 +666,8 @@ public sealed partial class T3SshEnvironments : IT3SshEnvironments
                 if (opened is { Forward: { } forward, Target: { } target, Probe: { } probe })
                 {
                     var since = Stopwatch.StartNew();
+                    // Opening answers any wake asked for meanwhile: a later drop waits like any other.
+                    tunnel.Kick.Wait(0);
                     tunnel.Current = target;
                     tunnel.Forward = forward;
                     tunnel.UnreachableSince = null;
