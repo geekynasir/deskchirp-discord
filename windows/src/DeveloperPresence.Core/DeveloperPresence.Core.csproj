@@ -7,4 +7,8 @@
     <AssemblyName>DeveloperPresence.Core</AssemblyName>
   </PropertyGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="DeveloperPresence.Tests" />
+  </ItemGroup>
+
 </Project>

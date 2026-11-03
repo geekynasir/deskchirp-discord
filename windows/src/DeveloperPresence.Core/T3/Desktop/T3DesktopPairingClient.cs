@@ -6,11 +6,33 @@ using DeveloperPresence.Core.T3.Usage;
 
 namespace DeveloperPresence.Core.T3.Desktop;
 
-public enum T3DesktopPairingOutcome { Success, TokenRejected, MissingPermission, Unreachable, Failed }
-
-public sealed record T3DesktopPairingResult(T3DesktopPairingOutcome Outcome, string? Code = null)
+public enum T3DesktopPairingOutcome
 {
-    public override string ToString() => Outcome.ToString(); // Never the code.
+    Success, TokenRejected, MissingPermission, Unreachable, Failed,
+    /// <summary>Over SSH: ssh couldn't sign in to the machine without a prompt.</summary>
+    SshUnreachable,
+    /// <summary>Over SSH: the machine has this environment, but T3 Code isn't running there.</summary>
+    NotRunning,
+    /// <summary>Over SSH: the machine runs a different T3 environment.</summary>
+    WrongEnvironment,
+    /// <summary>Over SSH: no t3 command to mint a code with.</summary>
+    NoT3Command,
+    /// <summary>Over SSH: the tunnel's port here is taken by something else.</summary>
+    LocalPortBusy,
+    /// <summary>Over SSH: ssh doesn't trust the machine's host key, or the key changed.</summary>
+    SshHostKey,
+    /// <summary>Over SSH: the machine turned down ssh's keys.</summary>
+    SshDenied,
+    /// <summary>Over SSH: this computer has no OpenSSH Client.</summary>
+    SshMissing,
+    /// <summary>Over SSH: ssh signed in, but T3 Code didn't answer through the forwarded port.</summary>
+    ForwardFailed
+}
+
+/// <summary>A pairing code, and over SSH perhaps a second one for usage asked for in the same call.</summary>
+public sealed record T3DesktopPairingResult(T3DesktopPairingOutcome Outcome, string? Code = null, string? UsageCode = null)
+{
+    public override string ToString() => Outcome.ToString(); // Never the codes.
 }
 
 public interface IT3DesktopPairingClient

@@ -57,11 +57,13 @@ public sealed partial class MainWindow : Window
         // Instantiate core architecture
         _settingsService = new SettingsService();
         _credentialStore = new WindowsCredentialManager();
-        _t3ActivityService = new T3ActivityService(_settingsService, _credentialStore);
+        // Tokens for tunnel addresses only go out while a tunnel to the right T3 Code is open.
+        var sshTunnels = new T3SshEnvironments();
+        _t3ActivityService = new T3ActivityService(_settingsService, _credentialStore, maySend: sshTunnels.MaySend);
         _discordClient = new DiscordIpcClient();
         _foregroundDetector = new ForegroundDetector();
         _computers = new ComputerLinkService(_settingsService, _credentialStore);
-        _usageService = new T3UsageService(_settingsService, _credentialStore);
+        _usageService = new T3UsageService(_settingsService, _credentialStore, maySend: sshTunnels.MaySend);
         _coordinator = new PresenceCoordinator(_settingsService, _discordClient, _foregroundDetector, _t3ActivityService, _computers, _usageService);
 
         // Instantiate ViewModel with UI thread dispatcher
@@ -76,7 +78,7 @@ public sealed partial class MainWindow : Window
         _updates.Start();
 
         // Follows the connections saved in the T3 Code desktop app; starts once settings are loaded.
-        _t3Follower = new T3DesktopFollower(_settingsService, _t3ActivityService, _usageService);
+        _t3Follower = new T3DesktopFollower(_settingsService, _t3ActivityService, _usageService, ssh: sshTunnels);
         ViewModel.AttachT3Follower(_t3Follower);
 
         // Initialize Native Tray Icon

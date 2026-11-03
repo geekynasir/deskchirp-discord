@@ -120,7 +120,7 @@
                         TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     <ToggleSwitch Header="Use T3 Code’s connections" AutomationProperties.Name="Use T3 Code’s connections"
                         IsOn="{x:Bind ViewModel.FollowT3DesktopConnections, Mode=TwoWay}" />
-                    <TextBlock Text="Adds every environment saved in the T3 Code app on this PC and connects to it read-only, without opening your browser. T3 Code’s own sign-ins never leave this PC except to the environment they belong to."
+                    <TextBlock Text="Adds every environment saved in the T3 Code app on this PC and connects to it read-only, without opening your browser. Ones T3 Code reaches through T3 Connect or SSH are reached with your own SSH instead. T3 Code’s own sign-ins never leave this PC except to the environment they belong to."
                         TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     <TextBlock Text="{x:Bind ViewModel.T3FollowNote, Mode=OneWay}" TextWrapping="Wrap"
                         AutomationProperties.LiveSetting="Polite"
