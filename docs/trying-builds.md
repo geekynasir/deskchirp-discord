@@ -12,7 +12,7 @@ The app has an ad-hoc development signature, not an Apple Developer ID signature
 
 ## Windows 10 build 19041 or newer / Windows 11 (x64)
 
-Download **`Deskchirp-0.1.0-preview.5-windows-x64-setup.exe`** and open it. There is no wizard: a Deskchirp window shows install progress for a few seconds, then the app opens. It installs for your Windows account, includes the required runtimes and adds **Deskchirp for Discord** to Start. No administrator access or separate runtime download is needed. Windows may warn because this preview is unsigned: choose **More info → Run anyway** if you trust the download.
+Download **`Deskchirp-0.1.0-preview.6-windows-x64-setup.exe`** and open it. There is no wizard: a Deskchirp window shows install progress for a few seconds, then the app opens. It installs for your Windows account, includes the required runtimes and adds **Deskchirp for Discord** to Start. No administrator access or separate runtime download is needed. Windows may warn because this preview is unsigned: choose **More info → Run anyway** if you trust the download.
 
 If you installed preview 3 or earlier, the new installer closes and removes that copy for you. Settings and saved sign-ins carry over.
 
