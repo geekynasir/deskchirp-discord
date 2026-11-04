@@ -15,7 +15,7 @@ There is no Electron, embedded browser, or shared UI runtime. Platform implement
 
 The app shows **“Using T3 Code,” “Using Claude,” or “Using Codex.”** Sharing is disabled by default. Open Discord desktop and turn on **Share on Discord**. Deskchirp includes its public Discord application ID and connects locally; users do not need a Developer Portal account, bot token, or client secret.
 
-Choose **Allow T3 activity** to find the local T3 Code app and approve read-only access in your browser. On Windows it then connects every environment saved in your T3 Code desktop app, such as a server where your tasks run, without another browser approval; you can also add environments by hand. Deskchirp combines them. Optional **T3 activity** shows the busiest agent tool and separate task/helper counts, for example **“T3 Code · Claude Code”** and **“2 tasks · 4 helpers.”** You can switch the card to token usage (today, this session, a pinned task, or context fullness), and opt in to a project alias, model, estimated API cost, a status badge, an elapsed timer, playful wording and buttons. A live preview shows every field before it is sent. A helper is an extra agent working on a task. [Connect T3 Code](docs/connect-t3.md) to use it. App and agent artwork is included and enabled by default; no asset upload is needed. See the [icon pack](assets/discord/README.md).
+Choose **Allow T3 activity** to find the local T3 Code app and approve read-only access in your browser. On Windows it then connects every environment saved in your T3 Code desktop app, such as a server where your tasks run, without another browser approval. Environments T3 Code reaches through T3 Connect or SSH are reached with your own SSH, when `ssh <machine>` signs in without a password. You can also add environments by hand. Deskchirp combines them. Optional **T3 activity** shows the busiest agent tool and separate task/helper counts, for example **“T3 Code · Claude Code”** and **“2 tasks · 4 helpers.”** You can switch the card to token usage (today, this session, a pinned task, or context fullness), and opt in to a project alias, model, estimated API cost, a status badge, an elapsed timer, playful wording and buttons. A live preview shows every field before it is sent. A helper is an extra agent working on a task. [Connect T3 Code](docs/connect-t3.md) to use it. App and agent artwork is included and enabled by default; no asset upload is needed. See the [icon pack](assets/discord/README.md).
 
 **Using several computers:** **Follow me** selects the linked computer you most recently used. It requires a [private linking service](coordination/README.md); no public service is deployed. [Set up your computers](docs/computers.md). Earlier builds and unlinked installations still act independently—enable sharing on only one of those computers. Real multi-computer Discord acceptance is pending.
 
@@ -23,13 +23,13 @@ App detection alone does not establish agent activity. T3 counts come from fresh
 
 ## Download
 
-Get **[v0.1.0-preview.5 from GitHub Releases](https://github.com/geekynasir/deskchirp-discord/releases/tag/v0.1.0-preview.5)**.
+Get **[v0.1.0-preview.6 from GitHub Releases](https://github.com/geekynasir/deskchirp-discord/releases/tag/v0.1.0-preview.6)**.
 
 | Computer | Download |
 | --- | --- |
-| Apple Silicon Mac | [macOS arm64](https://github.com/geekynasir/deskchirp-discord/releases/download/v0.1.0-preview.5/Deskchirp-0.1.0-preview.5-macos-arm64.zip) |
-| Intel Mac | [macOS x86_64](https://github.com/geekynasir/deskchirp-discord/releases/download/v0.1.0-preview.5/Deskchirp-0.1.0-preview.5-macos-x86_64.zip) |
-| Windows PC | [Windows installer](https://github.com/geekynasir/deskchirp-discord/releases/download/v0.1.0-preview.5/Deskchirp-0.1.0-preview.5-windows-x64-setup.exe) |
+| Apple Silicon Mac | [macOS arm64](https://github.com/geekynasir/deskchirp-discord/releases/download/v0.1.0-preview.6/Deskchirp-0.1.0-preview.6-macos-arm64.zip) |
+| Intel Mac | [macOS x86_64](https://github.com/geekynasir/deskchirp-discord/releases/download/v0.1.0-preview.6/Deskchirp-0.1.0-preview.6-macos-x86_64.zip) |
+| Windows PC | [Windows installer](https://github.com/geekynasir/deskchirp-discord/releases/download/v0.1.0-preview.6/Deskchirp-0.1.0-preview.6-windows-x64-setup.exe) |
 
 Downloads include setup guides, license notices and build information. Verify them with the release’s `SHA256SUMS`. The Windows installer is one click: it installs the app and its runtimes for your account in a few seconds, adds a Start shortcut, and opens Deskchirp. Installed copies download new versions in the background and offer **Restart to update**. Uninstall from Installed Apps. Mac downloads are app bundles. These preview downloads are not publisher-signed. Read [setup](docs/trying-builds.md) before opening one. The optional [private linking service](coordination/README.md) has a separate source download on the same release page. The app needs Discord desktop; its public application ID is included.
 
